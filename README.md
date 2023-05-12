@@ -5,11 +5,11 @@
 <!-- [![codecov](https://codecov.io/gh/THREE60-Energy/rushmore-tools/branch/main/graph/badge.svg)](https://codecov.io/gh/THREE60-Energy/rushmore-tools) -->
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/ambv/black)
 
-The `dataverse-api` package is a collectino of tools developed for allowing interaction with Microsoft Dataverse Web API.
+The `dataverse-api` package is an abstraction layer developed for allowing simple interaction with Microsoft Dataverse Web API.
 
 Overview
 ================================
-The main goal of this project was to allow for simple upserts and inserts of data into Dataverse tables, based on known data structures. It is based on Python 3.9 to be compatible with current Python runtimes in Azure Functions.
+The main goal of this project was to allow for simple upserts and inserts of data into Dataverse tables using simple and ubiquitous data structures, with use of batch requests to avoid frequent hits on the REST API. It is based on Python 3.9 to be compatible with current Python runtimes in Azure Functions.
 
 Usage is fairly simple and assumes that a valid app registration for writing to Dataverse exists:
 
