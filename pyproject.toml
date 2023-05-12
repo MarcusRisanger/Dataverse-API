@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "dataverse-api"
-version = "0.1.0"
+version = "0.1.1"
 description = ""
 authors = ["Marcus Risanger <69350948+MarcusRisanger@users.noreply.github.com>"]
 readme = "README.md"
@@ -20,6 +20,8 @@ python-dotenv = "^1.0.0"
 flake8 = "^6.0.0"
 isort = "^5.12.0"
 pre-commit = "^3.3.1"
+coverage = "^7.2.5"
+pytest = "^7.3.1"
 
 [build-system]
 requires = ["poetry-core"]
