@@ -1,0 +1,12 @@
+name: release
+
+on: [pull_request]
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+      - uses: psf/black@stable
+      - uses: isort/isort-action@master

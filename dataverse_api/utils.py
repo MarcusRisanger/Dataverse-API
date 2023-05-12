@@ -1,5 +1,5 @@
-from typing import Dict, Iterator, List, Union, Any, Set
 from dataclasses import dataclass
+from typing import Any, Dict, Iterator, List, Optional, Set, Union
 
 import pandas as pd
 
@@ -16,7 +16,7 @@ def chunk_data(
 ) -> Iterator[List[DataverseBatchCommand]]:
     # looping till length size
     for i in range(0, len(data), size):
-        yield data[i : i + size]
+        yield data[i : i + size]  # noqa E203
 
 
 class DataverseError(Exception):
@@ -27,7 +27,7 @@ class DataverseError(Exception):
 
 
 def expand_headers(
-    headers: Dict[str, str], additional_headers: Dict[str, str]
+    headers: Dict[str, str], additional_headers: Optional[Dict[str, str]] = None
 ) -> Dict[str, str]:
     """
     Overwrites a set of (default) headers with alternate headers.
@@ -48,14 +48,18 @@ def expand_headers(
 
 def convert_data(data: Union[dict, List[dict], pd.DataFrame]) -> List[dict]:
     """
-    Normalizes data to a list of dicts, ready to be processed into DataverseBatchCommands.
+    Normalizes data to a list of dicts, ready to be
+    processed into DataverseBatchCommands.
     """
     if isinstance(data, list):
         return data
     elif isinstance(data, dict):
         return [data]
     elif isinstance(data, pd.DataFrame):
-        [{k: v for k, v in m.items() if pd.notnull(v)} for m in data.to_dict("records")]
+        return [
+            {k: v for k, v in m.items() if pd.notnull(v)}
+            for m in data.to_dict("records")
+        ]
     else:
         raise DataverseError(f"Data seems to be of a not supported type: {type(data)}.")
 

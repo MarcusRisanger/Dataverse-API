@@ -3,23 +3,21 @@ from __future__ import annotations
 import json
 import logging
 import uuid
-from datetime import datetime as dt
-from dataclasses import dataclass
 from textwrap import dedent
-from typing import Any, Dict, List, Literal, Optional, Set, Union
+from typing import Any, Dict, List, Optional, Set, Union
 from urllib.parse import urljoin
 
 import pandas as pd
 import requests
+from msal import ConfidentialClientApplication
 from msal_requests_auth.auth import ClientCredentialAuth
-from requests_toolbelt.utils import (
-    dump,
-)  # print(dump.dump_all(response).decode("utf-8"))
 
+# from requests_toolbelt.utils import dump
+# print(dump.dump_all(response).decode("utf-8"))
 from dataverse_api.schema import DataverseSchema
 from dataverse_api.utils import (
-    DataverseError,
     DataverseBatchCommand,
+    DataverseError,
     chunk_data,
     convert_data,
     expand_headers,
@@ -37,19 +35,27 @@ class DataverseClient:
 
     Args:
       - dynamics_url: Base environment url
-      - authorization: `ClientCredentialAuth` from `msal_requests_auth` providing
-      the necessary app registration to interact with Dataverse
+      - authorization: `ClientCredentialAuth` from `msal_requests_auth`
+      providing the necessary app registration to interact with Dataverse
       - validate: Whether to retrieve Dataverse schema and apply validation rules
     """
 
     def __init__(
         self,
+        app_id: str,
+        client_secret: str,
+        authority_url: str,
         dynamics_url: str,
-        authorization: ClientCredentialAuth,
+        scopes: list[str],
         validate: bool = False,
     ):
         self.api_url = urljoin(dynamics_url, "/api/data/v9.2/")
-        self._auth = authorization
+
+        app = ConfidentialClientApplication(
+            client_id=app_id, authority=authority_url, client_credential=client_secret
+        )
+
+        self._auth = ClientCredentialAuth(client=app, scopes=scopes)
         self._validate = validate
 
         if self._validate:
@@ -125,14 +131,18 @@ class DataverseClient:
             raise DataverseError(f"Error with PUT request: {e}", response=e.response)
 
     def _patch(
-        self, url: str, additional_headers: Optional[Dict[str, str]] = None, data: Dict[str,Any]
+        self,
+        url: str,
+        data: Dict[str, Any],
+        additional_headers: Optional[Dict[str, str]] = None,
     ) -> bool:
         """
         PATCH is used to update several values for a single record.
 
         Args:
           - url: Postfix of API endpoint to isolate unique record
-          - additional_headers: If it is required to overwrite default or add new header elements
+          - additional_headers: If it is required to overwrite default
+            or add new header elements
           - data: JSON serializable dictionary containing data payload.
         """
         headers = expand_headers(self._default_headers, additional_headers)
@@ -154,11 +164,14 @@ class DataverseClient:
         self, url: str, additional_headers: Optional[Dict[str, str]] = None
     ) -> bool:
         """
-        DELETE is used to either purge whole records or a specific column value for a particular record.
+        DELETE is used to either purge whole records or a specific
+        column value for a particular record.
 
         Args:
-          - url: Postfix of API endpoint to isolate unique record or record + column
-          - additional_headers: If it is required to overwrite default or add new header elements
+          - url: Postfix of API endpoint to isolate unique record
+            or record + column
+          - additional_headers: If it is required to overwrite default
+            or add new header elements
         """
         headers = expand_headers(self._default_headers, additional_headers)
         url = urljoin(self.api_url, url)
@@ -179,8 +192,8 @@ class DataverseClient:
         Generalized function to run batch commands against Dataverse.
 
         Data containing either a list of DataverseBatchCommands containing
-        the relevant data for submission, where each dict or table row contains
-        necessary information for one single batch command.
+        the relevant data for submission, where each dict or table row
+        contains necessary information for one single batch command.
 
         DataverseBatchCommands contain:
           - uri: The postfix after API endpoint to form the full command URI.
@@ -214,7 +227,7 @@ class DataverseClient:
                 --{batch_id}
                 Content-Type: application/http
                 Content-Transfer-Encoding: binary
-                
+
                 {row.mode} {self.api_url}{row.uri} HTTP/1.1
                 Content-Type: application/json{'; type=entry' if row.mode=="POST" else""}
 
@@ -231,7 +244,8 @@ class DataverseClient:
             }
 
             log.info(
-                f"Sending batch ID {batch_id} containing {len(chunk)} rows for upsert into Dataverse."
+                f"Sending batch ID {batch_id} containing {len(chunk)} "
+                + "rows for upsert into Dataverse."
             )
 
             try:
@@ -244,14 +258,17 @@ class DataverseClient:
             except requests.RequestException as e:
                 if response.status_code == 412:
                     raise DataverseError(
-                        f"Failed to perform batch operation, most likely due to existing keys in insertion data: {e}",
+                        (
+                            "Failed to perform batch operation, most likely"
+                            + f"  due to existing keys in insertion data: {e}"
+                        ),
                         response=e.response,
                     )
                 raise DataverseError(
                     f"Failed to perform batch operation: {e}", response=e.response
                 )
 
-        log.info(f"Successfully completed all batch commands.")
+        log.info("Successfully completed all batch commands.")
         return True
 
 
@@ -410,7 +427,7 @@ class DataverseEntity:
             return None
 
         if isinstance(data, dict):
-            data_columns = data.keys()
+            data_columns = set(data.keys())
             complete_columns = [k for k, v in data.items() if v is not None]
 
         elif isinstance(data, list):
@@ -436,7 +453,10 @@ class DataverseEntity:
         if not data_columns.issubset(self.schema.columns):
             bad_columns = list(data_columns.difference(self.schema.columns))
             raise DataverseError(
-                f"Found bad payload columns not present in table schema: {' '.join(bad_columns)}"
+                (
+                    "Found bad payload columns not present "
+                    + f"in table schema: {' '.join(bad_columns)}"
+                )
             )
 
         if not write_mode:
@@ -454,7 +474,10 @@ class DataverseEntity:
             for altkey in sorted(self.schema.altkeys, key=len):
                 if altkey.issubset(complete_columns):
                     log.info(
-                        "Data validation completed. A consistent alternate key can be formed from all rows."
+                        (
+                            "Data validation completed. A consistent"
+                            + " alternate key can be formed from all rows."
+                        )
                     )
                     return altkey
         else:
