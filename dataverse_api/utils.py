@@ -1,7 +1,19 @@
-from typing import Iterator, List, Dict
+from typing import Dict, Iterator, List, Union, Any, Set
+from dataclasses import dataclass
+
+import pandas as pd
 
 
-def chunk_data(data: List[dict], size: int) -> Iterator[List[dict]]:
+@dataclass
+class DataverseBatchCommand:
+    uri: str
+    mode: str
+    data: Dict[str, Any]
+
+
+def chunk_data(
+    data: List[DataverseBatchCommand], size: int
+) -> Iterator[List[DataverseBatchCommand]]:
     # looping till length size
     for i in range(0, len(data), size):
         yield data[i : i + size]
@@ -32,3 +44,29 @@ def expand_headers(
         for header in additional_headers:
             new_headers[header] = additional_headers[header]
     return new_headers
+
+
+def convert_data(data: Union[dict, List[dict], pd.DataFrame]) -> List[dict]:
+    """
+    Normalizes data to a list of dicts, ready to be processed into DataverseBatchCommands.
+    """
+    if isinstance(data, list):
+        return data
+    elif isinstance(data, dict):
+        return [data]
+    elif isinstance(data, pd.DataFrame):
+        [{k: v for k, v in m.items() if pd.notnull(v)} for m in data.to_dict("records")]
+    else:
+        raise DataverseError(f"Data seems to be of a not supported type: {type(data)}.")
+
+
+def extract_key(data: Dict[str, Any], key_columns: Set[str]) -> str:
+    """
+    Extracts key from the given dictionary.
+
+    Note: Dict will mutate.
+    """
+    key_elements = []
+    for col in key_columns:
+        key_elements.append(f"{col}={data.pop(col).__repr__()}")
+    return ",".join(key_elements)

@@ -4,6 +4,7 @@ import json
 import logging
 import uuid
 from datetime import datetime as dt
+from dataclasses import dataclass
 from textwrap import dedent
 from typing import Any, Dict, List, Literal, Optional, Set, Union
 from urllib.parse import urljoin
@@ -11,13 +12,22 @@ from urllib.parse import urljoin
 import pandas as pd
 import requests
 from msal_requests_auth.auth import ClientCredentialAuth
-from requests_toolbelt.utils import dump
+from requests_toolbelt.utils import (
+    dump,
+)  # print(dump.dump_all(response).decode("utf-8"))
 
 from dataverse_api.schema import DataverseSchema
-from dataverse_api.utils import DataverseError, chunk_data, expand_headers
+from dataverse_api.utils import (
+    DataverseError,
+    DataverseBatchCommand,
+    chunk_data,
+    convert_data,
+    expand_headers,
+    extract_key,
+)
 
 log = logging.getLogger()
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 
 
 class DataverseClient:
@@ -64,41 +74,174 @@ class DataverseClient:
         return self._entity_cache[entity_name]
 
     def _post(
-        self, url: str, data: Any, additional_headers: Optional[dict] = None
+        self, url: str, additional_headers: Optional[dict] = None, **kwargs
     ) -> requests.Response:
         """
         Post HTTP call to Dataverse.
 
         Args:
           - url: Appended to API endpoint
-          - data: Request payload
+          - data: Request payload (str, bytes etc.)
+          - json: Request JSON serializable payload
           - headers: Headers to overwrite default headers
         """
         headers = expand_headers(self._default_headers, additional_headers)
-
-        if headers["Content-Type"] == "application/json":
-            data_payload = None
-            json_payload = data
-        else:
-            data_payload = data
-            json_payload = None
-
         url = urljoin(self.api_url, url)
 
         return requests.post(
             url=url,
-            headers=headers,
             auth=self._auth,
-            data=data_payload,
-            json=json_payload,
+            headers=headers,
+            data=kwargs.get("data"),
+            json=kwargs.get("json"),
         )
 
-    def _put(self, url: str, data: Any, additional_headers: Optional[dict] = None):
-        headers = expand_headers(self._default_headers, additional_headers)
+    def _put(self, entity_name: str, key: str, data: Dict[str, Any]) -> bool:
+        """
+        PUT is used to update a single column value for a single record.
 
+        Args:
+          - entity_name: Table where record exists
+          - key: Either primary key or alternate key of record, appropriately formatted
+          - column:
+        """
+        column, value = list(data.items())[0]
+
+        if self._validate and column not in self.schema.entities[entity_name].columns:
+            raise DataverseError(f"Column {column} not found in {entity_name} schema.")
+
+        url = f"{urljoin(self.api_url,entity_name)}({key})/{column}"
+
+        try:
+            response = requests.put(
+                url=url,
+                auth=self._auth,
+                headers=self._default_headers,
+                json={"value": value},
+            )
+            response.raise_for_status()
+            return response.status_code == 204
+        except requests.exceptions.RequestException as e:
+            raise DataverseError(f"Error with PUT request: {e}", response=e.response)
+
+    def _patch(
+        self, url: str, additional_headers: Optional[Dict[str, str]] = None, **kwargs
+    ) -> bool:
+        headers = expand_headers(self._default_headers, additional_headers)
         url = urljoin(self.api_url, url)
 
-        return requests.put(url=url, headers=headers)
+        if any(["data", "json"] not in kwargs):
+            log.warning("Attempting PATCH request without data.")
+
+        try:
+            response = requests.patch(
+                url=url,
+                auth=self._auth,
+                headers=headers,
+                data=kwargs.get("data"),
+                json=kwargs.get("json"),
+            )
+            response.raise_for_status()
+            return response.status_code == 204
+        except requests.exceptions.RequestException as e:
+            raise DataverseError(f"Error with PATCH request: {e}", response=e.response)
+
+    def _delete(
+        self, url: str, additional_headers: Optional[Dict[str, str]] = None, **kwargs
+    ) -> bool:
+        headers = expand_headers(self._default_headers, additional_headers)
+        url = urljoin(self.api_url, url)
+
+        try:
+            response = requests.delete(
+                url=url,
+                auth=self._auth,
+                headers=headers,
+            )
+            response.raise_for_status()
+            return response.status_code == 204
+        except requests.exceptions.RequestException as e:
+            raise DataverseError(f"Error with DELETE request: {e}", response=e.response)
+
+    def _batch_operation(self, data: List[DataverseBatchCommand], **kwargs):
+        """
+        Generalized function to run batch commands against Dataverse.
+
+        Data containing either a list of DataverseBatchCommands containing
+        the relevant data for submission, where each dict or table row contains
+        necessary information for one single batch command.
+
+        DataverseBatchCommands contain:
+          - uri: The postfix after API endpoint to form the full command URI.
+          - mode: The mode used by the singular batch command.
+          - data: The data to be transmitted related to the the command.
+
+        Example data:
+
+        [
+            {
+                "__uri__": "accounts(key_column1='abc',key_column2=3)",
+                "__mode__": "PATCH",
+                "account_name": "Dataverse",
+                "account_number": 123
+            },
+            {
+                "__uri__": "employees(key_column1=3,key_column2=4)/name" ,
+                "__mode__": "PUT",
+                "value": "Barack Obama"
+            }
+        ]
+        """
+
+        for chunk in chunk_data(data, size=1000):
+            batch_id = "batch_%s" % uuid.uuid4().hex
+
+            # Preparing batch data
+            batch_data = ""
+            for row in chunk:
+                row_command = f"""\
+                --{batch_id}
+                Content-Type: application/http
+                Content-Transfer-Encoding: binary
+                
+                {row.mode} {self.api_url}{row.uri} HTTP/1.1
+                Content-Type: application/json{'; type=entry' if row.mode=="POST" else""}
+
+                {json.dumps(row.data)}
+                """
+
+                batch_data += dedent(row_command)
+            batch_data += f"\n\n--{batch_id}--\n "
+
+            # Preparing batch-specific headers
+            additional_headers = {
+                "Content-Type": f'multipart/mixed; boundary="{batch_id}"',
+                "If-None-Match": "null",
+            }
+
+            log.info(
+                f"Sending batch ID {batch_id} containing {len(chunk)} rows for upsert into Dataverse."
+            )
+
+            try:
+                response = self._post(
+                    url="$batch", additional_headers=additional_headers, data=batch_data
+                )
+                response.raise_for_status()
+                log.info(f"Successfully completed {len(chunk)} batch command chunk.")
+
+            except requests.RequestException as e:
+                if response.status_code == 412:
+                    raise DataverseError(
+                        f"Failed to perform batch operation, most likely due to existing keys in insertion data: {e}",
+                        response=e.response,
+                    )
+                raise DataverseError(
+                    f"Failed to perform batch operation: {e}", response=e.response
+                )
+
+        log.info(f"Successfully completed all batch commands.")
+        return True
 
 
 class DataverseEntity:
@@ -111,111 +254,100 @@ class DataverseEntity:
             except KeyError:
                 raise DataverseError("Entity %s not found in schema." % entity_name)
 
+    def update_single_value(
+        self, data: Dict[str, Any], key_columns: Optional[Set[str]] = None
+    ) -> None:
+        key_columns = self._validate_payload(data, write_mode=True)
+
+        if key_columns is None and not self._client._validate:
+            raise DataverseError("Key column(s) must be specified.")
+
+        key = extract_key(data=data, key_columns=key_columns)
+
+        if len(data) > 1:
+            raise DataverseError("Can only update a single column using this function.")
+
+        response = self._client._put(entity_name=self.entity_name, key=key, data=data)
+        if response:
+            log.info(f"Successfully updated {key} in {self.entity_name}.")
+
+    # def update_single_column(
+    #     self, data: Dict[str, Any], key_columns: Optional[Set[str]] = None
+    # ) -> None:
+    #     key_columns = self._validate_payload(data, write_mode=True)
+
+    #     if key_columns is None and not self._client._validate:
+    #         raise DataverseError("Key column(s) must be specified.")
+
+    def insert(
+        self,
+        data: Union[dict, List[dict], pd.DataFrame],
+    ) -> None:
+        data = convert_data(data)
+        mode = "POST"
+
+        log.info(f"Performing insert of {len(data)} elements into {self.entity_name}.")
+
+        self._validate_payload(data, write_mode=True)
+
+        # Converting to Batch Commands
+        batch_data = [
+            DataverseBatchCommand(uri=self.entity_name, mode=mode, data=row)
+            for row in data
+        ]
+
+        if self._client._batch_operation(batch_data):
+            log.info(
+                f"Successfully inserted {len(batch_data)} rows to {self.entity_name}."
+            )
+
     def upsert(
         self,
         data: Union[dict, List[dict], pd.DataFrame],
         key_columns: Optional[Set[str]] = None,
     ) -> None:
+        """
+        Upserts data into the selected Entity.
+
+        Args:
+          - data:
+        """
+        data = convert_data(data)
+        mode = "PATCH"
+
         log.info(f"Performing upsert of {len(data)} elements into {self.entity_name}.")
 
         if self._client._validate:
-            key_columns = self._validate_payload(data, mode="upsert")
+            key_columns = self._validate_payload(data, write_mode=True)
             log.info("Data validation completed.")
 
         if key_columns is None and not self._client._validate:
             raise DataverseError("Key column(s) must be specified.")
 
-        self._batch_operation(mode="PATCH", data=data, key_columns=key_columns)
+        batch_data: List[DataverseBatchCommand] = []
 
-    def _batch_operation(
-        self,
-        mode: Literal["PATCH", "POST", "PUT", "DELETE"],
-        data: Union[dict, List[dict], pd.DataFrame],
-        key_columns: Optional[Set[str]] = None,
-    ):
-        """
-        Prepares passed data for batch operations against the Dataverse.
+        for row in data:
+            # Splitting out key column(s) from data - should not be present in body
+            key_elements = []
+            for col in key_columns:
+                key_elements.append(f"{col}={row.pop(col).__repr__()}")
+            row_key = ",".join(key_elements)
 
-        Args:
-           - mode: POST or PATCH for creating or upserting data.
-           - data: Accepts a dict, list of dicts or a `pd.DataFrame` containing data.
-           - key_columns: For PATCH mode, requires key column or alternate key columns
-             for updating data.
-
-        Raises:
-           - DataverseError if no key columns are passed in PATCH mode.
-           - DataverseError if batch operation fails.
-        """
-        if mode == "PATCH" and key_columns is None:
-            raise DataverseError("PATCH mode requires key columns to be passed.")
-
-        log.info(f"Preparing data for batch operation towards {self.entity_name}.")
-
-        # Get into useable format
-        if isinstance(data, dict):
-            data = [data]
-        elif isinstance(data, pd.DataFrame):
-            data = [
-                {k: v for k, v in m.items() if pd.notnull(v)}
-                for m in data.to_dict("records")
-            ]
-
-        # Dataverse operates with max batch operation commands of 1000
-        for data_chunk in chunk_data(data, size=1000):
-            batch_id = "batch_%s" % uuid.uuid4().hex
-            batch_data = ""
-
-            for row in data_chunk:
-                # Row key
-                row_key = ""
-                if mode == "PATCH":
-                    key_elements = []
-                    for col in key_columns:
-                        key_elements.append(f"{col}={row.pop(col).__repr__()}")
-                    row_key = ",".join(key_elements)
-
-                # Each batch operation must be appended to the command string
-                row_command = f"""\
-                --{batch_id}
-                Content-Type: application/http
-                Content-Transfer-Encoding: binary
-                
-                {mode} {self._client.api_url}{self.entity_name}{"("+row_key+")" if mode=="PATCH" else""} HTTP/1.1
-                Content-Type: application/json{'; type=entry' if mode=="POST" else""}
-
-                {json.dumps(row)}
-                """
-                batch_data += dedent(row_command)
-
-            # To comply with payload structure,
-            # the final newline requires one space
-            batch_data += f"\n\n--{batch_id}--\n "
-
-            batch_headers = {
-                "Content-Type": f'multipart/mixed; boundary="{batch_id}"',
-                "If-None-Match": "null",
-            }
-
-            log.info(
-                f"Sending batch ID {batch_id} containing {len(data_chunk)} rows for upsert into {self.entity_name}."
+            batch_data.append(
+                DataverseBatchCommand(
+                    uri=f"{self.entity_name}({row_key})", mode=mode, data=row
+                )
             )
 
-            try:
-                response = self._client._post(
-                    url="$batch", additional_headers=batch_headers, data=batch_data
-                )
-                print(dump.dump_all(response).decode("utf-8"))
-                response.raise_for_status()
-                log.info(
-                    f"Successfully upserted {len(data_chunk)} rows into {self.entity_name}."
-                )
-            except requests.RequestException as e:
-                raise DataverseError(f"Failed to perform batch operation: {e}")
+        if self._client._batch_operation(batch_data):
+            log.info(
+                f"Successfully upserted {len(batch_data)} rows to {self.entity_name}."
+            )
 
     def _validate_payload(
         self,
         data: Union[dict, List[dict], pd.DataFrame],
-        mode: Literal["upsert", "create"],
+        write_mode: Optional[bool] = False,
     ) -> Optional[Set[str]]:
         """
         Can be used to validate write/update/upsert data payload
@@ -227,6 +359,10 @@ class DataverseEntity:
           - Column names in payload are not found in schema
           - No key or alternate key can be formed from columns
         """
+        if not self._client._validate:
+            log.info("Data validation not performed.")
+            return None
+
         if isinstance(data, dict):
             data_columns = data.keys()
             complete_columns = [k for k, v in data.items() if v is not None]
@@ -257,16 +393,23 @@ class DataverseEntity:
                 f"Payload columns not in schema: {' '.join(bad_columns)}"
             )
 
-        if mode not in ["upsert"]:
+        if not write_mode:
+            log.info(
+                "Data validation completed - all columns valid according to schema."
+            )
             return None
 
         # Checking for available keys against schema
         if self.schema.key in complete_columns:
+            log.info("Data validation completed. Key column present in all rows.")
             return set(self.schema.key)
         elif self.schema.altkeys:
             # Checking if any valid altkeys can be formed from columns
             for altkey in sorted(self.schema.altkeys, key=len):
                 if altkey.issubset(complete_columns):
+                    log.info(
+                        "Data validation completed. A consistent alternate key can be formed from all rows."
+                    )
                     return altkey
         else:
             raise DataverseError(
