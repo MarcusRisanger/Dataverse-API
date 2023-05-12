@@ -1,1 +1,1 @@
-from dataverse_api.dataverse import DataverseClient
+from dataverse_api.dataverse import DataverseClient  # noqa
