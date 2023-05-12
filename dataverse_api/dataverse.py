@@ -77,7 +77,7 @@ class DataverseClient:
         self, url: str, additional_headers: Optional[dict] = None, **kwargs
     ) -> requests.Response:
         """
-        Post HTTP call to Dataverse.
+        POST is used to write new data or send a batch request to Dataverse.
 
         Args:
           - url: Appended to API endpoint
@@ -125,21 +125,25 @@ class DataverseClient:
             raise DataverseError(f"Error with PUT request: {e}", response=e.response)
 
     def _patch(
-        self, url: str, additional_headers: Optional[Dict[str, str]] = None, **kwargs
+        self, url: str, additional_headers: Optional[Dict[str, str]] = None, data: Dict[str,Any]
     ) -> bool:
+        """
+        PATCH is used to update several values for a single record.
+
+        Args:
+          - url: Postfix of API endpoint to isolate unique record
+          - additional_headers: If it is required to overwrite default or add new header elements
+          - data: JSON serializable dictionary containing data payload.
+        """
         headers = expand_headers(self._default_headers, additional_headers)
         url = urljoin(self.api_url, url)
-
-        if any(["data", "json"] not in kwargs):
-            log.warning("Attempting PATCH request without data.")
 
         try:
             response = requests.patch(
                 url=url,
                 auth=self._auth,
                 headers=headers,
-                data=kwargs.get("data"),
-                json=kwargs.get("json"),
+                json=data,
             )
             response.raise_for_status()
             return response.status_code == 204
@@ -147,8 +151,15 @@ class DataverseClient:
             raise DataverseError(f"Error with PATCH request: {e}", response=e.response)
 
     def _delete(
-        self, url: str, additional_headers: Optional[Dict[str, str]] = None, **kwargs
+        self, url: str, additional_headers: Optional[Dict[str, str]] = None
     ) -> bool:
+        """
+        DELETE is used to either purge whole records or a specific column value for a particular record.
+
+        Args:
+          - url: Postfix of API endpoint to isolate unique record or record + column
+          - additional_headers: If it is required to overwrite default or add new header elements
+        """
         headers = expand_headers(self._default_headers, additional_headers)
         url = urljoin(self.api_url, url)
 
@@ -163,7 +174,7 @@ class DataverseClient:
         except requests.exceptions.RequestException as e:
             raise DataverseError(f"Error with DELETE request: {e}", response=e.response)
 
-    def _batch_operation(self, data: List[DataverseBatchCommand], **kwargs):
+    def _batch_operation(self, data: List[DataverseBatchCommand]):
         """
         Generalized function to run batch commands against Dataverse.
 
@@ -245,6 +256,14 @@ class DataverseClient:
 
 
 class DataverseEntity:
+    """
+    Class that controls interaction with a specific Dataverse Entity.
+
+    Allows for simple table insertion or upsert of large amounts of data.
+
+    >>> table = client.entity("tablename")
+    """
+
     def __init__(self, client: DataverseClient, entity_name: str):
         self._client = client
         self.entity_name = entity_name
@@ -257,6 +276,17 @@ class DataverseEntity:
     def update_single_value(
         self, data: Dict[str, Any], key_columns: Optional[Set[str]] = None
     ) -> None:
+        """
+        Updates singular column value for a specific row in Entity.
+
+        Args:
+          - data: Data that forms the basis for update into Dataverse.
+          - key_columns: If validation is not enabled, provide primary column or
+            columns that form an alternate key
+
+        >>> data={"col1":"abc", "col2":"dac", "col3":69}
+        >>> table.update_single_value(data, key_columns={"col1","col2"})
+        """
         key_columns = self._validate_payload(data, write_mode=True)
 
         if key_columns is None and not self._client._validate:
@@ -283,6 +313,17 @@ class DataverseEntity:
         self,
         data: Union[dict, List[dict], pd.DataFrame],
     ) -> None:
+        """
+        Inserts data into the selected Entity.
+
+        Args:
+          - data: Data that forms the basis for insert into Dataverse.
+          - key_columns: If validation is not enabled, provide primary column or
+            columns that form an alternate key, to ensure data can be inserted.
+
+        >>> data={"col1":"abc", "col2":"dac", "col3":69, "col4":"Foo"}
+        >>> table.upsert(data, key_columns={"col1","col2"})
+        """
         data = convert_data(data)
         mode = "POST"
 
@@ -304,13 +345,18 @@ class DataverseEntity:
     def upsert(
         self,
         data: Union[dict, List[dict], pd.DataFrame],
-        key_columns: Optional[Set[str]] = None,
+        key_columns: Optional[Union[str, Set[str]]] = None,
     ) -> None:
         """
         Upserts data into the selected Entity.
 
         Args:
-          - data:
+          - data: Data that forms the basis for upsert into Dataverse.
+          - key_columns: If validation is not enabled, provide primary column or
+            columns that form an alternate key for identifying rows uniquely.
+
+        >>> data={"col1":"abc", "col2":"dac", "col3":69, "col4":"Foo"}
+        >>> table.upsert(data, key_columns={"col1","col2"})
         """
         data = convert_data(data)
         mode = "PATCH"
@@ -329,7 +375,7 @@ class DataverseEntity:
         for row in data:
             # Splitting out key column(s) from data - should not be present in body
             key_elements = []
-            for col in key_columns:
+            for col in set(key_columns):
                 key_elements.append(f"{col}={row.pop(col).__repr__()}")
             row_key = ",".join(key_elements)
 
@@ -357,7 +403,7 @@ class DataverseEntity:
 
         Raises DataverseError if:
           - Column names in payload are not found in schema
-          - No key or alternate key can be formed from columns
+          - No key or alternate key can be formed from columns (if write_mode = True)
         """
         if not self._client._validate:
             log.info("Data validation not performed.")
@@ -390,7 +436,7 @@ class DataverseEntity:
         if not data_columns.issubset(self.schema.columns):
             bad_columns = list(data_columns.difference(self.schema.columns))
             raise DataverseError(
-                f"Payload columns not in schema: {' '.join(bad_columns)}"
+                f"Found bad payload columns not present in table schema: {' '.join(bad_columns)}"
             )
 
         if not write_mode:
