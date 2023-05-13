@@ -62,7 +62,9 @@ def convert_data(data: Union[dict, List[dict], pd.DataFrame]) -> List[dict]:
             for m in data.to_dict("records")
         ]
     else:
-        raise DataverseError(f"Data seems to be of a not supported type: {type(data)}.")
+        raise DataverseError(
+            "Data seems to be of a not supported type: " + f"{data.__class__.__name__}."
+        )
 
 
 def extract_key(data: Dict[str, Any], key_columns: Set[str]) -> str:

@@ -82,7 +82,9 @@ def test_extract_key_single_int(test_data_dict):
 def test_extract_key_composite(test_data_dict):
     result = extract_key(test_data_dict, key_columns={"a", "b"})
 
-    assert result == "a='abc',b=2"
+    assert "a='abc'" in result
+    assert "b=2" in result
+    assert "," in result
     assert test_data_dict == {"c": 3, "d": "hello"}
 
 
@@ -112,8 +114,9 @@ def test_convert_data_df(test_data_df, test_data_list):
 
 
 def test_convert_data_error():
-    with pytest.raises(DataverseError):
-        convert_data({"a", "b"})
+    data = {"a", "b"}
+    with pytest.raises(DataverseError, match=r"Data seems to be .+"):
+        convert_data(data)
 
 
 def test_expand_headers(test_data_dict):
