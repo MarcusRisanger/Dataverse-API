@@ -25,9 +25,11 @@ class DataverseSchema:
         self._api_url = api_url
         self._auth = auth
         self.entities: Dict[str, DataverseTableSchema] = {}
-        self._parse_metadata()
 
-    def _parse_metadata(self):
+        raw_schema = self._fetch_metadata()
+        self._parse_metadata(raw_schema)
+
+    def _fetch_metadata(self) -> str:
         metadata_url = urljoin(self._api_url, "$metadata")
         headers = {"Accept": "application/xml"}
 
@@ -41,9 +43,11 @@ class DataverseSchema:
         except requests.exceptions.RequestException as e:
             raise DataverseError(f"Error fetching metadata: {e}", response=e.response)
 
-        returned_schema = ET.fromstring(response.text)
+        return response.text
 
-        for table in returned_schema.findall(".//{*}EntityType"):
+    def _parse_metadata(self, raw_schema: str) -> None:
+        schema = ET.fromstring(raw_schema)
+        for table in schema.findall(".//{*}EntityType"):
             # Get key
             key = table.find(".//{*}PropertyRef")
             if key is None:  # Some special entities have no key attribute
