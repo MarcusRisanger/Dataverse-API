@@ -15,11 +15,6 @@ repos:
       - id: debug-statements # Check for debugger imports and py37+ `breakpoint()` calls in python source.
       - id: requirements-txt-fixer # Sorts entries in requirements.txt
 
-  - repo: https://github.com/humitos/mirrors-autoflake
-    rev: v1.1
-    hooks:
-      - id: autoflake
-        args: [--remove-all-unused-imports, --in-place]
   - repo: https://github.com/timothycrosley/isort
     rev: 5.12.0
     hooks:

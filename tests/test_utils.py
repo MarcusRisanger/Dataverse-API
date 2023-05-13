@@ -1,4 +1,9 @@
-from dataverse_api.utils import DataverseBatchCommand, chunk_data, extract_key, batch_id_generator
+from dataverse_api.utils import (
+    DataverseBatchCommand,
+    batch_id_generator,
+    chunk_data,
+    extract_key,
+)
 
 
 def test_chunk_data():

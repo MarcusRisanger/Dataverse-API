@@ -2,9 +2,8 @@ from __future__ import annotations
 
 import json
 import logging
-import uuid
 from textwrap import dedent
-from typing import Any, Dict, List, Optional, Set, Union, Callable
+from typing import Any, Callable, Dict, List, Optional, Set, Union
 from urllib.parse import urljoin
 
 import pandas as pd
@@ -18,11 +17,11 @@ from dataverse_api.schema import DataverseSchema
 from dataverse_api.utils import (
     DataverseBatchCommand,
     DataverseError,
+    batch_id_generator,
     chunk_data,
     convert_data,
     expand_headers,
     extract_key,
-    batch_id_generator
 )
 
 log = logging.getLogger()
@@ -188,7 +187,11 @@ class DataverseClient:
         except requests.exceptions.RequestException as e:
             raise DataverseError(f"Error with DELETE request: {e}", response=e.response)
 
-    def batch_operation(self, data: List[DataverseBatchCommand], batch_id_generator: Callable[...,str] = batch_id_generator):
+    def batch_operation(
+        self,
+        data: List[DataverseBatchCommand],
+        batch_id_generator: Callable[..., str] = batch_id_generator,
+    ):
         """
         Generalized function to run batch commands against Dataverse.
 
