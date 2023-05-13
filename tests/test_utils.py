@@ -1,9 +1,34 @@
+import pandas as pd
+import pytest
+
 from dataverse_api.utils import (
     DataverseBatchCommand,
     batch_id_generator,
     chunk_data,
+    convert_data,
     extract_key,
 )
+
+
+@pytest.fixture
+def test_data_dict():
+    data = {"a": "abc", "b": 2, "c": 3, "d": "hello"}
+    return data
+
+
+@pytest.fixture
+def test_data_list(test_data_dict):
+    data = [
+        test_data_dict,
+        {"a": "cba", "b": 4, "c": 6},
+    ]
+    return data
+
+
+@pytest.fixture
+def test_data_df(test_data_list):
+    data = pd.DataFrame(test_data_list)
+    return data
 
 
 def test_chunk_data():
@@ -31,28 +56,25 @@ def test_chunk_data():
     assert second[0].data == {"col1": 5, "col2": 6}
 
 
-def test_extract_key():
-    key_columns = {"a"}
-
-    data = {"a": 1, "b": 2, "c": 3}
-    result = extract_key(data, key_columns)
-
-    assert result == "a=1"
-    assert data == {"b": 2, "c": 3}
-
-    data = {"a": "abc", "b": 2, "c": 3}
-    result = extract_key(data, key_columns)
+def test_extract_key_single_str(test_data_dict):
+    result = extract_key(test_data_dict, key_columns={"a"})
 
     assert result == "a='abc'"
-    assert data == {"b": 2, "c": 3}
+    assert test_data_dict == {"b": 2, "c": 3, "d": "hello"}
 
-    key_columns = {"a", "b"}
-    data = {"a": "abc", "b": 2, "c": 3, "d": "hello"}
 
-    result = extract_key(data, key_columns)
+def test_extract_key_single_int(test_data_dict):
+    result = extract_key(test_data_dict, key_columns={"b"})
+
+    assert result == "b=2"
+    assert test_data_dict == {"a": "abc", "c": 3, "d": "hello"}
+
+
+def test_extract_key_composite(test_data_dict):
+    result = extract_key(test_data_dict, key_columns={"a", "b"})
 
     assert result == "a='abc',b=2"
-    assert data == {"c": 3, "d": "hello"}
+    assert test_data_dict == {"c": 3, "d": "hello"}
 
 
 def test_batch_id_generator():
@@ -63,3 +85,19 @@ def test_batch_id_generator():
         assert str(id)[8] == "-"
         assert str(id)[13] == "-"
         assert str(id)[14] == "4"
+
+
+def test_convert_data_dict(test_data_dict):
+    data = convert_data(test_data_dict)
+
+    assert data == [test_data_dict]
+
+
+def test_convert_data_list(test_data_list):
+    data = convert_data(test_data_list)
+    assert data == test_data_list
+
+
+def test_convert_data_df(test_data_df, test_data_list):
+    data = convert_data(test_data_df)
+    assert data == test_data_list
