@@ -8,7 +8,6 @@ from dataverse_api.schema import DataverseSchema
 
 @pytest.fixture
 def example_schema():
-    print(os.getcwd() + "   LOLOLOL")
     file_path = "tests/sample_data/test_schema.txt"
     full_path = os.path.join(os.getcwd(), file_path)
     with open(full_path) as f:
