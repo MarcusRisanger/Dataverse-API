@@ -3,9 +3,11 @@ import pytest
 
 from dataverse_api.utils import (
     DataverseBatchCommand,
+    DataverseError,
     batch_id_generator,
     chunk_data,
     convert_data,
+    expand_headers,
     extract_key,
 )
 
@@ -21,6 +23,7 @@ def test_data_list(test_data_dict):
     data = [
         test_data_dict,
         {"a": "cba", "b": 4, "c": 6},
+        {"a": "moo", "b": 3},
     ]
     return data
 
@@ -31,12 +34,18 @@ def test_data_df(test_data_list):
     return data
 
 
-def test_chunk_data():
+@pytest.fixture
+def test_data_batch_commands():
     data = [
         DataverseBatchCommand(uri="uri1", mode="mode1", data={"col1": 1, "col2": 2}),
         DataverseBatchCommand(uri="uri2", mode="mode1", data={"col1": 3, "col2": 4}),
         DataverseBatchCommand(uri="uri3", mode="mode1", data={"col1": 5, "col2": 6}),
     ]
+    return data
+
+
+def test_chunk_data(test_data_batch_commands):
+    data = test_data_batch_commands
     data_size = len(data)
 
     assert data_size == 3
@@ -89,7 +98,6 @@ def test_batch_id_generator():
 
 def test_convert_data_dict(test_data_dict):
     data = convert_data(test_data_dict)
-
     assert data == [test_data_dict]
 
 
@@ -101,3 +109,18 @@ def test_convert_data_list(test_data_list):
 def test_convert_data_df(test_data_df, test_data_list):
     data = convert_data(test_data_df)
     assert data == test_data_list
+
+
+def test_convert_data_error():
+    with pytest.raises(DataverseError):
+        convert_data({"a", "b"})
+
+
+def test_expand_headers(test_data_dict):
+    additional_headers = {"a": "foo", "q": "bar"}
+
+    headers = expand_headers(test_data_dict, additional_headers)
+
+    assert len(headers) == len(test_data_dict) + 1
+    assert all([x in headers for x in ["a", "b", "c", "d", "q"]])
+    assert headers["a"] == "foo"
