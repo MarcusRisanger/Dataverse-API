@@ -1,4 +1,4 @@
-from dataverse_api.utils import DataverseBatchCommand, chunk_data, extract_key
+from dataverse_api.utils import DataverseBatchCommand, chunk_data, extract_key, batch_id_generator
 
 
 def test_chunk_data():
@@ -48,3 +48,13 @@ def test_extract_key():
 
     assert result == "a='abc',b=2"
     assert data == {"c": 3, "d": "hello"}
+
+
+def test_batch_id_generator():
+    for _ in range(10):
+        id = batch_id_generator()
+
+        assert len(id) == 36
+        assert str(id)[8] == "-"
+        assert str(id)[13] == "-"
+        assert str(id)[14] == "4"

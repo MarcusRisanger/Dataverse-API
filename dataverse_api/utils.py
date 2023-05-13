@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from typing import Any, Dict, Iterator, List, Optional, Set, Union
+from uuid import uuid4
 
 import pandas as pd
 
@@ -74,3 +75,7 @@ def extract_key(data: Dict[str, Any], key_columns: Set[str]) -> str:
     for col in key_columns:
         key_elements.append(f"{col}={data.pop(col).__repr__()}")
     return ",".join(key_elements)
+
+def batch_id_generator() -> str:
+    """Creates a unique string"""
+    return str(uuid4())

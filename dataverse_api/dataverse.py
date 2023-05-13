@@ -4,7 +4,7 @@ import json
 import logging
 import uuid
 from textwrap import dedent
-from typing import Any, Dict, List, Optional, Set, Union
+from typing import Any, Dict, List, Optional, Set, Union, Callable
 from urllib.parse import urljoin
 
 import pandas as pd
@@ -22,6 +22,7 @@ from dataverse_api.utils import (
     convert_data,
     expand_headers,
     extract_key,
+    batch_id_generator
 )
 
 log = logging.getLogger()
@@ -187,7 +188,7 @@ class DataverseClient:
         except requests.exceptions.RequestException as e:
             raise DataverseError(f"Error with DELETE request: {e}", response=e.response)
 
-    def _batch_operation(self, data: List[DataverseBatchCommand]):
+    def batch_operation(self, data: List[DataverseBatchCommand], batch_id_generator: Callable[...,str] = batch_id_generator):
         """
         Generalized function to run batch commands against Dataverse.
 
@@ -218,7 +219,7 @@ class DataverseClient:
         """
 
         for chunk in chunk_data(data, size=1000):
-            batch_id = "batch_%s" % uuid.uuid4().hex
+            batch_id = "batch_%s" % batch_id_generator()
 
             # Preparing batch data
             batch_data = ""
@@ -354,7 +355,7 @@ class DataverseEntity:
             for row in data
         ]
 
-        if self._client._batch_operation(batch_data):
+        if self._client.batch_operation(batch_data):
             log.info(
                 f"Successfully inserted {len(batch_data)} rows to {self.entity_name}."
             )
@@ -402,7 +403,7 @@ class DataverseEntity:
                 )
             )
 
-        if self._client._batch_operation(batch_data):
+        if self._client.batch_operation(batch_data):
             log.info(
                 f"Successfully upserted {len(batch_data)} rows to {self.entity_name}."
             )
