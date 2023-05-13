@@ -76,6 +76,7 @@ def extract_key(data: Dict[str, Any], key_columns: Set[str]) -> str:
         key_elements.append(f"{col}={data.pop(col).__repr__()}")
     return ",".join(key_elements)
 
+
 def batch_id_generator() -> str:
     """Creates a unique string"""
     return str(uuid4())
