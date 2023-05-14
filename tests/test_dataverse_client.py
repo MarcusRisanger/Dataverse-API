@@ -56,3 +56,10 @@ def test_dataverse_instantiation(dataverse_client_unvalidated, dataverse_scopes)
         "token_type": "Bearer",
         "expires_in": 123,
     }
+    assert c._entity_cache == dict()
+    assert c._default_headers == {
+        "Accept": "application/json",
+        "OData-MaxVersion": "4.0",
+        "OData-Version": "4.0",
+        "Content-Type": "application/json",
+    }
