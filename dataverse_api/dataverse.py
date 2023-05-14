@@ -50,16 +50,12 @@ class DataverseClient:
         validate: bool = False,
     ):
         self.api_url = urljoin(dynamics_url, "/api/data/v9.2/")
-
-        app = ConfidentialClientApplication(
-            client_id=app_id, authority=authority_url, client_credential=client_secret
+        self._auth = self._authenticate(
+            app_id=app_id,
+            client_secret=client_secret,
+            authority_url=authority_url,
+            scopes=scopes,
         )
-
-        self._auth = ClientCredentialAuth(client=app, scopes=scopes)
-        self._validate = validate
-
-        if self._validate:
-            self.schema = DataverseSchema(self._auth, self.api_url)
         self._entity_cache: Dict[str, DataverseEntity] = {}
         self._default_headers = {
             "Accept": "application/json",
@@ -67,6 +63,22 @@ class DataverseClient:
             "OData-Version": "4.0",
             "Content-Type": "application/json",
         }
+
+        self._validate = validate
+        if validate:
+            self.schema = DataverseSchema(self._auth, self.api_url)
+
+    def _authenticate(
+        self,
+        app_id: str,
+        client_secret: str,
+        authority_url: str,
+        scopes: List[str],
+    ) -> ClientCredentialAuth:
+        app = ConfidentialClientApplication(
+            client_id=app_id, authority=authority_url, client_credential=client_secret
+        )
+        return ClientCredentialAuth(client=app, scopes=scopes)
 
     def entity(self, entity_name: str) -> DataverseEntity:
         """
