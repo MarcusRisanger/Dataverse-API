@@ -63,3 +63,6 @@ def test_dataverse_instantiation(dataverse_client_unvalidated, dataverse_scopes)
         "OData-Version": "4.0",
         "Content-Type": "application/json",
     }
+
+    with pytest.raises(AttributeError, match=r"object has no attribute 'schema'"):
+        assert c.schema

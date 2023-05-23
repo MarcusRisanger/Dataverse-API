@@ -1,3 +1,4 @@
+import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from typing import Any, Dict, Iterator, List, Optional, Set, Union
 from uuid import uuid4
@@ -10,6 +11,13 @@ class DataverseBatchCommand:
     uri: str
     mode: str
     data: Dict[str, Any]
+
+
+@dataclass
+class DataverseTableSchema:
+    key: str
+    columns: Set[str]
+    altkeys: List[Set[str]]
 
 
 def chunk_data(
@@ -82,3 +90,38 @@ def extract_key(data: Dict[str, Any], key_columns: Set[str]) -> str:
 def batch_id_generator() -> str:
     """Creates a unique string"""
     return str(uuid4())
+
+
+def parse_metadata(raw_schema: str) -> Dict[str, DataverseTableSchema]:
+    entities: Dict[str, DataverseTableSchema] = {}
+    schema = ET.fromstring(raw_schema)
+    for table in schema.findall(".//{*}EntityType"):
+        # Get key
+        key = table.find(".//{*}PropertyRef")
+        if key is None:  # Some special entities have no key attribute
+            continue
+        else:
+            key = key.attrib["Name"]
+
+        table_name = table.attrib["Name"] + "s"
+        columns: Set[str] = set()
+        altkeys: List[Set[str]] = list()
+
+        # Get all column names
+        for column in table.findall(".//{*}Property"):
+            columns.add(column.attrib["Name"])
+
+        # Get alternate key column combinations, if any
+        for altkey in table.findall(".//{*}Record[@Type='Keys.AlternateKey']"):
+            key_columns = set()
+            for key_part in altkey.findall(".//{*}PropertyValue"):
+                if key_part.attrib["Property"] == "Name":
+                    key_columns.add(key_part.attrib["PropertyPath"])
+            altkeys.append(key_columns)
+
+        # Write to schema
+        entities[table_name] = DataverseTableSchema(
+            key=key, columns=columns, altkeys=altkeys
+        )
+
+    return entities

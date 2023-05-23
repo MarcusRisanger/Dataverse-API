@@ -1,3 +1,5 @@
+import os
+
 import pandas as pd
 import pytest
 
@@ -9,6 +11,7 @@ from dataverse_api.utils import (
     convert_data,
     expand_headers,
     extract_key,
+    parse_metadata,
 )
 
 
@@ -41,6 +44,15 @@ def test_data_batch_commands():
         DataverseBatchCommand(uri="uri2", mode="mode1", data={"col1": 3, "col2": 4}),
         DataverseBatchCommand(uri="uri3", mode="mode1", data={"col1": 5, "col2": 6}),
     ]
+    return data
+
+
+@pytest.fixture
+def example_schema():
+    file_path = "tests/sample_data/test_schema.txt"
+    full_path = os.path.join(os.getcwd(), file_path)
+    with open(full_path) as f:
+        data = f.read()
     return data
 
 
@@ -127,3 +139,14 @@ def test_expand_headers(test_data_dict):
     assert len(headers) == len(test_data_dict) + 1
     assert all([x in headers for x in ["a", "b", "c", "d", "q"]])
     assert headers["a"] == "foo"
+
+
+def test_parse_metadata(example_schema):
+    entities = parse_metadata(example_schema)
+
+    assert len(entities) == 2
+
+    for entity in entities:
+        assert entities[entity].key in entities[entity].columns
+        for key in entities[entity].altkeys:
+            assert all(x in entities[entity].columns for x in key)
