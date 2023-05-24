@@ -78,26 +78,20 @@ def test_chunk_data(test_data_batch_commands):
 
 
 def test_extract_key_single_str(test_data_dict):
-    result = extract_key(test_data_dict, key_columns={"a"})
+    data, key = extract_key(test_data_dict, key_columns={"a"})
 
-    assert result == "a='abc'"
-    assert test_data_dict == {"b": 2, "c": 3, "d": "hello"}
+    assert key == "a='abc'"
+    assert data == {"b": 2, "c": 3, "d": "hello"}
 
+    data, key = extract_key(test_data_dict, key_columns={"b"})
 
-def test_extract_key_single_int(test_data_dict):
-    result = extract_key(test_data_dict, key_columns={"b"})
+    assert key == "b=2"
+    assert data == {"a": "abc", "c": 3, "d": "hello"}
 
-    assert result == "b=2"
-    assert test_data_dict == {"a": "abc", "c": 3, "d": "hello"}
+    data, key = extract_key(test_data_dict, key_columns={"a", "b"})
 
-
-def test_extract_key_composite(test_data_dict):
-    result = extract_key(test_data_dict, key_columns={"a", "b"})
-
-    assert "a='abc'" in result
-    assert "b=2" in result
-    assert "," in result
-    assert test_data_dict == {"c": 3, "d": "hello"}
+    assert all(i in key for i in ["a='abc'", "b=2", ","])
+    assert data == {"c": 3, "d": "hello"}
 
 
 def test_batch_id_generator():

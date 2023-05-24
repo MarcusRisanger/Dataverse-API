@@ -1,6 +1,6 @@
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
-from typing import Any, Dict, Iterator, List, Optional, Set, Union
+from typing import Any, Dict, Iterator, List, Optional, Set, Tuple, Union
 from uuid import uuid4
 
 import pandas as pd
@@ -78,16 +78,26 @@ def convert_data(data: Union[dict, List[dict], pd.DataFrame]) -> List[dict]:
         )
 
 
-def extract_key(data: Dict[str, Any], key_columns: Set[str]) -> str:
+def extract_key(
+    data: Dict[str, Any], key_columns: Set[str]
+) -> Tuple[Dict[str, Any], str]:
     """
     Extracts key from the given dictionary.
 
-    Note: Dict will mutate.
+    Args:
+      - data: A dict containing all columns
+      - key_columns: A set containing all key columns
+
+    Returns a tuple with two elements:
+      - 0: A modified dictionary where any key columns are removed
+      - 1: A string that contains the Dataverse specification
+        row identifier
     """
+    data = data.copy()
     key_elements = []
     for col in key_columns:
         key_elements.append(f"{col}={data.pop(col).__repr__()}")
-    return ",".join(key_elements)
+    return (data, ",".join(key_elements))
 
 
 def batch_id_generator() -> str:

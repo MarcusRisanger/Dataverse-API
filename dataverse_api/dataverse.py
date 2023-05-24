@@ -266,6 +266,10 @@ class DataverseClient:
           - uri: The postfix after API endpoint to form the full command URI.
           - mode: The mode used by the singular batch command.
           - data: The data to be transmitted related to the the command.
+
+        Args:
+          - data: A list of `DataverseBatchCommand` to be executed
+          - batch_id_generator: A function that generates the batch IDs as a string
         """
 
         for chunk in chunk_data(data, size=1000):
@@ -360,7 +364,7 @@ class DataverseEntity:
         if key_columns is None and not self._client._validate:
             raise DataverseError("Key column(s) must be specified.")
 
-        row_key = extract_key(data=data, key_columns=key_columns)
+        data, row_key = extract_key(data=data, key_columns=key_columns)
 
         if len(data) > 1:
             raise DataverseError("Can only update a single column using this function.")
@@ -387,16 +391,22 @@ class DataverseEntity:
 
         kwargs:
           - liberal: If set to True, this will allow for different columns to be
-            updated on a per-row basis. Default behavior is that each update points
-            to a singular column in Dataverse.
+            updated on a per-row basis, but still just one column per row.
+            Default behavior is that each update points to one singular
+            column in Dataverse, across all rows.
 
         Raises:
           - DataverseError if no key column is supplied, or none can be found
             in validation step.
           - DataverseError if more than one data column is passed per row.
 
-        >>> data=[{"col1":"foo", "col2":2},{"col1":"bar", "col2":3}]
+        >>> data=[{"col1":"foo", "col2":2}, {"col1":"bar", "col2":3}]
         >>> table.upsert_single_column(data, key_columns="col1")
+
+        Alternatively, updating different columns per data row:
+
+        >>> data=[{"col1":"foo", "col2":2}, {"col1":"bar", "col3":5}]
+        >>> table.upsert_single_column(data, key_columns="col1", liberal=True)
         """
         data = convert_data(data)
         key_columns = self._validate_payload(data, write_mode=True)
@@ -523,10 +533,7 @@ class DataverseEntity:
 
         for row in data:
             if mode in ["PATCH", "PUT", "DELETE"]:
-                key_elements = []
-                for col in set(key_columns):
-                    key_elements.append(f"{col}={row.pop(col).__repr__()}")
-                row_key = ",".join(key_elements)
+                data, row_key = extract_key(data=data, key_columns=key_columns)
                 uri = f"{self.entity_name}({row_key})"
             else:
                 uri = f"{self.entity_name}"
