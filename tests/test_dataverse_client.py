@@ -64,5 +64,4 @@ def test_dataverse_instantiation(dataverse_client_unvalidated, dataverse_scopes)
         "Content-Type": "application/json",
     }
 
-    with pytest.raises(AttributeError, match=r"object has no attribute 'schema'"):
-        assert c.schema
+    assert hasattr(c, "schema") is False

@@ -20,19 +20,22 @@ class DataverseTableSchema:
     altkeys: List[Set[str]]
 
 
-def chunk_data(
-    data: List[DataverseBatchCommand], size: int
-) -> Iterator[List[DataverseBatchCommand]]:
-    # looping till length size
-    for i in range(0, len(data), size):
-        yield data[i : i + size]  # noqa E203
-
-
 class DataverseError(Exception):
     def __init__(self, message: str, status_code=None, response=None) -> None:
         super().__init__(message)
         self.status_code = status_code
         self.response = response
+
+
+def chunk_data(
+    data: List[DataverseBatchCommand], size: int
+) -> Iterator[List[DataverseBatchCommand]]:
+    """
+    Simple function to chunk a list into a maximum number of
+    elements per chunk.
+    """
+    for i in range(0, len(data), size):
+        yield data[i : i + size]  # noqa E203
 
 
 def expand_headers(
@@ -46,7 +49,7 @@ def expand_headers(
       - additional_headers: Headers with which to add or overwrite defaults.
 
     Returns:
-      - New dict with
+      - New dict with replaced headers.
     """
     new_headers = headers.copy()
     if additional_headers is not None:
@@ -57,8 +60,8 @@ def expand_headers(
 
 def convert_data(data: Union[dict, List[dict], pd.DataFrame]) -> List[dict]:
     """
-    Normalizes data to a list of dicts, ready to be
-    processed into DataverseBatchCommands.
+    Normalizes data to a list of dicts, ready to be validated
+    and processed into DataverseBatchCommands.
     """
     if isinstance(data, list):
         return data
@@ -66,8 +69,8 @@ def convert_data(data: Union[dict, List[dict], pd.DataFrame]) -> List[dict]:
         return [data]
     elif isinstance(data, pd.DataFrame):
         return [
-            {k: v for k, v in m.items() if pd.notnull(v)}
-            for m in data.to_dict("records")
+            {k: v for k, v in row.items() if pd.notnull(v)}
+            for row in data.to_dict("records")
         ]
     else:
         raise DataverseError(
@@ -88,7 +91,7 @@ def extract_key(data: Dict[str, Any], key_columns: Set[str]) -> str:
 
 
 def batch_id_generator() -> str:
-    """Creates a unique string"""
+    """Simply creates a unique string."""
     return str(uuid4())
 
 

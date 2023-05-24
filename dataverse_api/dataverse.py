@@ -409,7 +409,7 @@ class DataverseEntity:
                 "Only one data column can be passed. Use `upsert` instead."
             )
 
-        if not kwargs.get("liberal"):
+        if kwargs.get("liberal", False) is False:
             key = list(data[0].keys())[0]
             for row in data[1:]:
                 if list(row.keys())[0] != key:
@@ -444,7 +444,6 @@ class DataverseEntity:
         >>> table.upsert(data, key_columns={"col1","col2"})
         """
         data = convert_data(data)
-
         # Validation just run to make sure appropriate keys are present
         self._validate_payload(data, write_mode=True)
 
@@ -475,12 +474,9 @@ class DataverseEntity:
         >>> table.upsert(data, key_columns={"col1","col2"})
         """
         data = convert_data(data)
+        key_columns = self._validate_payload(data, write_mode=True)
 
         log.info(f"Performing upsert of {len(data)} elements into {self.entity_name}.")
-
-        if self._client._validate:
-            key_columns = self._validate_payload(data, write_mode=True)
-            log.info("Data validation completed.")
 
         if key_columns is None and not self._client._validate:
             raise DataverseError("Key column(s) must be specified.")
@@ -504,8 +500,26 @@ class DataverseEntity:
     ) -> List[DataverseBatchCommand]:
         """
         Transforms submitted data to Batch Operations commands.
+
+        For modes where row ID matters (PATCH, PUT, DELETE), key_column
+        is required.
+
+        Args:
+          - data: The data to be prepared into batch commands
+          - mode: The request mode to be carried out for each command
+          - key_columns: Optional set of key columns
+
+        Returns:
+          - List of `DataverseBatchCommand` objects for passing into the
+            `DataverseClient.batch_operation` method.
+
+        Raises:
+          - DataverseError if mode is not `POST` and no `key_column` is specified.
         """
         output: List[DataverseBatchCommand] = []
+
+        if mode != "POST" and key_columns is None:
+            raise DataverseError("Mode requires key column to be passed as argument.")
 
         for row in data:
             if mode in ["PATCH", "PUT", "DELETE"]:
@@ -522,7 +536,7 @@ class DataverseEntity:
 
     def _validate_payload(
         self,
-        data: Union[dict, List[dict], pd.DataFrame],
+        data: List[dict],
         write_mode: Optional[bool] = False,
     ) -> Optional[Set[str]]:
         """
@@ -540,26 +554,16 @@ class DataverseEntity:
             log.info("Data validation not performed.")
             return None
 
-        if isinstance(data, dict):
-            data_columns = set(data.keys())
-            complete_columns = [k for k, v in data.items() if v is not None]
+        # Getting a set of all columns supplied in data
+        data_columns = set()
+        for row in data:
+            data_columns.update(row.keys())
 
-        elif isinstance(data, list):
-            data_columns = set()
-            for row in data:
-                data_columns.update(row.keys())
-
-            # Looping through dicts to get the intersection of keys
-            complete_columns = self.schema.columns.copy()
-            for row in data:
-                contains_values = {k for k, v in row.items() if v is not None}
-                complete_columns = complete_columns.intersection(contains_values)
-
-        elif isinstance(data, pd.DataFrame):
-            data_columns = data.columns
-            complete_columns = data.columns[~data.isnull().any()]
-        else:
-            raise TypeError("Wrong type passed for data.")
+        # Getting a set of all columns present in all rows of data
+        complete_columns = self.schema.columns.copy()
+        for row in data:
+            contains_values = {k for k, v in row.items() if v is not None}
+            complete_columns = complete_columns.intersection(contains_values)
 
         data_columns, complete_columns = set(data_columns), set(complete_columns)
 
@@ -585,6 +589,7 @@ class DataverseEntity:
             return set(self.schema.key)
         elif self.schema.altkeys:
             # Checking if any valid altkeys can be formed from columns
+            # Preferring shortest possible altkeys
             for altkey in sorted(self.schema.altkeys, key=len):
                 if altkey.issubset(complete_columns):
                     log.info(
