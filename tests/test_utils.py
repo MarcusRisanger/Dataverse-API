@@ -78,7 +78,7 @@ def test_chunk_data(test_data_batch_commands):
 
 
 def test_extract_key_single_str(test_data_dict):
-    data, key = extract_key(test_data_dict, key_columns={"a"})
+    data, key = extract_key(test_data_dict, key_columns="a")
 
     assert key == "a='abc'"
     assert data == {"b": 2, "c": 3, "d": "hello"}

@@ -79,7 +79,7 @@ def convert_data(data: Union[dict, List[dict], pd.DataFrame]) -> List[dict]:
 
 
 def extract_key(
-    data: Dict[str, Any], key_columns: Set[str]
+    data: Dict[str, Any], key_columns: Union[str, Set[str]]
 ) -> Tuple[Dict[str, Any], str]:
     """
     Extracts key from the given dictionary.
@@ -95,7 +95,7 @@ def extract_key(
     """
     data = data.copy()
     key_elements = []
-    for col in key_columns:
+    for col in set(key_columns):
         key_elements.append(f"{col}={data.pop(col).__repr__()}")
     return (data, ",".join(key_elements))
 

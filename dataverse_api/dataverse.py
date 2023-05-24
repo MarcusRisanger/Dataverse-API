@@ -533,11 +533,11 @@ class DataverseEntity:
 
         for row in data:
             if mode in ["PATCH", "PUT", "DELETE"]:
-                data, row_key = extract_key(data=data, key_columns=key_columns)
+                row_data, row_key = extract_key(data=row, key_columns=key_columns)
                 uri = f"{self.entity_name}({row_key})"
             else:
                 uri = f"{self.entity_name}"
-            output.append(DataverseBatchCommand(uri=uri, mode=mode, data=row))
+            output.append(DataverseBatchCommand(uri=uri, mode=mode, data=row_data))
 
         return output
 
