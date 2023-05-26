@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import json
 import logging
-from dataclasses import dataclass
+from collections.abc import Callable
 from textwrap import dedent
-from typing import Any, Callable, Dict, List, Literal, Optional, Set, Union
+from typing import Any, Literal, Optional, Union
 from urllib.parse import urljoin
 
 import pandas as pd
@@ -16,6 +16,7 @@ from msal_requests_auth.auth import ClientCredentialAuth
 # print(dump.dump_all(response).decode("utf-8"))
 from dataverse_api.utils import (
     DataverseBatchCommand,
+    DataverseEntitySet,
     DataverseError,
     DataverseTableSchema,
     batch_id_generator,
@@ -23,28 +24,26 @@ from dataverse_api.utils import (
     convert_data,
     expand_headers,
     extract_key,
-    parse_metadata,
+    parse_meta_columns,
+    parse_meta_keys,
 )
 
 log = logging.getLogger()
 logging.basicConfig(level=logging.INFO)
 
 
-@dataclass
-class DataverseSchema:
-    entities: dict[str, DataverseTableSchema]
-
-
 class DataverseClient:
     """
-    Base class used to establish authorization and certain default parameters
-    for connecting to Dataverse environment.
+    Base class used to establish authorization and certain default
+    parameters for connecting to Dataverse environment, along with
+    base methods for interacting with the Web API.
 
     Args:
+      - app_id: Azure App Registration ID
+      - client_secret: Secret for App registration
+      - authority_url: Authority URL for App registration
       - dynamics_url: Base environment url
-      - authorization: `ClientCredentialAuth` from `msal_requests_auth`
-      providing the necessary app registration to interact with Dataverse
-      - validate: Whether to retrieve Dataverse schema and apply validation rules
+      - scopes: The App registration scope
     """
 
     def __init__(
@@ -54,7 +53,6 @@ class DataverseClient:
         authority_url: str,
         dynamics_url: str,
         scopes: list[str],
-        validate: bool = False,
     ):
         self.api_url = urljoin(dynamics_url, "/api/data/v9.2/")
         self._auth = self._authenticate(
@@ -63,7 +61,7 @@ class DataverseClient:
             authority_url=authority_url,
             scopes=scopes,
         )
-        self._entity_cache: Dict[str, DataverseEntity] = {}
+        self._entity_cache: dict[str, DataverseEntity] = {}
         self._default_headers = {
             "Accept": "application/json",
             "OData-MaxVersion": "4.0",
@@ -71,34 +69,48 @@ class DataverseClient:
             "Content-Type": "application/json",
         }
 
-        self._validate = validate
-        if validate:
-            raw_schema = self._retrieve_metadata()
-            entities = parse_metadata(raw_schema)
-            self.schema = DataverseSchema(entities=entities)
-
     def _authenticate(
         self,
         app_id: str,
         client_secret: str,
         authority_url: str,
-        scopes: List[str],
+        scopes: list[str],
     ) -> ClientCredentialAuth:
         app = ConfidentialClientApplication(
             client_id=app_id, authority=authority_url, client_credential=client_secret
         )
         return ClientCredentialAuth(client=app, scopes=scopes)
 
-    def entity(self, entity_name: str) -> DataverseEntity:
+    def entity(
+        self,
+        logical_name: Optional[str] = None,
+        entity_set_name: Optional[str] = None,
+    ) -> DataverseEntity:
         """
         Returns an Entity class capable of interacting with the given Dataverse Entity.
-        """
-        if entity_name not in self._entity_cache:
-            self._entity_cache[entity_name] = DataverseEntity(
-                client=self, entity_name=entity_name
-            )
 
-        return self._entity_cache[entity_name]
+        Args:
+          - entity_logical_name: The logical name of the Dataverse Entity. Use to
+            enable query-based validation against the API to check column names etc.
+            prior to running queries.
+          - entity_set_name: The "API queryable" name of the Dataverse Entity. Use
+            to bypass query-based validation, if your script arguments are already
+            validated. This saves some API calls during initialization.
+
+        Returns:
+          - `DataverseEntity` readily instantiated.
+        """
+        if (logical_name is None) ^ (entity_set_name is None):  # XOR
+            name = logical_name or entity_set_name
+
+            if name not in self._entity_cache:
+                self._entity_cache[name] = DataverseEntity(
+                    client=self,
+                    logical_name=logical_name,
+                    entity_set_name=entity_set_name,
+                )
+
+            return self._entity_cache[name]
 
     def _get(
         self, url: str, additional_headers: Optional[dict] = None, **kwargs
@@ -108,9 +120,10 @@ class DataverseClient:
 
         Args:
           - url: Appended to API endpoint
+          - additional_headers: Headers to overwrite default headers
           - data: Request payload (str, bytes etc.)
           - json: Request JSON serializable payload
-          - headers: Headers to overwrite default headers
+          - params: Relevant request parameters
         """
         headers = expand_headers(self._default_headers, additional_headers)
         url = urljoin(self.api_url, url)
@@ -122,6 +135,7 @@ class DataverseClient:
                 headers=headers,
                 data=kwargs.get("data"),
                 json=kwargs.get("json"),
+                params=kwargs.get("params"),
             )
             response.raise_for_status()
             return response
@@ -157,7 +171,7 @@ class DataverseClient:
             raise DataverseError(f"Error with POST request: {e}", response=e.response)
 
     def _put(
-        self, entity_name: str, key: str, data: Dict[str, Any]
+        self, entity_name: str, key: str, data: dict[str, Any]
     ) -> requests.Response:
         """
         PUT is used to update a single column value for a single record.
@@ -189,8 +203,8 @@ class DataverseClient:
     def _patch(
         self,
         url: str,
-        data: Dict[str, Any],
-        additional_headers: Optional[Dict[str, str]] = None,
+        data: dict[str, Any],
+        additional_headers: Optional[dict] = None,
     ) -> requests.Response:
         """
         PATCH is used to update several values for a single record.
@@ -217,7 +231,7 @@ class DataverseClient:
             raise DataverseError(f"Error with PATCH request: {e}", response=e.response)
 
     def _delete(
-        self, url: str, additional_headers: Optional[Dict[str, str]] = None
+        self, url: str, additional_headers: Optional[dict] = None
     ) -> requests.Response:
         """
         DELETE is used to either purge whole records or a specific
@@ -243,16 +257,9 @@ class DataverseClient:
         except requests.exceptions.RequestException as e:
             raise DataverseError(f"Error with DELETE request: {e}", response=e.response)
 
-    def _retrieve_metadata(self):
-        response = self._get(
-            url="$metadata",
-            additional_headers={"Accept": "application/xml"},
-        )
-        return response.text
-
-    def batch_operation(
+    def _batch_operation(
         self,
-        data: List[DataverseBatchCommand],
+        data: list[DataverseBatchCommand],
         batch_id_generator: Callable[..., str] = batch_id_generator,
     ):
         """
@@ -269,7 +276,8 @@ class DataverseClient:
 
         Args:
           - data: A list of `DataverseBatchCommand` to be executed
-          - batch_id_generator: A function that generates the batch IDs as a string
+          - batch_id_generator: An optional function call for overriding
+            default unique batch ID generation.
         """
 
         for chunk in chunk_data(data, size=1000):
@@ -331,22 +339,98 @@ class DataverseEntity:
     """
     Class that controls interaction with a specific Dataverse Entity.
 
-    Allows for simple table insertion or upsert of large amounts of data.
+    Can be instantiated with the EntitySetName (if known) of the Entity
+    to run without validation, or using the LogicalName of the
+    Entity to apply validation.
 
-    >>> table = client.entity("tablename")
+    >>> table = client.entity(logical_name="tablename")  # Validates
+
+    or
+
+    >>> table = client.entity(entity_set_name="tablename")  # No validation
     """
 
-    def __init__(self, client: DataverseClient, entity_name: str):
+    def __init__(
+        self,
+        client: DataverseClient,
+        logical_name: Optional[str] = None,
+        entity_set_name: Optional[str] = None,
+    ):
         self._client = client
-        self.entity_name = entity_name
-        if client._validate:
-            try:
-                self.schema = client.schema.entities[entity_name]
-            except KeyError:
-                raise DataverseError("Entity %s not found in schema." % entity_name)
+        self._entity_set_name = entity_set_name
+
+        if logical_name is not None:
+            self._validate = True
+            entity_set_data = self._fetch_entity_data(logical_name=logical_name)
+            self.schema = DataverseTableSchema(
+                name=entity_set_data.entity_set_name,
+                key=entity_set_data.entity_set_key,
+            )
+
+            col_response = self._fetch_entity_columns(logical_name)
+            key_response = self._fetch_entity_altkeys(logical_name)
+            self.schema.columns = parse_meta_columns(col_response)
+            self.schema.altkeys = parse_meta_keys(key_response)
+
+        elif entity_set_name is not None:
+            self._validate = False
+            self.schema = DataverseTableSchema(name=entity_set_name)
+
+    def _fetch_entity_data(self, logical_name) -> DataverseEntitySet:
+        """
+        Required for initialization using logical name of Dataverse Entity.
+
+        Returns:
+          - `DataverseEntitySet` containing attrs `entity_set_name` and `key`
+        """
+        url = f"EntityDefinitions(LogicalName='{logical_name}')"
+        parameters = ["EntitySetName", "PrimaryIdAttribute"]
+        params = {"$select": ",".join(parameters)}
+
+        response = self._client._get(url=url, params=params).json()
+
+        entity_set = DataverseEntitySet(
+            entity_set_name=response["EntitySetName"],
+            entity_set_key=response["PrimaryIdAttribute"],
+        )
+
+        return entity_set
+
+    def _fetch_entity_columns(self, logical_name) -> requests.Response:
+        """
+        Required for initialization using logical name of Dataverse Entity.
+        """
+        url = f"EntityDefinitions(LogicalName='{logical_name}')/Attributes"
+        parameters = [
+            "LogicalName",
+            "SchemaName",
+            "AttributeType",
+            "IsValidForCreate",
+            "IsValidForUpdate",
+        ]
+        params = {
+            "$select": ",".join(parameters),
+            "$filter": "IsValidODataAttribute eq true",
+        }
+
+        response = self._client._get(url=url, params=params)
+
+        return response
+
+    def _fetch_entity_altkeys(self, logical_name) -> requests.Response:
+        """
+        Required for initialization using logical name of Dataverse Entity.
+        """
+        url = f"EntityDefinitions(LogicalName='{logical_name}')/Keys"
+        parameters = ["KeyAttributes"]
+        params = {"$select": ",".join(parameters)}
+
+        response = self._client._get(url=url, params=params)
+
+        return response
 
     def update_single_value(
-        self, data: Dict[str, Any], key_columns: Optional[Set[str]] = None
+        self, data: dict[str, Any], key_columns: Optional[set[str]] = None
     ) -> None:
         """
         Updates singular column value for a specific row in Entity.
@@ -359,9 +443,9 @@ class DataverseEntity:
         >>> data={"col1":"abc", "col2":"dac", "col3":69}
         >>> table.update_single_value(data, key_columns={"col1","col2"})
         """
-        key_columns = self._validate_payload(data, write_mode=True)
+        key_columns = key_columns or self._validate_payload(data, write_mode=True)
 
-        if key_columns is None and not self._client._validate:
+        if key_columns is None and not self._validate:
             raise DataverseError("Key column(s) must be specified.")
 
         data, row_key = extract_key(data=data, key_columns=key_columns)
@@ -370,15 +454,15 @@ class DataverseEntity:
             raise DataverseError("Can only update a single column using this function.")
 
         response = self._client._put(
-            entity_name=self.entity_name, key=row_key, data=data
+            entity_name=self.schema.name, key=row_key, data=data
         )
         if response:
-            log.info(f"Successfully updated {row_key} in {self.entity_name}.")
+            log.info(f"Successfully updated {row_key} in {self.schema.name}.")
 
     def update_single_column(
         self,
-        data: Union[dict, List[dict], pd.DataFrame],
-        key_columns: Optional[Union[str, Set[str]]] = None,
+        data: Union[dict, list[dict], pd.DataFrame],
+        key_columns: Optional[Union[str, set[str]]] = None,
         **kwargs,
     ) -> None:
         """
@@ -409,9 +493,9 @@ class DataverseEntity:
         >>> table.upsert_single_column(data, key_columns="col1", liberal=True)
         """
         data = convert_data(data)
-        key_columns = self._validate_payload(data, write_mode=True)
+        key_columns = key_columns or self._validate_payload(data, write_mode=True)
 
-        if key_columns is None and not self._client._validate:
+        if key_columns is None and not self._validate:
             raise DataverseError("Key column(s) must be specified.")
 
         if not all(len(row) == 1 for row in data):
@@ -433,14 +517,14 @@ class DataverseEntity:
             key_columns=key_columns,
         )
 
-        if self._client.batch_operation(batch_data):
+        if self._client._batch_operation(batch_data):
             log.info(
-                f"Successfully updated {len(batch_data)} rows in {self.entity_name}."
+                f"Successfully updated {len(batch_data)} rows in {self.schema.name}."
             )
 
     def insert(
         self,
-        data: Union[dict, List[dict], pd.DataFrame],
+        data: Union[dict, list[dict], pd.DataFrame],
     ) -> None:
         """
         Inserts data into the selected Entity.
@@ -457,20 +541,20 @@ class DataverseEntity:
         # Validation just run to make sure appropriate keys are present
         self._validate_payload(data, write_mode=True)
 
-        log.info(f"Performing insert of {len(data)} elements into {self.entity_name}.")
+        log.info(f"Performing insert of {len(data)} elements into {self.schema.name}.")
 
         # Converting to Batch Commands
         batch_data = self._prepare_batch_data(data=data, mode="POST")
 
-        if self._client.batch_operation(batch_data):
+        if self._client._batch_operation(batch_data):
             log.info(
-                f"Successfully inserted {len(batch_data)} rows to {self.entity_name}."
+                f"Successfully inserted {len(batch_data)} rows to {self.schema.name}."
             )
 
     def upsert(
         self,
-        data: Union[dict, List[dict], pd.DataFrame],
-        key_columns: Optional[Union[str, Set[str]]] = None,
+        data: Union[dict, list[dict], pd.DataFrame],
+        key_columns: Optional[Union[str, set[str]]] = None,
     ) -> None:
         """
         Upserts data into the selected Entity.
@@ -484,11 +568,11 @@ class DataverseEntity:
         >>> table.upsert(data, key_columns={"col1","col2"})
         """
         data = convert_data(data)
-        key_columns = self._validate_payload(data, write_mode=True)
+        key_columns = key_columns or self._validate_payload(data, write_mode=True)
 
-        log.info(f"Performing upsert of {len(data)} elements into {self.entity_name}.")
+        log.info(f"Performing upsert of {len(data)} elements into {self.schema.name}.")
 
-        if key_columns is None and not self._client._validate:
+        if key_columns is None and not self._validate:
             raise DataverseError("Key column(s) must be specified.")
 
         batch_data = self._prepare_batch_data(
@@ -497,17 +581,17 @@ class DataverseEntity:
             key_columns=key_columns,
         )
 
-        if self._client.batch_operation(batch_data):
+        if self._client._batch_operation(batch_data):
             log.info(
-                f"Successfully upserted {len(batch_data)} rows to {self.entity_name}."
+                f"Successfully upserted {len(batch_data)} rows to {self.schema.name}."
             )
 
     def _prepare_batch_data(
         self,
-        data: List[dict],
+        data: list[dict],
         mode: Literal["PATCH", "POST", "PUT", "DELETE"],
-        key_columns: Optional[Set[str]] = None,
-    ) -> List[DataverseBatchCommand]:
+        key_columns: Optional[set[str]] = None,
+    ) -> list[DataverseBatchCommand]:
         """
         Transforms submitted data to Batch Operations commands.
 
@@ -526,7 +610,7 @@ class DataverseEntity:
         Raises:
           - DataverseError if mode is not `POST` and no `key_column` is specified.
         """
-        output: List[DataverseBatchCommand] = []
+        output: list[DataverseBatchCommand] = []
 
         if mode != "POST" and key_columns is None:
             raise DataverseError("Mode requires key column to be passed as argument.")
@@ -534,18 +618,18 @@ class DataverseEntity:
         for row in data:
             if mode in ["PATCH", "PUT", "DELETE"]:
                 row_data, row_key = extract_key(data=row, key_columns=key_columns)
-                uri = f"{self.entity_name}({row_key})"
+                uri = f"{self.schema.name}({row_key})"
             else:
-                uri = f"{self.entity_name}"
+                uri = f"{self.schema.name}"
             output.append(DataverseBatchCommand(uri=uri, mode=mode, data=row_data))
 
         return output
 
     def _validate_payload(
         self,
-        data: List[dict],
+        data: list[dict],
         write_mode: Optional[bool] = False,
-    ) -> Optional[Set[str]]:
+    ) -> Optional[set[str]]:
         """
         Used to validate write/update/upsert data payload
         against the parsed Entity schema. If validation is set to False,
@@ -557,7 +641,7 @@ class DataverseEntity:
           - Column names in payload are not found in schema
           - No key or alternate key can be formed from columns (if write_mode = True)
         """
-        if not self._client._validate:
+        if not self._validate:
             log.info("Data validation not performed.")
             return None
 
@@ -567,7 +651,7 @@ class DataverseEntity:
             data_columns.update(row.keys())
 
         # Getting a set of all columns present in all rows of data
-        complete_columns = self.schema.columns.copy()
+        complete_columns = {k for k in self.schema.columns.keys()}
         for row in data:
             contains_values = {k for k, v in row.items() if v is not None}
             complete_columns = complete_columns.intersection(contains_values)
@@ -610,3 +694,25 @@ class DataverseEntity:
             raise DataverseError(
                 "No columns in payload to form primary key or any alternate key."
             )
+
+    def read(self, select: Optional[list[str]] = None, page_size: Optional[int] = None):
+        """
+        Reads entity.
+
+        TODO: Support advanced query params: select, expand, filter, orderby, top
+        TODO: Support paging if server responds with
+        """
+
+        additional_headers = dict()
+        if page_size is not None:
+            additional_headers["Prefer"] = "odata.maxpagesize=%s" % page_size
+
+        params = dict()
+        if select is not None:
+            params["$select"] = ",".join(select)
+
+        return self._client._get(
+            url=self.schema.name,
+            additional_headers=additional_headers,
+            params=params,
+        )

@@ -1,0 +1,193 @@
+{
+  "@odata.context": "https://xxx.crm4.dynamics.com/api/data/v9.2/$metadata#EntityDefinitions('test')/Attributes(LogicalName,SchemaName,AttributeType,IsValidForCreate,IsValidForUpdate)",
+  "value": [
+    {
+      "@odata.type": "#Microsoft.Dynamics.CRM.LookupAttributeMetadata",
+      "LogicalName": "owningteam",
+      "SchemaName": "OwningTeam",
+      "AttributeType": "Lookup",
+      "IsValidForCreate": false,
+      "IsValidForUpdate": false,
+      "MetadataId": "57267d5d-7dc5-4c9b-90e1-0d69c1a8a855"
+    },
+    {
+      "@odata.type": "#Microsoft.Dynamics.CRM.IntegerAttributeMetadata",
+      "LogicalName": "cr3fa_test_value_number",
+      "SchemaName": "cr3fa_test_value_number",
+      "AttributeType": "Integer",
+      "IsValidForCreate": true,
+      "IsValidForUpdate": true,
+      "MetadataId": "e1c2d0e3-adde-ed11-a7c6-6045bd886b00"
+    },
+    {
+      "@odata.type": "#Microsoft.Dynamics.CRM.StateAttributeMetadata",
+      "LogicalName": "statecode",
+      "SchemaName": "statecode",
+      "AttributeType": "State",
+      "IsValidForCreate": false,
+      "IsValidForUpdate": true,
+      "MetadataId": "784086d1-6a03-4e16-a751-d41ae10e6c70"
+    },
+    {
+      "@odata.type": "#Microsoft.Dynamics.CRM.LookupAttributeMetadata",
+      "LogicalName": "owninguser",
+      "SchemaName": "OwningUser",
+      "AttributeType": "Lookup",
+      "IsValidForCreate": false,
+      "IsValidForUpdate": false,
+      "MetadataId": "ddf20ff4-a428-49ed-9af0-afd32e0f2ee1"
+    },
+    {
+      "@odata.type": "#Microsoft.Dynamics.CRM.LookupAttributeMetadata",
+      "LogicalName": "modifiedby",
+      "SchemaName": "ModifiedBy",
+      "AttributeType": "Lookup",
+      "IsValidForCreate": false,
+      "IsValidForUpdate": false,
+      "MetadataId": "8ecef7f1-a28f-4001-9aed-f7a84de71af3"
+    },
+    {
+      "@odata.type": "#Microsoft.Dynamics.CRM.BigIntAttributeMetadata",
+      "LogicalName": "versionnumber",
+      "SchemaName": "VersionNumber",
+      "AttributeType": "BigInt",
+      "IsValidForCreate": false,
+      "IsValidForUpdate": false,
+      "MetadataId": "a337e22e-8e58-4b5b-b52d-c81a2799e786"
+    },
+    {
+      "@odata.type": "#Microsoft.Dynamics.CRM.LookupAttributeMetadata",
+      "LogicalName": "ownerid",
+      "SchemaName": "OwnerId",
+      "AttributeType": "Owner",
+      "IsValidForCreate": true,
+      "IsValidForUpdate": true,
+      "MetadataId": "73ca5250-d663-4135-ab14-6361ab90195a"
+    },
+    {
+      "@odata.type": "#Microsoft.Dynamics.CRM.LookupAttributeMetadata",
+      "LogicalName": "createdby",
+      "SchemaName": "CreatedBy",
+      "AttributeType": "Lookup",
+      "IsValidForCreate": false,
+      "IsValidForUpdate": false,
+      "MetadataId": "beac1a1f-8b2d-45ff-bc41-849b5bce80c4"
+    },
+    {
+      "@odata.type": "#Microsoft.Dynamics.CRM.DateTimeAttributeMetadata",
+      "LogicalName": "overriddencreatedon",
+      "SchemaName": "OverriddenCreatedOn",
+      "AttributeType": "DateTime",
+      "IsValidForCreate": true,
+      "IsValidForUpdate": false,
+      "MetadataId": "1e6474ac-ed6d-41b2-847d-51911826ce01"
+    },
+    {
+      "@odata.type": "#Microsoft.Dynamics.CRM.StatusAttributeMetadata",
+      "LogicalName": "statuscode",
+      "SchemaName": "statuscode",
+      "AttributeType": "Status",
+      "IsValidForCreate": true,
+      "IsValidForUpdate": true,
+      "MetadataId": "d596bc19-2767-4546-8314-2c023941ea9e"
+    },
+    {
+      "LogicalName": "cr3fa_marcus_testid",
+      "SchemaName": "cr3fa_marcus_testId",
+      "AttributeType": "Uniqueidentifier",
+      "IsValidForCreate": true,
+      "IsValidForUpdate": false,
+      "MetadataId": "d94080bc-2967-41d7-a053-b931f68933cb"
+    },
+    {
+      "@odata.type": "#Microsoft.Dynamics.CRM.DateTimeAttributeMetadata",
+      "LogicalName": "modifiedon",
+      "SchemaName": "ModifiedOn",
+      "AttributeType": "DateTime",
+      "IsValidForCreate": false,
+      "IsValidForUpdate": false,
+      "MetadataId": "2e207722-5152-4f21-beaf-0974ab24dba2"
+    },
+    {
+      "@odata.type": "#Microsoft.Dynamics.CRM.StringAttributeMetadata",
+      "LogicalName": "cr3fa_test_pk",
+      "SchemaName": "cr3fa_test_pk",
+      "AttributeType": "String",
+      "IsValidForCreate": true,
+      "IsValidForUpdate": true,
+      "MetadataId": "09622017-2bc8-ed11-b597-6045bd8ba4bb"
+    },
+    {
+      "@odata.type": "#Microsoft.Dynamics.CRM.IntegerAttributeMetadata",
+      "LogicalName": "utcconversiontimezonecode",
+      "SchemaName": "UTCConversionTimeZoneCode",
+      "AttributeType": "Integer",
+      "IsValidForCreate": true,
+      "IsValidForUpdate": true,
+      "MetadataId": "55cc459c-3732-427f-a0ad-0dbff2bf908e"
+    },
+    {
+      "@odata.type": "#Microsoft.Dynamics.CRM.LookupAttributeMetadata",
+      "LogicalName": "owningbusinessunit",
+      "SchemaName": "OwningBusinessUnit",
+      "AttributeType": "Lookup",
+      "IsValidForCreate": true,
+      "IsValidForUpdate": true,
+      "MetadataId": "ce378c50-bd0e-440f-a856-5a44ad35d0b7"
+    },
+    {
+      "@odata.type": "#Microsoft.Dynamics.CRM.StringAttributeMetadata",
+      "LogicalName": "cr3fa_test_value_text",
+      "SchemaName": "cr3fa_test_value_text",
+      "AttributeType": "String",
+      "IsValidForCreate": true,
+      "IsValidForUpdate": true,
+      "MetadataId": "3a1dc4f0-adde-ed11-a7c6-6045bd8863da"
+    },
+    {
+      "@odata.type": "#Microsoft.Dynamics.CRM.DateTimeAttributeMetadata",
+      "LogicalName": "createdon",
+      "SchemaName": "CreatedOn",
+      "AttributeType": "DateTime",
+      "IsValidForCreate": false,
+      "IsValidForUpdate": false,
+      "MetadataId": "35319914-a898-4414-85a4-2fa3a649d08d"
+    },
+    {
+      "@odata.type": "#Microsoft.Dynamics.CRM.IntegerAttributeMetadata",
+      "LogicalName": "timezoneruleversionnumber",
+      "SchemaName": "TimeZoneRuleVersionNumber",
+      "AttributeType": "Integer",
+      "IsValidForCreate": true,
+      "IsValidForUpdate": true,
+      "MetadataId": "aafb810c-bcb3-4235-89c0-88bbc0b0073b"
+    },
+    {
+      "@odata.type": "#Microsoft.Dynamics.CRM.IntegerAttributeMetadata",
+      "LogicalName": "importsequencenumber",
+      "SchemaName": "ImportSequenceNumber",
+      "AttributeType": "Integer",
+      "IsValidForCreate": true,
+      "IsValidForUpdate": false,
+      "MetadataId": "6cbfa67a-a3c3-440a-9e50-71dbd11655aa"
+    },
+    {
+      "@odata.type": "#Microsoft.Dynamics.CRM.LookupAttributeMetadata",
+      "LogicalName": "modifiedonbehalfby",
+      "SchemaName": "ModifiedOnBehalfBy",
+      "AttributeType": "Lookup",
+      "IsValidForCreate": false,
+      "IsValidForUpdate": false,
+      "MetadataId": "5a1d9071-3092-47f0-859a-cfc0e50f1e0b"
+    },
+    {
+      "@odata.type": "#Microsoft.Dynamics.CRM.LookupAttributeMetadata",
+      "LogicalName": "createdonbehalfby",
+      "SchemaName": "CreatedOnBehalfBy",
+      "AttributeType": "Lookup",
+      "IsValidForCreate": false,
+      "IsValidForUpdate": false,
+      "MetadataId": "9f9ba696-a3f2-4ab5-bff7-d6d21945f34c"
+    }
+  ]
+}

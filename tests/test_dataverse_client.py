@@ -41,7 +41,6 @@ def dataverse_client_unvalidated(
         authority_url="https://foo",
         dynamics_url="https://dyn",
         scopes=dataverse_scopes,
-        validate=False,
     )
     return client
 
@@ -63,5 +62,3 @@ def test_dataverse_instantiation(dataverse_client_unvalidated, dataverse_scopes)
         "OData-Version": "4.0",
         "Content-Type": "application/json",
     }
-
-    assert hasattr(c, "schema") is False

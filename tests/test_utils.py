@@ -11,7 +11,6 @@ from dataverse_api.utils import (
     convert_data,
     expand_headers,
     extract_key,
-    parse_metadata,
 )
 
 
@@ -136,14 +135,3 @@ def test_expand_headers(test_data_dict):
     assert len(headers) == len(test_data_dict) + 1
     assert all([x in headers for x in ["a", "b", "c", "d", "q"]])
     assert headers["a"] == "foo"
-
-
-def test_parse_metadata(example_schema):
-    entities = parse_metadata(example_schema)
-
-    assert len(entities) == 2
-
-    for entity in entities:
-        assert entities[entity].key in entities[entity].columns
-        for key in entities[entity].altkeys:
-            assert all(x in entities[entity].columns for x in key)

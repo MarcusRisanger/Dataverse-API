@@ -1,0 +1,22 @@
+{
+    "@odata.context": "https://xxx.crm4.dynamics.com/api/data/v9.2/$metadata#EntityDefinitions('test')/Attributes(LogicalName,SchemaName,AttributeType,IsValidForCreate,IsValidForUpdate)",
+    "value": [
+      {
+        "@odata.type": "#Microsoft.Dynamics.CRM.LookupAttributeMetadata",
+        "LogicalName": "owningteam",
+        "SchemaName": "OwningTeam",
+        "AttributeType": "Lookup",
+        "IsValidForCreate": false,
+        "IsValidForUpdate": false,
+        "MetadataId": "57267d5d-7dc5-4c9b-90e1-0d69c1a8a855"
+      },
+      {
+        "@odata.type": "#Microsoft.Dynamics.CRM.IntegerAttributeMetadata",
+        "LogicalName": "cr3fa_test_value_number",
+        "SchemaName": "cr3fa_test_value_number",
+        "AttributeType": "Integer",
+        "IsValidForUpdate": true,
+        "MetadataId": "e1c2d0e3-adde-ed11-a7c6-6045bd886b00"
+      }
+    ]
+  }

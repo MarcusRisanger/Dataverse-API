@@ -1,23 +1,39 @@
 import xml.etree.ElementTree as ET
+from collections.abc import Iterator
 from dataclasses import dataclass
-from typing import Any, Dict, Iterator, List, Optional, Set, Tuple, Union
+from typing import Any, Optional, Union
 from uuid import uuid4
 
 import pandas as pd
+import requests
 
 
 @dataclass
 class DataverseBatchCommand:
     uri: str
     mode: str
-    data: Dict[str, Any]
+    data: dict[str, Any]
+
+
+@dataclass
+class DataverseEntitySet:
+    entity_set_name: str
+    entity_set_key: str
+
+
+@dataclass
+class DataverseColumn:
+    schema_name: str
+    can_create: bool
+    can_update: bool
 
 
 @dataclass
 class DataverseTableSchema:
-    key: str
-    columns: Set[str]
-    altkeys: List[Set[str]]
+    name: str
+    key: Optional[str] = None
+    columns: Optional[dict[str, DataverseColumn]] = None
+    altkeys: Optional[list[set[str]]] = None
 
 
 class DataverseError(Exception):
@@ -27,9 +43,72 @@ class DataverseError(Exception):
         self.response = response
 
 
+def parse_meta_columns(
+    attribute_metadata: requests.Response,
+) -> dict[str, DataverseColumn]:
+    """
+    Parses the available columns based on the AttributeMetadata EntityType,
+    given in response from the EntityDefinitions()/Attribute endpoint.
+
+    Required properties in Response body:
+      - LogicalName
+      - SchemaName
+      - IsValidForCreate
+      - IsValidForUpdate
+
+    Optional properties in Response body:
+      - IsValidODataAttribute
+    """
+    columns = dict()
+    items: list[dict] = attribute_metadata.json()["value"]
+    for item in items:
+        try:
+            if item.get("IsValidODataAttribute", True) and (
+                item["IsValidForCreate"] or item["IsValidForUpdate"]
+            ):
+                columns[item["LogicalName"]] = DataverseColumn(
+                    schema_name=item["SchemaName"],
+                    can_create=item["IsValidForCreate"],
+                    can_update=item["IsValidForUpdate"],
+                )
+        except KeyError as e:
+            raise DataverseError(
+                f"Payload does not contain the necessary columns. {e}", message=e
+            )
+
+    return columns
+
+
+def parse_meta_keys(
+    keys_metadata: requests.Response,
+) -> list[set[str]]:
+    """
+    Parses the available alternate keys based on the EntityKeyMetadata EntityType,
+    given in response from the EntityDefinitions()/Keys endpoint.
+
+    Required properties in Response body:
+      - KeyAttributes
+
+    Optional properties in Response body:
+      - None
+    """
+    keys: list[set] = list()
+
+    items: list[dict] = keys_metadata.json()["value"]
+    for item in items:
+        try:
+            keys.append(set(item["KeyAttributes"]))
+        except KeyError as e:
+            raise DataverseError(
+                f"Payload does not contain the ncessary columns. {e}", message=e
+            )
+
+    return keys
+
+
 def chunk_data(
-    data: List[DataverseBatchCommand], size: int
-) -> Iterator[List[DataverseBatchCommand]]:
+    data: list[DataverseBatchCommand], size: int
+) -> Iterator[list[DataverseBatchCommand]]:
     """
     Simple function to chunk a list into a maximum number of
     elements per chunk.
@@ -39,8 +118,8 @@ def chunk_data(
 
 
 def expand_headers(
-    headers: Dict[str, str], additional_headers: Optional[Dict[str, str]] = None
-) -> Dict[str, str]:
+    headers: dict[str, str], additional_headers: Optional[dict[str, str]] = None
+) -> dict[str, str]:
     """
     Overwrites a set of (default) headers with alternate headers.
 
@@ -58,7 +137,7 @@ def expand_headers(
     return new_headers
 
 
-def convert_data(data: Union[dict, List[dict], pd.DataFrame]) -> List[dict]:
+def convert_data(data: Union[dict, list[dict], pd.DataFrame]) -> list[dict]:
     """
     Normalizes data to a list of dicts, ready to be validated
     and processed into DataverseBatchCommands.
@@ -79,8 +158,8 @@ def convert_data(data: Union[dict, List[dict], pd.DataFrame]) -> List[dict]:
 
 
 def extract_key(
-    data: Dict[str, Any], key_columns: Union[str, Set[str]]
-) -> Tuple[Dict[str, Any], str]:
+    data: dict[str, Any], key_columns: Union[str, set[str]]
+) -> tuple[dict[str, Any], str]:
     """
     Extracts key from the given dictionary.
 
@@ -105,8 +184,8 @@ def batch_id_generator() -> str:
     return str(uuid4())
 
 
-def parse_metadata(raw_schema: str) -> Dict[str, DataverseTableSchema]:
-    entities: Dict[str, DataverseTableSchema] = {}
+def parse_metadata(raw_schema: str) -> dict[str, DataverseTableSchema]:
+    entities: dict[str, DataverseTableSchema] = {}
     schema = ET.fromstring(raw_schema)
     for table in schema.findall(".//{*}EntityType"):
         # Get key
@@ -117,8 +196,8 @@ def parse_metadata(raw_schema: str) -> Dict[str, DataverseTableSchema]:
             key = key.attrib["Name"]
 
         table_name = table.attrib["Name"] + "s"
-        columns: Set[str] = set()
-        altkeys: List[Set[str]] = list()
+        columns: set[str] = set()
+        altkeys: list[set[str]] = list()
 
         # Get all column names
         for column in table.findall(".//{*}Property"):
