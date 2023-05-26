@@ -33,7 +33,7 @@ client = DataverseClient(
     dynamics_url=url,
 )
 
-table = client.entity("xyz_my_table")
+table = client.entity(logical_name="xyz_my_table")
 
 data = [
     {"xyz_my_table_key": "Foo", "xyz_my_table_col": 1010},
@@ -45,9 +45,10 @@ table.upsert(data)
 
 ### Optional validation
 
-Instantiating the `DataverseClient` with `validate=True` triggers additional validation to take place, based on the CSDL `$metadata` document. Upon instantiation, this document will be read and parsed into a table/column schema that also accounts for e.g. alternate key columns set up for Dataverse tables.
+Instantiating a new `DataverseEntity` with `logical_name` triggers additional validation to take place, based on the EntityMetadata API endpoints. Upon instantiation, calls will be made to the API to fetch the `EntitySetName` used in API
+queries, together with column names and alternate key Attribute combinations.
 
-When validation is enabled, the client both checks that columns referred to in the data are valid according to the schema, and will automatically pick a suitable row ID for batch operations. While this is nice, it is mostly thought of as a debugging tool to develop scripts, since it carries the overhead of retrieving the CSDL document from Microsoft.
+When validation is enabled, the client both checks that columns referred to in the data are valid according to the schema, and will automatically pick a suitable row ID for batch operations. While this is nice, it is mostly thought of as a debugging tool to develop scripts, since it carries the overhead of retrieving the information from the API. It is recommended to instantiate Entities by using the `entity_set_name` argument and specifying key columns in your data when preparing scripts for production.
 
 ## Development environment
 
