@@ -1,3 +1,5 @@
+import os
+
 import pandas as pd
 import pytest
 
@@ -44,6 +46,15 @@ def test_data_batch_commands():
     return data
 
 
+@pytest.fixture
+def example_schema():
+    file_path = "tests/sample_data/test_schema.txt"
+    full_path = os.path.join(os.getcwd(), file_path)
+    with open(full_path) as f:
+        data = f.read()
+    return data
+
+
 def test_chunk_data(test_data_batch_commands):
     data = test_data_batch_commands
     data_size = len(data)
@@ -66,26 +77,23 @@ def test_chunk_data(test_data_batch_commands):
 
 
 def test_extract_key_single_str(test_data_dict):
-    result = extract_key(test_data_dict, key_columns={"a"})
+    # Pass key as str
+    data, key = extract_key(test_data_dict, key_columns="a")
 
-    assert result == "a='abc'"
-    assert test_data_dict == {"b": 2, "c": 3, "d": "hello"}
+    assert key == "a='abc'"
+    assert data == {"b": 2, "c": 3, "d": "hello"}
 
+    # Pass key as 1-element set
+    data, key = extract_key(test_data_dict, key_columns={"b"})
 
-def test_extract_key_single_int(test_data_dict):
-    result = extract_key(test_data_dict, key_columns={"b"})
+    assert key == "b=2"
+    assert data == {"a": "abc", "c": 3, "d": "hello"}
 
-    assert result == "b=2"
-    assert test_data_dict == {"a": "abc", "c": 3, "d": "hello"}
+    # Pass key as many-element set
+    data, key = extract_key(test_data_dict, key_columns={"a", "b"})
 
-
-def test_extract_key_composite(test_data_dict):
-    result = extract_key(test_data_dict, key_columns={"a", "b"})
-
-    assert "a='abc'" in result
-    assert "b=2" in result
-    assert "," in result
-    assert test_data_dict == {"c": 3, "d": "hello"}
+    assert all(i in key for i in ["a='abc'", "b=2", ","])
+    assert data == {"c": 3, "d": "hello"}
 
 
 def test_batch_id_generator():

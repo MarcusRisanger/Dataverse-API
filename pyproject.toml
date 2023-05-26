@@ -11,6 +11,7 @@ msal = "^1.22.0"
 msal-requests-auth = "^0.7.0"
 pandas = "^2.0.1"
 requests-toolbelt = "^1.0.0"
+sqlalchemy = "^2.0.15"
 
 
 [tool.poetry.group.dev.dependencies]
