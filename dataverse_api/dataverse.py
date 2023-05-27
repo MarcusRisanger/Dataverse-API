@@ -66,10 +66,10 @@ class DataverseClient:
         scopes: Optional[list[str]] = None,
     ):
         self.api_url = urljoin(dynamics_url, "/api/data/v9.2/")
-        if scopes is not None:
-            scopes = [urljoin(dynamics_url, scope) for scope in scopes]
+        if scopes is None:
+            scopes = [urljoin(dynamics_url, ".default")]
         else:
-            scopes = [".default"]
+            scopes = [urljoin(dynamics_url, scope) for scope in scopes]
 
         self._auth = self._authenticate(
             app_id=app_id,
