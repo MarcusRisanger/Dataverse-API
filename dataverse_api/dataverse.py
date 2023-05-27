@@ -329,6 +329,9 @@ class DataverseClient:
                 """
 
                 batch_data += dedent(row_command)
+
+            # Note: Trailing space in final line is crucial
+            # Request fails to meet specification without it
             batch_data += f"\n\n--{batch_id}--\n "
 
             # Preparing batch-specific headers
@@ -339,7 +342,7 @@ class DataverseClient:
 
             log.info(
                 f"Sending batch ID {batch_id} containing {len(chunk)} "
-                + "rows for upsert into Dataverse."
+                + "commands for processing in Dataverse."
             )
 
             self.post(
