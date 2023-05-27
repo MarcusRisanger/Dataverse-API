@@ -312,7 +312,7 @@ class DataverseClient:
         """
 
         for chunk in chunk_data(data, size=1000):
-            batch_id = "batch_%s" % batch_id_generator()
+            batch_id = f"batch_{batch_id_generator()}"
 
             # Preparing batch data
             batch_data = ""
