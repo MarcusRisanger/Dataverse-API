@@ -145,6 +145,11 @@ def test_expand_headers(test_data_dict):
 def entity_attributes_bad():
     @dataclass
     class MockData:
+        """
+        Simple class to mock a `requests.Response`.
+        Just needs a `self.json` method to comply with usage.
+        """
+
         data: dict
 
         def json(self):
@@ -158,7 +163,7 @@ def entity_attributes_bad():
     return (attrs, keys)
 
 
-def test_parse_meta_columns(entity_attributes_bad):
+def test_parse_meta_columns_errors(entity_attributes_bad):
     attrs, keys = entity_attributes_bad
     with pytest.raises(DataverseError, match=r"Payload does not contain"):
         parse_meta_columns(attrs)
