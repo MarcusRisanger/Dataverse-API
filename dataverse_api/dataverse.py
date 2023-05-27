@@ -70,7 +70,7 @@ class DataverseClient:
         }
 
     def _authenticate(
-        self,
+        self,  # self is not used. this can be refactored to stand alone function.
         app_id: str,
         client_secret: str,
         authority_url: str,
@@ -100,8 +100,12 @@ class DataverseClient:
         Returns:
           - `DataverseEntity` readily instantiated.
         """
+        # this wa a bit hard to follow.
+        # I suggest splitting these two lines into a separate function
         if (logical_name is None) ^ (entity_set_name is None):  # XOR
             name = logical_name or entity_set_name
+
+        # I suggest having a guard clause to avoid indented code below
 
             if name not in self._entity_cache:
                 self._entity_cache[name] = DataverseEntity(
@@ -112,7 +116,10 @@ class DataverseClient:
 
             return self._entity_cache[name]
 
-    def _get(
+    # it was surprising that the get, post, put etc methods were protected.
+    # I see from the readme that DataverseEntity has public methods for users to interact with.
+    # However, DataverseClient is the class available to the use.
+    def _get(  # is there a reason why data, json and params are part of kwargs?
         self, url: str, additional_headers: Optional[dict] = None, **kwargs
     ) -> requests.Response:
         """
@@ -142,7 +149,7 @@ class DataverseClient:
         except requests.exceptions.RequestException as e:
             raise DataverseError(f"Error with GET request: {e}", response=e.response)
 
-    def _post(
+    def _post(  # is there a reason why data, json are part of kwargs?
         self, url: str, additional_headers: Optional[dict] = None, **kwargs
     ) -> requests.Response:
         """
@@ -181,8 +188,11 @@ class DataverseClient:
           - key: Either primary key or alternate key of record, appropriately formatted
           - column:
         """
+        # this took some time to decypher.
+        # it would be better to input column and value in stead of a dict with one item
         column, value = list(data.items())[0]
 
+        # i cannot see "_validate" or "schema" being attributes of DataverseClient?
         if self._validate and column not in self.schema.entities[entity_name].columns:
             raise DataverseError(f"Column {column} not found in {entity_name} schema.")
 
@@ -281,7 +291,7 @@ class DataverseClient:
         """
 
         for chunk in chunk_data(data, size=1000):
-            batch_id = "batch_%s" % batch_id_generator()
+            batch_id = "batch_%s" % batch_id_generator()  # why not f-string?
 
             # Preparing batch data
             batch_data = ""
@@ -360,7 +370,8 @@ class DataverseEntity:
         self._entity_set_name = entity_set_name
 
         if logical_name is not None:
-            self._validate = True
+            self._validate = True  # I suggest changing name from "_validate" to "is_validated" since this variable is
+            # referenced in DataVerseClient which is outside the scope of DataverseEntity
             entity_set_data = self._fetch_entity_data(logical_name=logical_name)
             self.schema = DataverseTableSchema(
                 name=entity_set_data.entity_set_name,
@@ -387,6 +398,7 @@ class DataverseEntity:
         parameters = ["EntitySetName", "PrimaryIdAttribute"]
         params = {"$select": ",".join(parameters)}
 
+        # referenving protected "_get" method. Should make "_get public method"
         response = self._client._get(url=url, params=params).json()
 
         entity_set = DataverseEntitySet(
@@ -443,6 +455,7 @@ class DataverseEntity:
         >>> data={"col1":"abc", "col2":"dac", "col3":69}
         >>> table.update_single_value(data, key_columns={"col1","col2"})
         """
+        # data is expected to be type "list[dict]"
         key_columns = key_columns or self._validate_payload(data, write_mode=True)
 
         if key_columns is None and not self._validate:
@@ -453,6 +466,7 @@ class DataverseEntity:
         if len(data) > 1:
             raise DataverseError("Can only update a single column using this function.")
 
+        # "_put" is protected - consider making it public
         response = self._client._put(
             entity_name=self.schema.name, key=row_key, data=data
         )
@@ -516,7 +530,7 @@ class DataverseEntity:
             mode="PUT",
             key_columns=key_columns,
         )
-
+        # access to proected attribute "_batch_operation"
         if self._client._batch_operation(batch_data):
             log.info(
                 f"Successfully updated {len(batch_data)} rows in {self.schema.name}."

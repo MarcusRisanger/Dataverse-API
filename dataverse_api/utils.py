@@ -36,7 +36,7 @@ class DataverseTableSchema:
     altkeys: Optional[list[set[str]]] = None
 
 
-class DataverseError(Exception):
+class DataverseError(Exception):  # exceptions can also be moved to separate file "exceptions.py"
     def __init__(self, message: str, status_code=None, response=None) -> None:
         super().__init__(message)
         self.status_code = status_code
@@ -157,6 +157,7 @@ def convert_data(data: Union[dict, list[dict], pd.DataFrame]) -> list[dict]:
         )
 
 
+# this function was hard to follow. I suggest some simplification and renmaing of variables to make it more clear.
 def extract_key(
     data: dict[str, Any], key_columns: Union[str, set[str]]
 ) -> tuple[dict[str, Any], str]:
