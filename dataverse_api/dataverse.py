@@ -127,17 +127,21 @@ class DataverseClient:
         Returns:
           - `DataverseEntity` readily instantiated.
         """
-        if (logical_name is None) ^ (entity_set_name is None):  # XOR
-            name = logical_name or entity_set_name
+        if (entity_set_name is not None) and (logical_name is not None):
+            log.warning("Using entity set name. Entity will not be validated.")
+        name = entity_set_name or logical_name
 
-            if name not in self._entity_cache:
-                self._entity_cache[name] = DataverseEntity(
-                    client=self,
-                    logical_name=logical_name,
-                    entity_set_name=entity_set_name,
-                )
+        if name is None:
+            raise DataverseError("Please provide valid input.")
 
-            return self._entity_cache[name]
+        if name not in self._entity_cache:
+            self._entity_cache[name] = DataverseEntity(
+                client=self,
+                logical_name=logical_name,
+                entity_set_name=entity_set_name,
+            )
+
+        return self._entity_cache[name]
 
     def get(
         self, url: str, additional_headers: Optional[dict] = None, **kwargs
@@ -170,16 +174,20 @@ class DataverseClient:
             raise DataverseError(f"Error with GET request: {e}", response=e.response)
 
     def post(
-        self, url: str, additional_headers: Optional[dict] = None, **kwargs
+        self,
+        url: str,
+        additional_headers: Optional[dict] = None,
+        data: Optional[str] = None,
+        json: Optional[dict] = None,
     ) -> requests.Response:
         """
         POST is used to write new data or send a batch request to Dataverse.
 
         Args:
           - url: Appended to API endpoint
+          - additional_headers: Headers to overwrite default headers
           - data: Request payload (str, bytes etc.)
           - json: Request JSON serializable payload
-          - headers: Headers to overwrite default headers
         """
         headers = expand_headers(self._default_headers, additional_headers)
         url = urljoin(self.api_url, url)
@@ -189,8 +197,8 @@ class DataverseClient:
                 url=url,
                 auth=self._auth,
                 headers=headers,
-                data=kwargs.get("data"),
-                json=kwargs.get("json"),
+                data=data,
+                json=json,
             )
             response.raise_for_status()
             return response
@@ -198,7 +206,7 @@ class DataverseClient:
             raise DataverseError(f"Error with POST request: {e}", response=e.response)
 
     def put(
-        self, entity_name: str, key: str, data: dict[str, Any]
+        self, entity_name: str, key: str, column: str, value: Any
     ) -> requests.Response:
         """
         PUT is used to update a single column value for a single record.
@@ -206,10 +214,9 @@ class DataverseClient:
         Args:
           - entity_name: Table where record exists
           - key: Either primary key or alternate key of record, appropriately formatted
-          - column:
+          - column: The column to access for changing value
+          - value: The value to be persisted to Dataverse in column
         """
-        column, value = list(data.items())[0]
-
         url = f"{urljoin(self.api_url,entity_name)}({key})/{column}"
 
         try:
@@ -335,25 +342,10 @@ class DataverseClient:
                 + "rows for upsert into Dataverse."
             )
 
-            try:
-                response = self.post(
-                    url="$batch", additional_headers=additional_headers, data=batch_data
-                )
-                response.raise_for_status()
-                log.info(f"Successfully completed {len(chunk)} batch command chunk.")
-
-            except requests.RequestException as e:
-                if response.status_code == 412:
-                    raise DataverseError(
-                        (
-                            "Failed to perform batch operation, most likely"
-                            + f"  due to existing keys in insertion data: {e}"
-                        ),
-                        response=e.response,
-                    )
-                raise DataverseError(
-                    f"Failed to perform batch operation: {e}", response=e.response
-                )
+            self.post(
+                url="$batch", additional_headers=additional_headers, data=batch_data
+            )
+            log.info(f"Successfully completed {len(chunk)} batch command chunk.")
 
         log.info("Successfully completed all batch commands.")
         return True
@@ -428,7 +420,7 @@ class DataverseEntity:
         parameters = ENTITY_ATTR_PARAMS
         params = {
             "$select": ",".join(parameters),
-            "$filter": "IsValidODataAttribute eq true",
+            "$filter": "IsValidODataAttribute eq true",  # Optional..
         }
 
         response = self._client.get(url=url, params=params)
@@ -471,8 +463,11 @@ class DataverseEntity:
         if len(data) > 1:
             raise DataverseError("Can only update a single column using this function.")
 
+        # Extracting single key/value pair from dict
+        column, value = list(data.items())[0]
+
         response = self._client.put(
-            entity_name=self.schema.name, key=row_key, data=data
+            entity_name=self.schema.name, key=row_key, column=column, value=value
         )
         if response:
             log.info(f"Successfully updated {row_key} in {self.schema.name}.")
@@ -564,10 +559,8 @@ class DataverseEntity:
         # Converting to Batch Commands
         batch_data = self._prepare_batch_data(data=data, mode="POST")
 
-        if self._client.batch_operation(batch_data):
-            log.info(
-                f"Successfully inserted {len(batch_data)} rows to {self.schema.name}."
-            )
+        self._client.batch_operation(batch_data)
+        log.info(f"Successfully inserted {len(batch_data)} rows to {self.schema.name}.")
 
     def upsert(
         self,
@@ -599,10 +592,8 @@ class DataverseEntity:
             key_columns=key_columns,
         )
 
-        if self._client.batch_operation(batch_data):
-            log.info(
-                f"Successfully upserted {len(batch_data)} rows to {self.schema.name}."
-            )
+        self._client.batch_operation(batch_data)
+        log.info(f"Successfully upserted {len(batch_data)} rows to {self.schema.name}.")
 
     def _prepare_batch_data(
         self,
@@ -637,9 +628,10 @@ class DataverseEntity:
             if mode in ["PATCH", "PUT", "DELETE"]:
                 row_data, row_key = extract_key(data=row, key_columns=key_columns)
                 uri = f"{self.schema.name}({row_key})"
+                output.append(DataverseBatchCommand(uri=uri, mode=mode, data=row_data))
             else:
                 uri = f"{self.schema.name}"
-            output.append(DataverseBatchCommand(uri=uri, mode=mode, data=row_data))
+                output.append(DataverseBatchCommand(uri=uri, mode=mode, data=row))
 
         return output
 

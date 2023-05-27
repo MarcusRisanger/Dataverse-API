@@ -117,11 +117,19 @@ def dataverse_client(
     return client
 
 
+@pytest.fixture
+def dataverse_batch_commands():
+    data = [
+        DataverseBatchCommand(uri="uri1", mode="mode1", data={"col1": 1, "col2": 2}),
+        DataverseBatchCommand(uri="uri2", mode="mode1", data={"col1": 3, "col2": 4}),
+        DataverseBatchCommand(uri="uri3", mode="mode1", data={"col1": 5, "col2": 6}),
+    ]
+    return data
+
+
 @responses.activate
 def test_dataverse_instantiation(
-    dataverse_client,
-    dataverse_scopes,
-    dataverse_api_url,
+    dataverse_client, dataverse_scopes, dataverse_api_url, dataverse_batch_commands
 ):
     c: DataverseClient = dataverse_client
 
@@ -142,31 +150,25 @@ def test_dataverse_instantiation(
 
     # Mocking endpoint responses raising errors
     postfix = "foo"
-    responses.add("GET", url=urljoin(c.api_url, postfix), status=404)
-    responses.add("POST", url=urljoin(c.api_url, postfix), status=404)
-    responses.add("PUT", url=urljoin(c.api_url, postfix), status=404)
-    responses.add("PATCH", url=urljoin(c.api_url, postfix), status=404)
-    responses.add("DELETE", url=urljoin(c.api_url, postfix), status=404)
-    responses.add("PATCH", url=urljoin(c.api_url, "$batch"), status=404)
+    responses.get(urljoin(c.api_url, postfix), status=400)
+    responses.post(urljoin(c.api_url, postfix), status=400)
+    responses.put(urljoin(c.api_url, postfix), status=400)
+    responses.patch(urljoin(c.api_url, postfix), status=400)
+    responses.delete(urljoin(c.api_url, postfix), status=400)
+    responses.post(urljoin(c.api_url, "$batch"), status=400)
 
-    with pytest.raises(DataverseError):
+    with pytest.raises(DataverseError, match=r"Error with GET request: .+"):
         c.get(postfix)
-    with pytest.raises(DataverseError):
+    with pytest.raises(DataverseError, match=r"Error with POST request: .+"):
         c.post(postfix)
-    with pytest.raises(DataverseError):
-        c.put(postfix, key="test", data={"col": 1})
-    with pytest.raises(DataverseError):
+    with pytest.raises(DataverseError, match=r"Error with PUT request: .+"):
+        c.put(postfix, key="test", column="col", value=1)
+    with pytest.raises(DataverseError, match=r"Error with PATCH request: .+"):
         c.patch(postfix, data={"col": 1})
-    with pytest.raises(DataverseError):
+    with pytest.raises(DataverseError, match=r"Error with DELETE request: .+"):
         c.delete(postfix)
-
-    data = [
-        DataverseBatchCommand(uri="uri1", mode="mode1", data={"col1": 1, "col2": 2}),
-        DataverseBatchCommand(uri="uri2", mode="mode1", data={"col1": 3, "col2": 4}),
-        DataverseBatchCommand(uri="uri3", mode="mode1", data={"col1": 5, "col2": 6}),
-    ]
-    with pytest.raises(DataverseError):
-        c.batch_operation(data=data)
+    with pytest.raises(DataverseError, match=r"Error with POST request: .+"):
+        c.batch_operation(data=dataverse_batch_commands)
 
 
 @pytest.fixture
