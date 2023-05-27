@@ -1,4 +1,6 @@
+import json
 import os
+from dataclasses import dataclass
 
 import pandas as pd
 import pytest
@@ -11,6 +13,8 @@ from dataverse_api.utils import (
     convert_data,
     expand_headers,
     extract_key,
+    parse_meta_columns,
+    parse_meta_keys,
 )
 
 
@@ -135,3 +139,28 @@ def test_expand_headers(test_data_dict):
     assert len(headers) == len(test_data_dict) + 1
     assert all([x in headers for x in ["a", "b", "c", "d", "q"]])
     assert headers["a"] == "foo"
+
+
+@pytest.fixture
+def entity_attributes_bad():
+    @dataclass
+    class MockData:
+        data: dict
+
+        def json(self):
+            return self.data
+
+    with open("tests/sample_data/test_entity_attributes_bad.json") as f:
+        attrs = MockData(data=json.load(f))
+
+    with open("tests/sample_data/test_entity_keys_bad.json") as f:
+        keys = MockData(data=json.load(f))
+    return (attrs, keys)
+
+
+def test_parse_meta_columns(entity_attributes_bad):
+    attrs, keys = entity_attributes_bad
+    with pytest.raises(DataverseError, match=r"Payload does not contain"):
+        parse_meta_columns(attrs)
+    with pytest.raises(DataverseError, match=r"Payload does not contain"):
+        parse_meta_keys(keys)

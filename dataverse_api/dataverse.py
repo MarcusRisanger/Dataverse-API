@@ -32,6 +32,17 @@ log = logging.getLogger()
 logging.basicConfig(level=logging.INFO)
 
 
+ENTITY_SET_PARAMS = ["EntitySetName", "PrimaryIdAttribute"]
+ENTITY_ATTR_PARAMS = [
+    "LogicalName",
+    "SchemaName",
+    "AttributeType",
+    "IsValidForCreate",
+    "IsValidForUpdate",
+]
+ENTITY_KEY_PARAMS = ["KeyAttributes"]
+
+
 class DataverseClient:
     """
     Base class used to establish authorization and certain default
@@ -43,7 +54,7 @@ class DataverseClient:
       - client_secret: Secret for App registration
       - authority_url: Authority URL for App registration
       - dynamics_url: Base environment url
-      - scopes: The App registration scope
+      - scopes: The App registration scope names
     """
 
     def __init__(
@@ -59,7 +70,7 @@ class DataverseClient:
             app_id=app_id,
             client_secret=client_secret,
             authority_url=authority_url,
-            scopes=scopes,
+            scopes=[urljoin(dynamics_url, scope) for scope in scopes],
         )
         self._entity_cache: dict[str, DataverseEntity] = {}
         self._default_headers = {
@@ -74,8 +85,20 @@ class DataverseClient:
         app_id: str,
         client_secret: str,
         authority_url: str,
-        scopes: list[str],
+        scopes: Optional[list[str]] = None,
     ) -> ClientCredentialAuth:
+        """
+        Authentication module.
+
+        Args:
+          - app_id: App registration ID
+          - client_secret: Secret corresponding to App registration ID
+          - authority_url: Authority URL corresponding to App registration
+          - scopes: Scope names for which the App is registered
+
+        """
+        if scopes is None:
+            scopes = [".default"]
         app = ConfidentialClientApplication(
             client_id=app_id, authority=authority_url, client_credential=client_secret
         )
@@ -112,7 +135,7 @@ class DataverseClient:
 
             return self._entity_cache[name]
 
-    def _get(
+    def get(
         self, url: str, additional_headers: Optional[dict] = None, **kwargs
     ) -> requests.Response:
         """
@@ -142,7 +165,7 @@ class DataverseClient:
         except requests.exceptions.RequestException as e:
             raise DataverseError(f"Error with GET request: {e}", response=e.response)
 
-    def _post(
+    def post(
         self, url: str, additional_headers: Optional[dict] = None, **kwargs
     ) -> requests.Response:
         """
@@ -170,7 +193,7 @@ class DataverseClient:
         except requests.exceptions.RequestException as e:
             raise DataverseError(f"Error with POST request: {e}", response=e.response)
 
-    def _put(
+    def put(
         self, entity_name: str, key: str, data: dict[str, Any]
     ) -> requests.Response:
         """
@@ -182,9 +205,6 @@ class DataverseClient:
           - column:
         """
         column, value = list(data.items())[0]
-
-        if self._validate and column not in self.schema.entities[entity_name].columns:
-            raise DataverseError(f"Column {column} not found in {entity_name} schema.")
 
         url = f"{urljoin(self.api_url,entity_name)}({key})/{column}"
 
@@ -200,7 +220,7 @@ class DataverseClient:
         except requests.exceptions.RequestException as e:
             raise DataverseError(f"Error with PUT request: {e}", response=e.response)
 
-    def _patch(
+    def patch(
         self,
         url: str,
         data: dict[str, Any],
@@ -230,7 +250,7 @@ class DataverseClient:
         except requests.exceptions.RequestException as e:
             raise DataverseError(f"Error with PATCH request: {e}", response=e.response)
 
-    def _delete(
+    def delete(
         self, url: str, additional_headers: Optional[dict] = None
     ) -> requests.Response:
         """
@@ -257,7 +277,7 @@ class DataverseClient:
         except requests.exceptions.RequestException as e:
             raise DataverseError(f"Error with DELETE request: {e}", response=e.response)
 
-    def _batch_operation(
+    def batch_operation(
         self,
         data: list[DataverseBatchCommand],
         batch_id_generator: Callable[..., str] = batch_id_generator,
@@ -312,7 +332,7 @@ class DataverseClient:
             )
 
             try:
-                response = self._post(
+                response = self.post(
                     url="$batch", additional_headers=additional_headers, data=batch_data
                 )
                 response.raise_for_status()
@@ -384,10 +404,10 @@ class DataverseEntity:
           - `DataverseEntitySet` containing attrs `entity_set_name` and `key`
         """
         url = f"EntityDefinitions(LogicalName='{logical_name}')"
-        parameters = ["EntitySetName", "PrimaryIdAttribute"]
+        parameters = ENTITY_SET_PARAMS
         params = {"$select": ",".join(parameters)}
 
-        response = self._client._get(url=url, params=params).json()
+        response = self._client.get(url=url, params=params).json()
 
         entity_set = DataverseEntitySet(
             entity_set_name=response["EntitySetName"],
@@ -401,19 +421,13 @@ class DataverseEntity:
         Required for initialization using logical name of Dataverse Entity.
         """
         url = f"EntityDefinitions(LogicalName='{logical_name}')/Attributes"
-        parameters = [
-            "LogicalName",
-            "SchemaName",
-            "AttributeType",
-            "IsValidForCreate",
-            "IsValidForUpdate",
-        ]
+        parameters = ENTITY_ATTR_PARAMS
         params = {
             "$select": ",".join(parameters),
             "$filter": "IsValidODataAttribute eq true",
         }
 
-        response = self._client._get(url=url, params=params)
+        response = self._client.get(url=url, params=params)
 
         return response
 
@@ -422,10 +436,10 @@ class DataverseEntity:
         Required for initialization using logical name of Dataverse Entity.
         """
         url = f"EntityDefinitions(LogicalName='{logical_name}')/Keys"
-        parameters = ["KeyAttributes"]
+        parameters = ENTITY_KEY_PARAMS
         params = {"$select": ",".join(parameters)}
 
-        response = self._client._get(url=url, params=params)
+        response = self._client.get(url=url, params=params)
 
         return response
 
@@ -453,7 +467,7 @@ class DataverseEntity:
         if len(data) > 1:
             raise DataverseError("Can only update a single column using this function.")
 
-        response = self._client._put(
+        response = self._client.put(
             entity_name=self.schema.name, key=row_key, data=data
         )
         if response:
@@ -517,7 +531,7 @@ class DataverseEntity:
             key_columns=key_columns,
         )
 
-        if self._client._batch_operation(batch_data):
+        if self._client.batch_operation(batch_data):
             log.info(
                 f"Successfully updated {len(batch_data)} rows in {self.schema.name}."
             )
@@ -546,7 +560,7 @@ class DataverseEntity:
         # Converting to Batch Commands
         batch_data = self._prepare_batch_data(data=data, mode="POST")
 
-        if self._client._batch_operation(batch_data):
+        if self._client.batch_operation(batch_data):
             log.info(
                 f"Successfully inserted {len(batch_data)} rows to {self.schema.name}."
             )
@@ -581,7 +595,7 @@ class DataverseEntity:
             key_columns=key_columns,
         )
 
-        if self._client._batch_operation(batch_data):
+        if self._client.batch_operation(batch_data):
             log.info(
                 f"Successfully upserted {len(batch_data)} rows to {self.schema.name}."
             )
@@ -711,7 +725,7 @@ class DataverseEntity:
         if select is not None:
             params["$select"] = ",".join(select)
 
-        return self._client._get(
+        return self._client.get(
             url=self.schema.name,
             additional_headers=additional_headers,
             params=params,

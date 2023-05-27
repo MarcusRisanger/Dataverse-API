@@ -1,0 +1,4 @@
+{
+    "EntitySetName": "test",
+    "PrimaryIdAttribute": "testid"
+}

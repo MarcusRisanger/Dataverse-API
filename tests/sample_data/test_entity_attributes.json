@@ -12,8 +12,8 @@
     },
     {
       "@odata.type": "#Microsoft.Dynamics.CRM.IntegerAttributeMetadata",
-      "LogicalName": "cr3fa_test_value_number",
-      "SchemaName": "cr3fa_test_value_number",
+      "LogicalName": "test_int",
+      "SchemaName": "test_int",
       "AttributeType": "Integer",
       "IsValidForCreate": true,
       "IsValidForUpdate": true,
@@ -92,8 +92,8 @@
       "MetadataId": "d596bc19-2767-4546-8314-2c023941ea9e"
     },
     {
-      "LogicalName": "cr3fa_marcus_testid",
-      "SchemaName": "cr3fa_marcus_testId",
+      "LogicalName": "testid",
+      "SchemaName": "testId",
       "AttributeType": "Uniqueidentifier",
       "IsValidForCreate": true,
       "IsValidForUpdate": false,
@@ -110,8 +110,8 @@
     },
     {
       "@odata.type": "#Microsoft.Dynamics.CRM.StringAttributeMetadata",
-      "LogicalName": "cr3fa_test_pk",
-      "SchemaName": "cr3fa_test_pk",
+      "LogicalName": "test_pk",
+      "SchemaName": "test_pk",
       "AttributeType": "String",
       "IsValidForCreate": true,
       "IsValidForUpdate": true,
@@ -137,8 +137,8 @@
     },
     {
       "@odata.type": "#Microsoft.Dynamics.CRM.StringAttributeMetadata",
-      "LogicalName": "cr3fa_test_value_text",
-      "SchemaName": "cr3fa_test_value_text",
+      "LogicalName": "test_string",
+      "SchemaName": "test_string",
       "AttributeType": "String",
       "IsValidForCreate": true,
       "IsValidForUpdate": true,
