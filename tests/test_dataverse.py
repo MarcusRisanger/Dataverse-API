@@ -1,4 +1,5 @@
 import json
+from urllib.parse import urljoin
 
 import pytest
 import requests
@@ -13,7 +14,7 @@ from dataverse_api.dataverse import (
     DataverseClient,
     DataverseEntity,
 )
-from dataverse_api.utils import DataverseColumn
+from dataverse_api.utils import DataverseBatchCommand, DataverseColumn, DataverseError
 
 
 @pytest.fixture
@@ -46,13 +47,13 @@ def dataverse_entity_keys():
 
 
 @pytest.fixture
-def dataverse_scopes():
-    return ["scope"]
+def dataverse_api_url():
+    return "https://xxx"
 
 
 @pytest.fixture
-def dataverse_api_url():
-    return "https://xxx"
+def dataverse_scopes(dataverse_api_url):
+    return [urljoin(dataverse_api_url, ".myscope")]
 
 
 @pytest.fixture
@@ -98,7 +99,6 @@ def dataverse_client(
     dataverse_scopes,
     dataverse_auth,
     dataverse_api_url,
-    dataverse_access_token,
 ) -> DataverseClient:
     mocker.patch.object(
         DataverseClient,
@@ -114,12 +114,10 @@ def dataverse_client(
         scopes=dataverse_scopes,
     )
 
-    assert client.api_url == f"{dataverse_api_url}/api/data/v9.2/"
-    assert client._auth._get_access_token() == dataverse_access_token
-
     return client
 
 
+@responses.activate
 def test_dataverse_instantiation(
     dataverse_client,
     dataverse_scopes,
@@ -141,6 +139,34 @@ def test_dataverse_instantiation(
         "OData-Version": "4.0",
         "Content-Type": "application/json",
     }
+
+    # Mocking endpoint responses raising errors
+    postfix = "foo"
+    responses.add("GET", url=urljoin(c.api_url, postfix), status=404)
+    responses.add("POST", url=urljoin(c.api_url, postfix), status=404)
+    responses.add("PUT", url=urljoin(c.api_url, postfix), status=404)
+    responses.add("PATCH", url=urljoin(c.api_url, postfix), status=404)
+    responses.add("DELETE", url=urljoin(c.api_url, postfix), status=404)
+    responses.add("PATCH", url=urljoin(c.api_url, "$batch"), status=404)
+
+    with pytest.raises(DataverseError):
+        c.get(postfix)
+    with pytest.raises(DataverseError):
+        c.post(postfix)
+    with pytest.raises(DataverseError):
+        c.put(postfix, key="test", data={"col": 1})
+    with pytest.raises(DataverseError):
+        c.patch(postfix, data={"col": 1})
+    with pytest.raises(DataverseError):
+        c.delete(postfix)
+
+    data = [
+        DataverseBatchCommand(uri="uri1", mode="mode1", data={"col1": 1, "col2": 2}),
+        DataverseBatchCommand(uri="uri2", mode="mode1", data={"col1": 3, "col2": 4}),
+        DataverseBatchCommand(uri="uri3", mode="mode1", data={"col1": 5, "col2": 6}),
+    ]
+    with pytest.raises(DataverseError):
+        c.batch_operation(data=data)
 
 
 @pytest.fixture

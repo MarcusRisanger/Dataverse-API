@@ -63,14 +63,19 @@ class DataverseClient:
         client_secret: str,
         authority_url: str,
         dynamics_url: str,
-        scopes: list[str],
+        scopes: Optional[list[str]] = None,
     ):
         self.api_url = urljoin(dynamics_url, "/api/data/v9.2/")
+        if scopes is not None:
+            scopes = [urljoin(dynamics_url, scope) for scope in scopes]
+        else:
+            scopes = [".default"]
+
         self._auth = self._authenticate(
             app_id=app_id,
             client_secret=client_secret,
             authority_url=authority_url,
-            scopes=[urljoin(dynamics_url, scope) for scope in scopes],
+            scopes=scopes,
         )
         self._entity_cache: dict[str, DataverseEntity] = {}
         self._default_headers = {
@@ -85,7 +90,7 @@ class DataverseClient:
         app_id: str,
         client_secret: str,
         authority_url: str,
-        scopes: Optional[list[str]] = None,
+        scopes: list[str],
     ) -> ClientCredentialAuth:
         """
         Authentication module.
@@ -94,11 +99,10 @@ class DataverseClient:
           - app_id: App registration ID
           - client_secret: Secret corresponding to App registration ID
           - authority_url: Authority URL corresponding to App registration
-          - scopes: Scope names for which the App is registered
+          - scopes: Optional scope names for which the App is registered,
+            uses `.default` if none is passed.
 
         """
-        if scopes is None:
-            scopes = [".default"]
         app = ConfidentialClientApplication(
             client_id=app_id, authority=authority_url, client_credential=client_secret
         )
