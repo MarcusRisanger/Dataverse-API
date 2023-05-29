@@ -1,17 +1,18 @@
+import json
 from collections.abc import Iterator
 from dataclasses import dataclass
+from textwrap import dedent
 from typing import Any, Optional, Union
 from uuid import uuid4
 
 import pandas as pd
-import requests
 
 
 @dataclass
 class DataverseBatchCommand:
     uri: str
     mode: str
-    data: dict[str, Any]
+    data: Optional[dict[str, Any]] = None
 
 
 @dataclass
@@ -42,8 +43,49 @@ class DataverseError(Exception):
         self.response = response
 
 
+def extract_batch_response_data(response_text: str) -> list[dict]:
+    """
+    Retrieves the data contained in a batch request return string.
+
+    Args:
+      - The text string returned by the request.
+
+    Returns:
+      - List of strings containing data in request return. Ready for
+        `parse_entity_metadata` function.
+    """
+
+    out = []
+    for row in response_text.splitlines():
+        if len(row) == 0:
+            continue
+        if row[0] == "{":
+            out.append(row)
+    return out
+
+
+def parse_entity_metadata(metadata: list[str]) -> DataverseTableSchema:
+    """
+    Parses entity metadata from list of dicts.
+
+    Args:
+      - A list containing responses from
+    """
+    for item in metadata:
+        data = json.loads(item)
+        if "$entity" in item:
+            name = data["EntitySetName"]
+            key = data["PrimaryIdAttribute"]
+        elif "/Attributes" in item:
+            columns = parse_meta_columns(data)
+        elif "/Keys" in item:
+            altkeys = parse_meta_keys(data)
+
+    return DataverseTableSchema(name=name, key=key, columns=columns, altkeys=altkeys)
+
+
 def parse_meta_columns(
-    attribute_metadata: requests.Response,
+    attribute_metadata: dict[Any],
 ) -> dict[str, DataverseColumn]:
     """
     Parses the available columns based on the AttributeMetadata EntityType,
@@ -62,7 +104,7 @@ def parse_meta_columns(
       - Dict with column names as key and `DataverseColumn` as values.
     """
     columns = dict()
-    items: list[dict] = attribute_metadata.json()["value"]
+    items: list[dict] = attribute_metadata["value"]
     for item in items:
         try:
             if item.get("IsValidODataAttribute", True) and (
@@ -80,7 +122,7 @@ def parse_meta_columns(
 
 
 def parse_meta_keys(
-    keys_metadata: requests.Response,
+    keys_metadata: list[Any],
 ) -> list[set[str]]:
     """
     Parses the available alternate keys based on the EntityKeyMetadata EntityType,
@@ -97,7 +139,7 @@ def parse_meta_keys(
     """
     keys: list[set] = list()
 
-    items: list[dict] = keys_metadata.json()["value"]
+    items: list[dict] = keys_metadata["value"]
     for item in items:
         try:
             keys.append(set(item["KeyAttributes"]))
@@ -199,3 +241,28 @@ def extract_key(
 def batch_id_generator() -> str:
     """Simply creates a unique string."""
     return str(uuid4())
+
+
+def batch_command(batch_id: str, api_url: str, row: DataverseBatchCommand) -> str:
+    if row.mode == "GET":
+        row_command = f"""\
+        --{batch_id}
+        Content-Type: application/http
+        Content-Transfer-Encoding: binary
+
+        {row.mode} {api_url}{row.uri} HTTP/1.1
+
+        """
+    else:
+        row_command = f"""\
+        --{batch_id}
+        Content-Type: application/http
+        Content-Transfer-Encoding: binary
+
+        {row.mode} {api_url}{row.uri} HTTP/1.1
+        Content-Type: application/json{'; type=entry' if row.mode=="POST" else""}
+
+        {json.dumps(row.data)}
+        """
+
+    return dedent(row_command)

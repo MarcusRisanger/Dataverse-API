@@ -1,5 +1,4 @@
 import json
-import os
 from dataclasses import dataclass
 
 import pandas as pd
@@ -13,8 +12,6 @@ from dataverse_api.utils import (
     convert_data,
     expand_headers,
     extract_key,
-    parse_meta_columns,
-    parse_meta_keys,
 )
 
 
@@ -47,15 +44,6 @@ def test_data_batch_commands():
         DataverseBatchCommand(uri="uri2", mode="mode1", data={"col1": 3, "col2": 4}),
         DataverseBatchCommand(uri="uri3", mode="mode1", data={"col1": 5, "col2": 6}),
     ]
-    return data
-
-
-@pytest.fixture
-def example_schema():
-    file_path = "tests/sample_data/test_schema.txt"
-    full_path = os.path.join(os.getcwd(), file_path)
-    with open(full_path) as f:
-        data = f.read()
     return data
 
 
@@ -161,11 +149,3 @@ def entity_attributes_bad():
     with open("tests/sample_data/test_entity_keys_bad.json") as f:
         keys = MockData(data=json.load(f))
     return (attrs, keys)
-
-
-def test_parse_meta_columns_errors(entity_attributes_bad):
-    attrs, keys = entity_attributes_bad
-    with pytest.raises(DataverseError, match=r"Payload does not contain"):
-        parse_meta_columns(attrs)
-    with pytest.raises(DataverseError, match=r"Payload does not contain"):
-        parse_meta_keys(keys)

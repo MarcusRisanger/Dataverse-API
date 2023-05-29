@@ -1,9 +1,7 @@
 from __future__ import annotations
 
-import json
 import logging
 from collections.abc import Callable
-from textwrap import dedent
 from typing import Any, Literal, Optional, Union
 from urllib.parse import urljoin
 
@@ -16,16 +14,16 @@ from msal_requests_auth.auth import ClientCredentialAuth
 # print(dump.dump_all(response).decode("utf-8"))
 from dataverse_api.utils import (
     DataverseBatchCommand,
-    DataverseEntitySet,
     DataverseError,
     DataverseTableSchema,
+    batch_command,
     batch_id_generator,
     chunk_data,
     convert_data,
     expand_headers,
+    extract_batch_response_data,
     extract_key,
-    parse_meta_columns,
-    parse_meta_keys,
+    parse_entity_metadata,
 )
 
 log = logging.getLogger()
@@ -39,6 +37,7 @@ ENTITY_ATTR_PARAMS = [
     "AttributeType",
     "IsValidForCreate",
     "IsValidForUpdate",
+    "IsValidODataAttribute",
 ]
 ENTITY_KEY_PARAMS = ["KeyAttributes"]
 
@@ -292,7 +291,7 @@ class DataverseClient:
         self,
         data: list[DataverseBatchCommand],
         batch_id_generator: Callable[..., str] = batch_id_generator,
-    ):
+    ) -> requests.Response:
         """
         Generalized function to run batch commands against Dataverse.
 
@@ -317,18 +316,9 @@ class DataverseClient:
             # Preparing batch data
             batch_data = ""
             for row in chunk:
-                row_command = f"""\
-                --{batch_id}
-                Content-Type: application/http
-                Content-Transfer-Encoding: binary
-
-                {row.mode} {self.api_url}{row.uri} HTTP/1.1
-                Content-Type: application/json{'; type=entry' if row.mode=="POST" else""}
-
-                {json.dumps(row.data)}
-                """
-
-                batch_data += dedent(row_command)
+                batch_data += batch_command(
+                    batch_id=batch_id, api_url=self.api_url, row=row
+                )
 
             # Note: Trailing space in final line is crucial
             # Request fails to meet specification without it
@@ -340,18 +330,18 @@ class DataverseClient:
                 "If-None-Match": "null",
             }
 
-            log.info(
+            log.debug(
                 f"Sending batch ID {batch_id} containing {len(chunk)} "
                 + "commands for processing in Dataverse."
             )
 
-            self.post(
+            response = self.post(
                 url="$batch", additional_headers=additional_headers, data=batch_data
             )
-            log.info(f"Successfully completed {len(chunk)} batch command chunk.")
+            log.debug(f"Successfully completed {len(chunk)} batch command chunk.")
 
-        log.info("Successfully completed all batch commands.")
-        return True
+        log.debug("Successfully completed all batch commands.")
+        return response
 
 
 class DataverseEntity:
@@ -380,22 +370,25 @@ class DataverseEntity:
 
         if logical_name is not None:
             self._validate = True
-            entity_set_data = self._fetch_entity_data(logical_name=logical_name)
-            self.schema = DataverseTableSchema(
-                name=entity_set_data.entity_set_name,
-                key=entity_set_data.entity_set_key,
+            metadata = self._get_entity_metadata(
+                logical_name=logical_name,
+                entity_params=ENTITY_SET_PARAMS,
+                attr_params=ENTITY_ATTR_PARAMS,
+                key_params=ENTITY_KEY_PARAMS,
             )
-
-            col_response = self._fetch_entity_columns(logical_name)
-            key_response = self._fetch_entity_altkeys(logical_name)
-            self.schema.columns = parse_meta_columns(col_response)
-            self.schema.altkeys = parse_meta_keys(key_response)
+            self.schema = parse_entity_metadata(metadata)
 
         elif entity_set_name is not None:
             self._validate = False
             self.schema = DataverseTableSchema(name=entity_set_name)
 
-    def _fetch_entity_data(self, logical_name) -> DataverseEntitySet:
+    def _get_entity_metadata(
+        self,
+        logical_name: str,
+        entity_params: list[str],
+        attr_params: list[str],
+        key_params: list[str],
+    ) -> list[dict]:
         """
         Required for initialization using logical name of Dataverse Entity.
 
@@ -403,17 +396,16 @@ class DataverseEntity:
           - `DataverseEntitySet` containing attrs `entity_set_name` and `key`
         """
         url = f"EntityDefinitions(LogicalName='{logical_name}')"
-        parameters = ENTITY_SET_PARAMS
-        params = {"$select": ",".join(parameters)}
+        data = [
+            DataverseBatchCommand(f"{url}?$select={','.join(entity_params)}", "GET"),
+            DataverseBatchCommand(
+                f"{url}/Attributes?$select={','.join(attr_params)}", "GET"
+            ),
+            DataverseBatchCommand(f"{url}/Keys?$select={','.join(key_params)}", "GET"),
+        ]
 
-        response = self._client.get(url=url, params=params).json()
-
-        entity_set = DataverseEntitySet(
-            entity_set_name=response["EntitySetName"],
-            entity_set_key=response["PrimaryIdAttribute"],
-        )
-
-        return entity_set
+        response = self._client.batch_operation(data)
+        return extract_batch_response_data(response.text)
 
     def _fetch_entity_columns(self, logical_name) -> requests.Response:
         """
