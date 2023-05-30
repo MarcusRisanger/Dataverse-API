@@ -17,6 +17,8 @@ Usage is fairly simple and assumes that a valid app registration for writing to 
 ```
 import os
 from dataverse_api import DataverseClient
+from msal import ConfidentialClientApplication
+from msal_requests_auth.auth import ClientCredentialAuth
 
 app_id = os.environ["app_id"]
 authority_url = os.environ["authority_url"]
@@ -25,14 +27,17 @@ url = os.environ["url"]
 scopes = [url + "/.default"]
 
 
-client = DataverseClient(
-    app_id=app_id,
-    client_secret=client_secret,
-    authority_url=authority_url,
+client = ConfidentialClientApplication(
+    client_id=app_id,
+    client_credential=client_secret,
+    authority=authority_url,
+)
+auth = ClientCredentialAuth(
+    client=client,
     scopes=scopes,
-    dynamics_url=url,
 )
 
+client = DataverseClient(resource=url, auth=auth)
 table = client.entity(logical_name="xyz_my_table")
 
 data = [
@@ -73,7 +78,7 @@ We use [poetry](https://python-poetry.org) to manage dependencies and to adminis
 ### Code requirements
 
 All code must pass [black](https://github.com/ambv/black) and [isort](https://github.com/timothycrosley/isort) style
-checks to be merged. It is recommended to install pre-commit hooks to ensure this locally before commiting code:
+checks to be merged, among others. It is recommended to install pre-commit hooks to ensure this locally before commiting code:
 
 ```
 $ poetry run pre-commit install
