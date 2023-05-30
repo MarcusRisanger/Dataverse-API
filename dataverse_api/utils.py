@@ -1,18 +1,18 @@
-import xml.etree.ElementTree as ET
+import json
 from collections.abc import Iterator
 from dataclasses import dataclass
+from textwrap import dedent
 from typing import Any, Optional, Union
 from uuid import uuid4
 
 import pandas as pd
-import requests
 
 
 @dataclass
 class DataverseBatchCommand:
     uri: str
     mode: str
-    data: dict[str, Any]
+    data: Optional[dict[str, Any]] = None
 
 
 @dataclass
@@ -43,8 +43,69 @@ class DataverseError(Exception):
         self.response = response
 
 
+def extract_batch_response_data(response_text: str) -> list[dict]:
+    """
+    Retrieves the data contained in a batch request return string.
+
+    Args:
+      - The text string returned by the request.
+
+    Returns:
+      - List of strings containing data in request return. Ready for
+        `parse_entity_metadata` function.
+    """
+
+    out = []
+    for row in response_text.splitlines():
+        if len(row) == 0:
+            continue
+        if row[0] == "{":
+            out.append(row)
+    return out
+
+
+def parse_entity_metadata(metadata: list[str]) -> DataverseTableSchema:
+    """
+    Parses entity metadata from list of dicts.
+
+    Args:
+      - A list containing batch GET operation responses from Dataverse.
+      - The list must contain three
+    """
+    for item in metadata:
+        data = json.loads(item)
+        if "$entity" in item:
+            name, key = parse_meta_entity(data)
+        elif "/Attributes" in item:
+            columns = parse_meta_columns(data)
+        elif "/Keys" in item:
+            altkeys = parse_meta_keys(data)
+
+    return DataverseTableSchema(name=name, key=key, columns=columns, altkeys=altkeys)
+
+
+def parse_meta_entity(entity_metadata: dict[Any]) -> tuple[str, str]:
+    """
+    Parses the available columns based on the EntityMetadata EntityType,
+    given in response from the EntityDefinitions() endpoint.
+
+    Required properties in Response body:
+      - EntitySetName
+      - PrimaryIdAttribute
+
+    Returns:
+      - tuple: EntitySetName , PrimaryIdAttribute
+    """
+    try:
+        name = entity_metadata["EntitySetName"]
+        key = entity_metadata["PrimaryIdAttribute"]
+    except KeyError:
+        raise DataverseError("Payload does not contain the necessary columns.")
+    return name, key
+
+
 def parse_meta_columns(
-    attribute_metadata: requests.Response,
+    attribute_metadata: dict[Any],
 ) -> dict[str, DataverseColumn]:
     """
     Parses the available columns based on the AttributeMetadata EntityType,
@@ -58,9 +119,12 @@ def parse_meta_columns(
 
     Optional properties in Response body:
       - IsValidODataAttribute
+
+    Returns:
+      - Dict with column names as key and `DataverseColumn` as values.
     """
     columns = dict()
-    items: list[dict] = attribute_metadata.json()["value"]
+    items: list[dict] = attribute_metadata["value"]
     for item in items:
         try:
             if item.get("IsValidODataAttribute", True) and (
@@ -71,16 +135,14 @@ def parse_meta_columns(
                     can_create=item["IsValidForCreate"],
                     can_update=item["IsValidForUpdate"],
                 )
-        except KeyError as e:
-            raise DataverseError(
-                f"Payload does not contain the necessary columns. {e}", message=e
-            )
+        except KeyError:
+            raise DataverseError("Payload does not contain the necessary columns.")
 
     return columns
 
 
 def parse_meta_keys(
-    keys_metadata: requests.Response,
+    keys_metadata: list[Any],
 ) -> list[set[str]]:
     """
     Parses the available alternate keys based on the EntityKeyMetadata EntityType,
@@ -91,17 +153,18 @@ def parse_meta_keys(
 
     Optional properties in Response body:
       - None
+
+    Returns:
+      - List of alternate key column combinations as sets.
     """
     keys: list[set] = list()
 
-    items: list[dict] = keys_metadata.json()["value"]
+    items: list[dict] = keys_metadata["value"]
     for item in items:
         try:
             keys.append(set(item["KeyAttributes"]))
-        except KeyError as e:
-            raise DataverseError(
-                f"Payload does not contain the ncessary columns. {e}", message=e
-            )
+        except KeyError:
+            raise DataverseError("Payload does not contain the necessary columns.")
 
     return keys
 
@@ -141,6 +204,16 @@ def convert_data(data: Union[dict, list[dict], pd.DataFrame]) -> list[dict]:
     """
     Normalizes data to a list of dicts, ready to be validated
     and processed into DataverseBatchCommands.
+
+    Args:
+      - data: Data payload as either a single dict, list of dicts
+        or a `pd.DataFrame`.
+
+    Returns:
+      - Data payload as list of dicts.
+
+    Raises:
+      - DataverseError if arguments are of incorrect type.
     """
     if isinstance(data, list):
         return data
@@ -161,21 +234,27 @@ def extract_key(
     data: dict[str, Any], key_columns: Union[str, set[str]]
 ) -> tuple[dict[str, Any], str]:
     """
-    Extracts key from the given dictionary.
+    Extracts key from the given dictionary. The key identifies a
+    row in Dataverse based on column name and corresponding value,
+    and can consist of several columns, comma separated. E.g.:
+
+    >>> key = "col1=123,col2='abc'"
+    >>> requests.get(f"api_endpoint/tests({key})")
 
     Args:
       - data: A dict containing all columns
       - key_columns: A set containing all key columns
 
     Returns a tuple with two elements:
-      - 0: A modified dictionary where any key columns are removed
+      - 0: A modified data dict where any key columns are removed
       - 1: A string that contains the Dataverse specification
         row identifier
     """
     data = data.copy()
     key_elements = []
     for col in set(key_columns):
-        key_elements.append(f"{col}={data.pop(col).__repr__()}")
+        key_value = data.pop(col).__repr__()  # Need repr to capture strings properly
+        key_elements.append(f"{col}={key_value}")
     return (data, ",".join(key_elements))
 
 
@@ -184,36 +263,25 @@ def batch_id_generator() -> str:
     return str(uuid4())
 
 
-def parse_metadata(raw_schema: str) -> dict[str, DataverseTableSchema]:
-    entities: dict[str, DataverseTableSchema] = {}
-    schema = ET.fromstring(raw_schema)
-    for table in schema.findall(".//{*}EntityType"):
-        # Get key
-        key = table.find(".//{*}PropertyRef")
-        if key is None:  # Some special entities have no key attribute
-            continue
-        else:
-            key = key.attrib["Name"]
+def batch_command(batch_id: str, api_url: str, row: DataverseBatchCommand) -> str:
+    if row.mode == "GET":
+        row_command = f"""\
+        --{batch_id}
+        Content-Type: application/http
+        Content-Transfer-Encoding: binary
 
-        table_name = table.attrib["Name"] + "s"
-        columns: set[str] = set()
-        altkeys: list[set[str]] = list()
+        {row.mode} {api_url}{row.uri} HTTP/1.1
 
-        # Get all column names
-        for column in table.findall(".//{*}Property"):
-            columns.add(column.attrib["Name"])
+        """
+    else:
+        row_command = f"""\
+        --{batch_id}
+        Content-Type: application/http
+        Content-Transfer-Encoding: binary
 
-        # Get alternate key column combinations, if any
-        for altkey in table.findall(".//{*}Record[@Type='Keys.AlternateKey']"):
-            key_columns = set()
-            for key_part in altkey.findall(".//{*}PropertyValue"):
-                if key_part.attrib["Property"] == "Name":
-                    key_columns.add(key_part.attrib["PropertyPath"])
-            altkeys.append(key_columns)
+        {row.mode} {api_url}{row.uri} HTTP/1.1
+        Content-Type: application/json{'; type=entry' if row.mode=="POST" else""}
 
-        # Write to schema
-        entities[table_name] = DataverseTableSchema(
-            key=key, columns=columns, altkeys=altkeys
-        )
-
-    return entities
+        {json.dumps(row.data)}
+        """
+    return dedent(row_command)

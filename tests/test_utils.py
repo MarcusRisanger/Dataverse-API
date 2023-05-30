@@ -1,4 +1,4 @@
-import os
+import json
 
 import pandas as pd
 import pytest
@@ -10,7 +10,11 @@ from dataverse_api.utils import (
     chunk_data,
     convert_data,
     expand_headers,
+    extract_batch_response_data,
     extract_key,
+    parse_meta_columns,
+    parse_meta_entity,
+    parse_meta_keys,
 )
 
 
@@ -37,21 +41,54 @@ def test_data_df(test_data_list):
 
 
 @pytest.fixture
+def entity_validation_data():
+    with open("tests/sample_data/test_entity_init.txt") as f:
+        return f.read()
+
+
+@pytest.fixture
+def entity_validation_data_bad():
+    with open("tests/sample_data/test_entity_init_bad.txt") as f:
+        return f.read()
+
+
+@pytest.fixture
+def processed_entity_validation_data(entity_validation_data):
+    output = extract_batch_response_data(entity_validation_data)
+    return output
+
+
+def test_entity_validation(processed_entity_validation_data):
+    output = processed_entity_validation_data
+    assert len(output) == 3
+    assert "$entity" in output[0]
+    assert "/Attributes" in output[1]
+    assert "/Keys" in output[2]
+
+
+def test_metadata_parse_failures(entity_validation_data_bad):
+    output = extract_batch_response_data(entity_validation_data_bad)
+    data = [json.loads(i) for i in output]
+    matcher = r"Payload does not contain .+"
+
+    assert len(output) == 3
+    with pytest.raises(DataverseError, match=matcher):
+        parse_meta_entity(data[0])
+
+    with pytest.raises(DataverseError, match=matcher):
+        parse_meta_columns(data[1])
+
+    with pytest.raises(DataverseError, match=matcher):
+        parse_meta_keys(data[2])
+
+
+@pytest.fixture
 def test_data_batch_commands():
     data = [
         DataverseBatchCommand(uri="uri1", mode="mode1", data={"col1": 1, "col2": 2}),
         DataverseBatchCommand(uri="uri2", mode="mode1", data={"col1": 3, "col2": 4}),
         DataverseBatchCommand(uri="uri3", mode="mode1", data={"col1": 5, "col2": 6}),
     ]
-    return data
-
-
-@pytest.fixture
-def example_schema():
-    file_path = "tests/sample_data/test_schema.txt"
-    full_path = os.path.join(os.getcwd(), file_path)
-    with open(full_path) as f:
-        data = f.read()
     return data
 
 
