@@ -1,10 +1,8 @@
-import json
 from urllib.parse import urljoin
 
 import pytest
 import requests
 import responses
-from pytest_mock import mocker  # noqa F401
 
 from dataverse_api.dataverse import DataverseClient, DataverseEntity
 from dataverse_api.utils import DataverseBatchCommand, DataverseColumn, DataverseError
@@ -16,25 +14,25 @@ def dataverse_entity_name():
 
 
 @pytest.fixture
-def dataverse_entity_init_response():
+def dataverse_resource():
+    return "https://org.api.region.microsoft.com"
+
+
+@pytest.fixture
+def dataverse_api_url(dataverse_resource):
+    return urljoin(dataverse_resource, "/api/data/v9.2/")
+
+
+@pytest.fixture()
+def entity_initialization_response():
     with open("tests/sample_data/test_entity_init.txt") as f:
         return f.read()
 
 
-@pytest.fixture
-def dataverse_entity_init_response_bad():
+@pytest.fixture()
+def entity_initialization_response_bad():
     with open("tests/sample_data/test_entity_init_bad.txt") as f:
         return f.read()
-
-
-@pytest.fixture
-def dataverse_api_url():
-    return "https://xxx"
-
-
-@pytest.fixture
-def microsoft_tenant():
-    return "00000000-0000-0000-0000-000000000000"
 
 
 @pytest.fixture
@@ -44,98 +42,56 @@ def dataverse_access_token():
 
 
 @pytest.fixture
-def msal_authority_response(microsoft_tenant):
-    tenant = microsoft_tenant
-    return json.dumps(
-        {
-            "authorization_endpoint": (
-                "https://login.microsoftonline.com/" + f"{tenant}/oauth2/v2.0/authorize"
-            ),
-            "token_endpoint": (
-                "https://login.microsoftonline.com/" + f"{tenant}/oauth2/v2.0/token"
-            ),
-        }
-    )
+def dataverse_auth(dataverse_access_token):
+    class DataverseAuth:
+        def __init__(self):
+            pass
+
+        def _get_access_token(self):
+            return dataverse_access_token
+
+        def __call__(
+            self, input_request: requests.PreparedRequest
+        ) -> requests.PreparedRequest:
+            token = self._get_access_token()
+            input_request.headers[
+                "Authorization"
+            ] = f"{token['token_type']} {token['access_token']}"
+            return input_request
+
+    auth = DataverseAuth()
+    return auth
 
 
-@pytest.fixture()
-def auth_discovery_response():
-    return json.dumps(
-        {
-            "metadata": [
-                {
-                    "preferred_network": "login.microsoftonline.com",
-                    "preferred_cache": "login.windows.net",
-                    "aliases": [
-                        "login.microsoftonline.com",
-                        "login.windows.net",
-                        "login.microsoft.com",
-                        "sts.windows.net",
-                    ],
-                }
-            ],
-        }
-    )
+@pytest.fixture
+def mocked_failure_responses(dataverse_api_url):
+    # Common arguments
+    api_url = dataverse_api_url
+    postfix = "foo"
 
-
-@pytest.fixture()
-def entity_initialization_response():
-    with open("tests/sample_data/test_entity_init.txt") as f:
-        return f.read()
-
-
-@pytest.fixture(autouse=True)
-def mocked_responses(
-    dataverse_authority_url,
-    msal_authority_response,
-    auth_discovery_response,
-    microsoft_tenant,
-    dataverse_api_url,
-    dataverse_access_token,
-    entity_initialization_response,
-):
-    with responses.RequestsMock(assert_all_requests_are_fired=False) as rsps:
-        # Common arguments
-        api_url = f"{dataverse_api_url}/api/data/v9.2/"
-        postfix = "foo"
-
-        # Authority Response
-        rsps.add(
-            method="GET",
-            url=f"{dataverse_authority_url}/v2.0/.well-known/openid-configuration",
-            body=msal_authority_response,
-        )
-
-        # Auth code call
-        rsps.add(
-            method="GET",
-            url="https://login.microsoftonline.com/common/discovery/instance",
-            body=auth_discovery_response,
-        )
-
-        # Dataverse access token
-        rsps.add(
-            method="POST",
-            url=(
-                "https://login.microsoftonline.com/"
-                + f"{microsoft_tenant}/oauth2/v2.0/token"
-            ),
-            body=json.dumps(dataverse_access_token),
-        )
-
+    with responses.RequestsMock() as rsps:
         # Client failure calls
-
         rsps.add(method="GET", url=urljoin(api_url, postfix), status=400)
         rsps.add(method="POST", url=urljoin(api_url, postfix), status=400)
-        rsps.add(method="PUT", url=urljoin(api_url, postfix), status=400)
+        rsps.add(method="PUT", url=urljoin(api_url, f"{postfix}(test)/col"), status=400)
         rsps.add(method="PATCH", url=urljoin(api_url, postfix), status=400)
         rsps.add(method="DELETE", url=urljoin(api_url, postfix), status=400)
+        rsps.add(method="POST", url=urljoin(api_url, "$batch"), status=400)
 
+        yield rsps
+
+
+@pytest.fixture
+def mocked_success_responses(
+    dataverse_api_url,
+    entity_initialization_response,
+):
+    with responses.RequestsMock() as rsps:
         # Entity validation calls
         rsps.add(
             method="POST",
             url=urljoin(
-                api_url,
+                dataverse_api_url,
                 "$batch",
             ),
             status=200,
@@ -146,43 +102,8 @@ def mocked_responses(
 
 
 @pytest.fixture
-def dataverse_auth(dataverse_scopes, dataverse_access_token):
-    class DataverseAuth:
-        def __init__(self, scopes):
-            self.scopes = scopes
-
-        def _get_access_token(self):
-            return dataverse_access_token
-
-        # Replacement Auth must be callable in this way.
-        def __call__(
-            self, input_request: requests.PreparedRequest
-        ) -> requests.PreparedRequest:
-            token = self._get_access_token()
-            input_request.headers[
-                "Authorization"
-            ] = f"{token['token_type']} {token['access_token']}"
-            return input_request
-
-    auth = DataverseAuth(scopes=dataverse_scopes)
-
-    assert auth.scopes == dataverse_scopes
-    assert auth._get_access_token() == dataverse_access_token
-
-    return auth
-
-
-@pytest.fixture
-def dataverse_client(
-    dataverse_scopes, dataverse_api_url, dataverse_authority_url
-) -> DataverseClient:
-    client = DataverseClient(
-        app_id="abc",
-        client_secret="xyz",
-        authority_url=dataverse_authority_url,
-        dynamics_url=dataverse_api_url,
-        scopes=dataverse_scopes,
-    )
+def dataverse_client(dataverse_resource, dataverse_auth) -> DataverseClient:
+    client = DataverseClient(resource=dataverse_resource, auth=dataverse_auth)
     return client
 
 
@@ -198,15 +119,11 @@ def dataverse_batch_commands():
 
 def test_dataverse_instantiation(
     dataverse_client,
-    dataverse_scopes,
     dataverse_api_url,
-    dataverse_access_token,
 ):
     c: DataverseClient = dataverse_client
 
-    assert c.api_url == f"{dataverse_api_url}/api/data/v9.2/"
-    assert c._auth.scopes == dataverse_scopes
-    assert c._auth._get_access_token() == dataverse_access_token
+    assert c.api_url == dataverse_api_url
     assert c._entity_cache == dict()
     assert c._default_headers == {
         "Accept": "application/json",
@@ -215,23 +132,37 @@ def test_dataverse_instantiation(
         "Content-Type": "application/json",
     }
 
-    # Mocking endpoint responses raising errors
+
+def test_dataverse_client_request_failures(
+    mocked_failure_responses,
+    dataverse_client,
+):
+    # Common args
+    c: DataverseClient = dataverse_client
     postfix = "foo"
 
+    # Mocking endpoint responses raising errors
     with pytest.raises(DataverseError, match=r"Error with GET request: .+"):
         c.get(postfix)
+
     with pytest.raises(DataverseError, match=r"Error with POST request: .+"):
         c.post(postfix)
+
     with pytest.raises(DataverseError, match=r"Error with PUT request: .+"):
         c.put(postfix, key="test", column="col", value=1)
+
     with pytest.raises(DataverseError, match=r"Error with PATCH request: .+"):
         c.patch(postfix, data={"col": 1})
+
     with pytest.raises(DataverseError, match=r"Error with DELETE request: .+"):
         c.delete(postfix)
 
+    with pytest.raises(DataverseError):
+        c.post("$batch")
+
 
 @pytest.fixture
-def entity_validated(dataverse_client, dataverse_entity_name):
+def entity_validated(dataverse_client, dataverse_entity_name, mocked_success_responses):
     c: DataverseClient = dataverse_client
     # assert c._auth._get_access_token() is not None
 
@@ -240,7 +171,11 @@ def entity_validated(dataverse_client, dataverse_entity_name):
     return entity
 
 
-def test_entity_validated(entity_validated, dataverse_entity_name):
+def test_entity_validated(
+    entity_validated,
+    dataverse_entity_name,
+    mocked_success_responses,
+):
     entity: DataverseEntity = entity_validated
 
     assert entity.schema.name == dataverse_entity_name + "s"
@@ -286,4 +221,4 @@ def test_entity_unvalidated(
     assert entity.schema.key is None
     assert entity.schema.altkeys is None
     assert entity.schema.columns is None
-    assert entity._client.api_url == f"{dataverse_api_url}/api/data/v9.2/"
+    assert entity._client.api_url == dataverse_api_url
