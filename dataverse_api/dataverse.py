@@ -8,7 +8,7 @@ from urllib.parse import urljoin
 import pandas as pd
 import requests
 from msal import ConfidentialClientApplication
-from msal_requests_auth.auth import ClientCredentialAuth
+from msal_requests_auth.auth import ClientCredentialAuth, DeviceCodeAuth
 
 # from requests_toolbelt.utils import dump
 # print(dump.dump_all(response).decode("utf-8"))
@@ -31,6 +31,7 @@ logging.basicConfig(level=logging.INFO)
 
 
 ENTITY_SET_PARAMS = ["EntitySetName", "PrimaryIdAttribute"]
+ENTITY_KEY_PARAMS = ["KeyAttributes"]
 ENTITY_ATTR_PARAMS = [
     "LogicalName",
     "SchemaName",
@@ -39,7 +40,6 @@ ENTITY_ATTR_PARAMS = [
     "IsValidForUpdate",
     "IsValidODataAttribute",
 ]
-ENTITY_KEY_PARAMS = ["KeyAttributes"]
 
 
 class DataverseClient:
@@ -58,24 +58,11 @@ class DataverseClient:
 
     def __init__(
         self,
-        app_id: str,
-        client_secret: str,
-        authority_url: str,
-        dynamics_url: str,
-        scopes: Optional[list[str]] = None,
+        resource: str,
+        auth: Union[ClientCredentialAuth, DeviceCodeAuth],
     ):
-        self.api_url = urljoin(dynamics_url, "/api/data/v9.2/")
-        if scopes is None:
-            scopes = [urljoin(dynamics_url, ".default")]
-        else:
-            scopes = [urljoin(dynamics_url, scope) for scope in scopes]
-
-        self._auth = self._authenticate(
-            app_id=app_id,
-            client_secret=client_secret,
-            authority_url=authority_url,
-            scopes=scopes,
-        )
+        self.api_url = urljoin(resource, "/api/data/v9.2/")
+        self._auth = auth
         self._entity_cache: dict[str, DataverseEntity] = {}
         self._default_headers = {
             "Accept": "application/json",

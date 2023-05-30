@@ -1,6 +1,3 @@
-import json
-from dataclasses import dataclass
-
 import pandas as pd
 import pytest
 
@@ -127,25 +124,3 @@ def test_expand_headers(test_data_dict):
     assert len(headers) == len(test_data_dict) + 1
     assert all([x in headers for x in ["a", "b", "c", "d", "q"]])
     assert headers["a"] == "foo"
-
-
-@pytest.fixture
-def entity_attributes_bad():
-    @dataclass
-    class MockData:
-        """
-        Simple class to mock a `requests.Response`.
-        Just needs a `self.json` method to comply with usage.
-        """
-
-        data: dict
-
-        def json(self):
-            return self.data
-
-    with open("tests/sample_data/test_entity_attributes_bad.json") as f:
-        attrs = MockData(data=json.load(f))
-
-    with open("tests/sample_data/test_entity_keys_bad.json") as f:
-        keys = MockData(data=json.load(f))
-    return (attrs, keys)

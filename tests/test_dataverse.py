@@ -16,27 +16,15 @@ def dataverse_entity_name():
 
 
 @pytest.fixture
-def dataverse_entity_set():
-    with open("tests/sample_data/test_entity_set.json") as f:
-        return json.load(f)
+def dataverse_entity_init_response():
+    with open("tests/sample_data/test_entity_init.txt") as f:
+        return f.read()
 
 
 @pytest.fixture
-def dataverse_entity_attrs():
-    with open("tests/sample_data/test_entity_attributes.json") as f:
-        return json.load(f)
-
-
-@pytest.fixture
-def dataverse_entity_attrs_bad():
-    with open("tests/sample_data/test_entity_attributes_bad.json") as f:
-        return json.load(f)
-
-
-@pytest.fixture
-def dataverse_entity_keys():
-    with open("tests/sample_data/test_entity_keys.json") as f:
-        return json.load(f)
+def dataverse_entity_init_response_bad():
+    with open("tests/sample_data/test_entity_init_bad.txt") as f:
+        return f.read()
 
 
 @pytest.fixture
@@ -47,16 +35,6 @@ def dataverse_api_url():
 @pytest.fixture
 def microsoft_tenant():
     return "00000000-0000-0000-0000-000000000000"
-
-
-@pytest.fixture
-def dataverse_authority_url(microsoft_tenant):
-    return str(f"https://login.microsoftonline.com/{microsoft_tenant}")
-
-
-@pytest.fixture
-def dataverse_scopes(dataverse_api_url):
-    return [urljoin(dataverse_api_url, ".default")]
 
 
 @pytest.fixture
