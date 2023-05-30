@@ -69,19 +69,39 @@ def parse_entity_metadata(metadata: list[str]) -> DataverseTableSchema:
     Parses entity metadata from list of dicts.
 
     Args:
-      - A list containing responses from
+      - A list containing batch GET operation responses from Dataverse.
+      - The list must contain three
     """
     for item in metadata:
         data = json.loads(item)
         if "$entity" in item:
-            name = data["EntitySetName"]
-            key = data["PrimaryIdAttribute"]
+            name, key = parse_meta_entity(data)
         elif "/Attributes" in item:
             columns = parse_meta_columns(data)
         elif "/Keys" in item:
             altkeys = parse_meta_keys(data)
 
     return DataverseTableSchema(name=name, key=key, columns=columns, altkeys=altkeys)
+
+
+def parse_meta_entity(entity_metadata: dict[Any]) -> tuple[str, str]:
+    """
+    Parses the available columns based on the EntityMetadata EntityType,
+    given in response from the EntityDefinitions() endpoint.
+
+    Required properties in Response body:
+      - EntitySetName
+      - PrimaryIdAttribute
+
+    Returns:
+      - tuple: EntitySetName , PrimaryIdAttribute
+    """
+    try:
+        name = entity_metadata["EntitySetName"]
+        key = entity_metadata["PrimaryIdAttribute"]
+    except KeyError:
+        raise DataverseError("Payload does not contain the necessary columns.")
+    return name, key
 
 
 def parse_meta_columns(
@@ -264,5 +284,4 @@ def batch_command(batch_id: str, api_url: str, row: DataverseBatchCommand) -> st
 
         {json.dumps(row.data)}
         """
-
     return dedent(row_command)

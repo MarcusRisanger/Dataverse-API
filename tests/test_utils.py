@@ -1,3 +1,5 @@
+import json
+
 import pandas as pd
 import pytest
 
@@ -8,7 +10,11 @@ from dataverse_api.utils import (
     chunk_data,
     convert_data,
     expand_headers,
+    extract_batch_response_data,
     extract_key,
+    parse_meta_columns,
+    parse_meta_entity,
+    parse_meta_keys,
 )
 
 
@@ -32,6 +38,48 @@ def test_data_list(test_data_dict):
 def test_data_df(test_data_list):
     data = pd.DataFrame(test_data_list)
     return data
+
+
+@pytest.fixture
+def entity_validation_data():
+    with open("tests/sample_data/test_entity_init.txt") as f:
+        return f.read()
+
+
+@pytest.fixture
+def entity_validation_data_bad():
+    with open("tests/sample_data/test_entity_init_bad.txt") as f:
+        return f.read()
+
+
+@pytest.fixture
+def processed_entity_validation_data(entity_validation_data):
+    output = extract_batch_response_data(entity_validation_data)
+    return output
+
+
+def test_entity_validation(processed_entity_validation_data):
+    output = processed_entity_validation_data
+    assert len(output) == 3
+    assert "$entity" in output[0]
+    assert "/Attributes" in output[1]
+    assert "/Keys" in output[2]
+
+
+def test_metadata_parse_failures(entity_validation_data_bad):
+    output = extract_batch_response_data(entity_validation_data_bad)
+    data = [json.loads(i) for i in output]
+    matcher = r"Payload does not contain .+"
+
+    assert len(output) == 3
+    with pytest.raises(DataverseError, match=matcher):
+        parse_meta_entity(data[0])
+
+    with pytest.raises(DataverseError, match=matcher):
+        parse_meta_columns(data[1])
+
+    with pytest.raises(DataverseError, match=matcher):
+        parse_meta_keys(data[2])
 
 
 @pytest.fixture

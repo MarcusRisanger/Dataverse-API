@@ -7,7 +7,6 @@ from urllib.parse import urljoin
 
 import pandas as pd
 import requests
-from msal import ConfidentialClientApplication
 from msal_requests_auth.auth import ClientCredentialAuth, DeviceCodeAuth
 
 # from requests_toolbelt.utils import dump
@@ -71,29 +70,6 @@ class DataverseClient:
             "Content-Type": "application/json",
         }
 
-    def _authenticate(
-        self,
-        app_id: str,
-        client_secret: str,
-        authority_url: str,
-        scopes: list[str],
-    ) -> ClientCredentialAuth:
-        """
-        Authentication module.
-
-        Args:
-          - app_id: App registration ID
-          - client_secret: Secret corresponding to App registration ID
-          - authority_url: Authority URL corresponding to App registration
-          - scopes: Optional scope names for which the App is registered,
-            uses `.default` if none is passed.
-
-        """
-        app = ConfidentialClientApplication(
-            client_id=app_id, authority=authority_url, client_credential=client_secret
-        )
-        return ClientCredentialAuth(client=app, scopes=scopes)
-
     def entity(
         self,
         logical_name: Optional[str] = None,
@@ -115,6 +91,8 @@ class DataverseClient:
         """
         if (entity_set_name is not None) and (logical_name is not None):
             log.warning("Using entity set name. Entity will not be validated.")
+            logical_name = None
+
         name = entity_set_name or logical_name
 
         if name is None:
@@ -393,33 +371,6 @@ class DataverseEntity:
 
         response = self._client.batch_operation(data)
         return extract_batch_response_data(response.text)
-
-    def _fetch_entity_columns(self, logical_name) -> requests.Response:
-        """
-        Required for initialization using logical name of Dataverse Entity.
-        """
-        url = f"EntityDefinitions(LogicalName='{logical_name}')/Attributes"
-        parameters = ENTITY_ATTR_PARAMS
-        params = {
-            "$select": ",".join(parameters),
-            "$filter": "IsValidODataAttribute eq true",  # Optional..
-        }
-
-        response = self._client.get(url=url, params=params)
-
-        return response
-
-    def _fetch_entity_altkeys(self, logical_name) -> requests.Response:
-        """
-        Required for initialization using logical name of Dataverse Entity.
-        """
-        url = f"EntityDefinitions(LogicalName='{logical_name}')/Keys"
-        parameters = ENTITY_KEY_PARAMS
-        params = {"$select": ",".join(parameters)}
-
-        response = self._client.get(url=url, params=params)
-
-        return response
 
     def update_single_value(
         self, data: dict[str, Any], key_columns: Optional[set[str]] = None

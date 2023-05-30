@@ -82,7 +82,7 @@ def mocked_failure_responses(dataverse_api_url):
 
 
 @pytest.fixture
-def mocked_success_responses(
+def mocked_init_response(
     dataverse_api_url,
     entity_initialization_response,
 ):
@@ -161,10 +161,25 @@ def test_dataverse_client_request_failures(
         c.post("$batch")
 
 
-@pytest.fixture
-def entity_validated(dataverse_client, dataverse_entity_name, mocked_success_responses):
+def entity_called_with_both_args(caplog, dataverse_client, dataverse_entity_name):
     c: DataverseClient = dataverse_client
-    # assert c._auth._get_access_token() is not None
+
+    with pytest.raises(DataverseError, match="Please provide valid input."):
+        c.entity()
+
+    # Initiating with both args - exactly one should be used
+    # Will not trigger validation
+    c.entity(logical_name=dataverse_entity_name, entity_set_name=dataverse_entity_name)
+
+
+@pytest.fixture
+def entity_validated(
+    caplog,
+    dataverse_client,
+    dataverse_entity_name,
+    mocked_init_response,
+):
+    c: DataverseClient = dataverse_client
 
     entity = c.entity(logical_name=dataverse_entity_name)
 
@@ -174,10 +189,11 @@ def entity_validated(dataverse_client, dataverse_entity_name, mocked_success_res
 def test_entity_validated(
     entity_validated,
     dataverse_entity_name,
-    mocked_success_responses,
+    mocked_init_response,
 ):
     entity: DataverseEntity = entity_validated
 
+    assert entity._validate is True
     assert entity.schema.name == dataverse_entity_name + "s"
     assert entity.schema.key == "testid"
     assert entity.schema.altkeys == [{"test_pk"}, {"test_int", "test_string"}]
@@ -221,4 +237,5 @@ def test_entity_unvalidated(
     assert entity.schema.key is None
     assert entity.schema.altkeys is None
     assert entity.schema.columns is None
+    assert entity._validate is False
     assert entity._client.api_url == dataverse_api_url
