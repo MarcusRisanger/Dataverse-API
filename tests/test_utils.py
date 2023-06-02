@@ -24,7 +24,7 @@ log = logging.getLogger()
 
 @pytest.fixture
 def test_data_dict():
-    data = {"a": "abc", "b": 2, "c": 3, "d": "hello"}
+    data = {"abc": "abc", "b": 2, "c": 3, "d": "hello"}
     return data
 
 
@@ -119,21 +119,21 @@ def test_chunk_data(test_data_batch_commands):
 
 def test_extract_key_single_str(test_data_dict):
     # Pass key as str
-    data, key = extract_key(test_data_dict, key_columns="a")
+    data, key = extract_key(test_data_dict, key_columns="abc")
 
-    assert key == "a='abc'"
+    assert key == "abc='abc'"
     assert data == {"b": 2, "c": 3, "d": "hello"}
 
     # Pass key as 1-element set
     data, key = extract_key(test_data_dict, key_columns={"b"})
 
     assert key == "b=2"
-    assert data == {"a": "abc", "c": 3, "d": "hello"}
+    assert data == {"abc": "abc", "c": 3, "d": "hello"}
 
     # Pass key as many-element set
-    data, key = extract_key(test_data_dict, key_columns={"a", "b"})
+    data, key = extract_key(test_data_dict, key_columns={"abc", "b"})
 
-    assert all(i in key for i in ["a='abc'", "b=2", ","])
+    assert all(i in key for i in ["abc='abc'", "b=2", ","])
     assert data == {"c": 3, "d": "hello"}
 
 
@@ -159,13 +159,13 @@ def test_convert_data_error():
 
 
 def test_expand_headers(test_data_dict):
-    additional_headers = {"a": "foo", "q": "bar"}
+    additional_headers = {"abc": "foo", "q": "bar"}
 
     headers = expand_headers(test_data_dict, additional_headers)
 
     assert len(headers) == len(test_data_dict) + 1
-    assert all([x in headers for x in ["a", "b", "c", "d", "q"]])
-    assert headers["a"] == "foo"
+    assert all([x in headers for x in ["abc", "b", "c", "d", "q"]])
+    assert headers["abc"] == "foo"
 
 
 @pytest.mark.parametrize(

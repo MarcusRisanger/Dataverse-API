@@ -604,8 +604,6 @@ class DataverseEntity:
             contains_values = {k for k, v in row.items() if v is not None}
             complete_columns = complete_columns.intersection(contains_values)
 
-        data_columns, complete_columns = set(data_columns), set(complete_columns)
-
         # Checking column names against schema
         if not data_columns.issubset(self.schema.columns):
             bad_columns = list(data_columns.difference(self.schema.columns))

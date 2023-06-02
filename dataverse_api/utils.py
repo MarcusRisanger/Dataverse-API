@@ -165,7 +165,7 @@ def parse_meta_keys(
     items: list[dict] = keys_metadata["value"]
     for item in items:
         try:
-            keys.append(set(item["KeyAttributes"]))
+            keys.append(set(item["KeyAttributes"]))  # KeyAttributes is a List
         except KeyError:
             raise DataverseError("Payload does not contain the necessary columns.")
 
@@ -255,7 +255,9 @@ def extract_key(
     """
     data = data.copy()
     key_elements = []
-    for col in set(key_columns):
+    if type(key_columns) == str:
+        key_columns = {key_columns}
+    for col in key_columns:
         key_value = data.pop(col).__repr__()  # Need repr to capture strings properly
         key_elements.append(f"{col}={key_value}")
     return (data, ",".join(key_elements))
