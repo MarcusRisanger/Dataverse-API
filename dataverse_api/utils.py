@@ -1,11 +1,14 @@
 import json
+import logging
 from collections.abc import Iterator
 from dataclasses import dataclass
 from textwrap import dedent
-from typing import Any, Optional, Union
+from typing import Any, Literal, Optional, Union
 from uuid import uuid4
 
 import pandas as pd
+
+log = logging.getLogger()
 
 
 @dataclass
@@ -285,3 +288,41 @@ def batch_command(batch_id: str, api_url: str, row: DataverseBatchCommand) -> st
         {json.dumps(row.data)}
         """
     return dedent(row_command)
+
+
+def find_invalid_columns(
+    key_columns: set[str],
+    data_columns: set[str],
+    schema_columns: dict[str, DataverseColumn],
+    mode: Literal["create", "update", "upsert"],
+):
+    """
+    Simple function to isolate columns passed in data as attributes
+    invalid for passing in create or update.
+
+    Args:
+      - key_columns: Set of key column(s) to be ignored
+      - data_columns: The data columns passed from user
+      - schema_columns: The data columns available in schema
+    """
+    baddies = set()
+    for col in data_columns:
+        if col in key_columns:
+            continue
+
+        create = schema_columns[col].can_create
+        update = schema_columns[col].can_update
+
+        if not create and mode == "create":
+            baddies.add(col)
+        elif not update and mode == "update":
+            baddies.add(col)
+        elif (create ^ update) and mode == "upsert":  # XOR: if only one is true
+            baddies.add(col)
+
+    if baddies and (mode in ["create", "update"]):
+        cols = ", ".join(sorted(baddies))
+        raise DataverseError(f"Found columns not valid for {mode}: {cols}")
+
+    if baddies and mode == "upsert":
+        log.warning(f"Found columns that may throw errors in upsert: {cols}")

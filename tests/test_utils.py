@@ -1,21 +1,25 @@
 import json
+import logging
 
 import pandas as pd
 import pytest
 
 from dataverse_api.utils import (
     DataverseBatchCommand,
+    DataverseColumn,
     DataverseError,
-    batch_id_generator,
     chunk_data,
     convert_data,
     expand_headers,
     extract_batch_response_data,
     extract_key,
+    find_invalid_columns,
     parse_meta_columns,
     parse_meta_entity,
     parse_meta_keys,
 )
+
+log = logging.getLogger()
 
 
 @pytest.fixture
@@ -133,16 +137,6 @@ def test_extract_key_single_str(test_data_dict):
     assert data == {"c": 3, "d": "hello"}
 
 
-def test_batch_id_generator():
-    for _ in range(10):
-        id = batch_id_generator()
-
-        assert len(id) == 36
-        assert str(id)[8] == "-"
-        assert str(id)[13] == "-"
-        assert str(id)[14] == "4"
-
-
 def test_convert_data_dict(test_data_dict):
     data = convert_data(test_data_dict)
     assert data == [test_data_dict]
@@ -172,3 +166,26 @@ def test_expand_headers(test_data_dict):
     assert len(headers) == len(test_data_dict) + 1
     assert all([x in headers for x in ["a", "b", "c", "d", "q"]])
     assert headers["a"] == "foo"
+
+
+@pytest.mark.parametrize(
+    "mode, failure",
+    [
+        ("create", r"not valid for create: statecode"),
+        ("update", r"not valid for update: importsequencenumber"),
+    ],
+)
+def test_find_invalid_cols(mode, failure, processed_entity_validation_data):
+    col_data = json.loads(processed_entity_validation_data[1])
+    schema_columns: dict[str, DataverseColumn] = parse_meta_columns(col_data)
+
+    key = {"testid"}
+    cols = {"testid", "statecode", "importsequencenumber"}
+
+    with pytest.raises(DataverseError, match=failure):
+        find_invalid_columns(
+            key_columns=key,
+            data_columns=cols,
+            schema_columns=schema_columns,
+            mode=mode,
+        )

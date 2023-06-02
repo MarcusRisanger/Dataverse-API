@@ -20,6 +20,7 @@ from dataverse_api.utils import (
     expand_headers,
     extract_batch_response_data,
     extract_key,
+    find_invalid_columns,
     parse_entity_metadata,
 )
 
@@ -384,7 +385,7 @@ class DataverseEntity:
         >>> data={"col1":"abc", "col2":"dac", "col3":69}
         >>> table.update_single_value(data, key_columns={"col1","col2"})
         """
-        key_columns = key_columns or self._validate_payload(data, write_mode=True)
+        key_columns = key_columns or self._validate_payload(data, mode="update")
 
         if key_columns is None and not self._validate:
             raise DataverseError("Key column(s) must be specified.")
@@ -437,7 +438,7 @@ class DataverseEntity:
         >>> table.upsert_single_column(data, key_columns="col1", liberal=True)
         """
         data = convert_data(data)
-        key_columns = key_columns or self._validate_payload(data, write_mode=True)
+        key_columns = key_columns or self._validate_payload(data, mode="update")
 
         if key_columns is None and not self._validate:
             raise DataverseError("Key column(s) must be specified.")
@@ -483,7 +484,7 @@ class DataverseEntity:
         """
         data = convert_data(data)
         # Validation just run to make sure appropriate keys are present
-        self._validate_payload(data, write_mode=True)
+        self._validate_payload(data, mode="create")
 
         log.info(f"Performing insert of {len(data)} elements into {self.schema.name}.")
 
@@ -510,7 +511,7 @@ class DataverseEntity:
         >>> table.upsert(data, key_columns={"col1","col2"})
         """
         data = convert_data(data)
-        key_columns = key_columns or self._validate_payload(data, write_mode=True)
+        key_columns = key_columns or self._validate_payload(data, mode="upsert")
 
         log.info(f"Performing upsert of {len(data)} elements into {self.schema.name}.")
 
@@ -569,7 +570,7 @@ class DataverseEntity:
     def _validate_payload(
         self,
         data: list[dict],
-        write_mode: Optional[bool] = False,
+        mode: Optional[Literal["insert", "update", "upsert"]] = None,
     ) -> Optional[set[str]]:
         """
         Used to validate write/update/upsert data payload
@@ -577,6 +578,12 @@ class DataverseEntity:
         it will not return a key or alter the supplied data.
 
         Returns a set of key column(s) to use if succesful.
+
+        Args:
+          - data: The data that will be validated according to Schema.
+          - mode: The optional validation mode parameter that must be set
+            to `"create"` if writing new data to Dataverse and `"update"`
+            if performing updates to Dataverse.
 
         Raises DataverseError if:
           - Column names in payload are not found in schema
@@ -609,7 +616,7 @@ class DataverseEntity:
                 )
             )
 
-        if not write_mode:
+        if mode is None:
             log.info(
                 "Data validation completed - all columns valid according to schema."
             )
@@ -617,24 +624,30 @@ class DataverseEntity:
 
         # Checking for available keys against schema
         if self.schema.key in complete_columns:
-            log.info("Data validation completed. Key column present in all rows.")
-            return set(self.schema.key)
+            log.info("Key column present in all rows, using as key.")
+            key = {self.schema.key}
         elif self.schema.altkeys:
             # Checking if any valid altkeys can be formed from columns
             # Preferring shortest possible altkeys
             for altkey in sorted(self.schema.altkeys, key=len):
                 if altkey.issubset(complete_columns):
                     log.info(
-                        (
-                            "Data validation completed. A consistent"
-                            + " alternate key can be formed from all rows."
-                        )
+                        ("A consistent alternate key can be formed from all rows.")
                     )
-                    return altkey
+                    key = altkey
         else:
             raise DataverseError(
-                "No columns in payload to form primary key or any alternate key."
+                "No columns in payload to form consistent primary or alternate key."
             )
+
+        find_invalid_columns(
+            key_columns=key,
+            data_columns=data_columns,
+            schema_columns=self.schema.columns,
+            mode=mode,
+        )
+
+        return key
 
     def read(self, select: Optional[list[str]] = None, page_size: Optional[int] = None):
         """

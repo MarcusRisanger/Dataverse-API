@@ -1,3 +1,4 @@
+import logging
 from urllib.parse import urljoin
 
 import pytest
@@ -5,7 +6,12 @@ import requests
 import responses
 
 from dataverse_api.dataverse import DataverseClient, DataverseEntity
-from dataverse_api.utils import DataverseBatchCommand, DataverseColumn, DataverseError
+from dataverse_api.utils import (
+    DataverseBatchCommand,
+    DataverseColumn,
+    DataverseError,
+    convert_data,
+)
 
 
 @pytest.fixture
@@ -64,24 +70,6 @@ def dataverse_auth(dataverse_access_token):
 
 
 @pytest.fixture
-def mocked_failure_responses(dataverse_api_url):
-    # Common arguments
-    api_url = dataverse_api_url
-    postfix = "foo"
-
-    with responses.RequestsMock() as rsps:
-        # Client failure calls
-        rsps.add(method="GET", url=urljoin(api_url, postfix), status=400)
-        rsps.add(method="POST", url=urljoin(api_url, postfix), status=400)
-        rsps.add(method="PUT", url=urljoin(api_url, f"{postfix}(test)/col"), status=400)
-        rsps.add(method="PATCH", url=urljoin(api_url, postfix), status=400)
-        rsps.add(method="DELETE", url=urljoin(api_url, postfix), status=400)
-        rsps.add(method="POST", url=urljoin(api_url, "$batch"), status=400)
-
-        yield rsps
-
-
-@pytest.fixture
 def mocked_init_response(
     dataverse_api_url,
     entity_initialization_response,
@@ -133,13 +121,43 @@ def test_dataverse_instantiation(
     }
 
 
+@pytest.fixture
+def mocked_failure_responses(dataverse_api_url):
+    # Common arguments
+    api_url = dataverse_api_url
+    postfix = "foo"
+
+    with responses.RequestsMock() as rsps:
+        # Client failure calls
+        rsps.add(method="GET", url=urljoin(api_url, postfix), status=400)
+        rsps.add(method="POST", url=urljoin(api_url, postfix), status=400)
+        rsps.add(method="PUT", url=urljoin(api_url, f"{postfix}(test)/col"), status=400)
+        rsps.add(method="PATCH", url=urljoin(api_url, postfix), status=400)
+        rsps.add(method="DELETE", url=urljoin(api_url, postfix), status=400)
+        rsps.add(method="POST", url=urljoin(api_url, "$batch"), status=400)
+
+        yield rsps
+
+
+@responses.activate
 def test_dataverse_client_request_failures(
-    mocked_failure_responses,
+    dataverse_api_url,
     dataverse_client,
 ):
     # Common args
     c: DataverseClient = dataverse_client
     postfix = "foo"
+    api_url = dataverse_api_url
+
+    # Setting up client failure calls
+    responses.add(method="GET", url=urljoin(api_url, postfix), status=400)
+    responses.add(method="POST", url=urljoin(api_url, postfix), status=400)
+    responses.add(
+        method="PUT", url=urljoin(api_url, f"{postfix}(test)/col"), status=400
+    )
+    responses.add(method="PATCH", url=urljoin(api_url, postfix), status=400)
+    responses.add(method="DELETE", url=urljoin(api_url, postfix), status=400)
+    responses.add(method="POST", url=urljoin(api_url, "$batch"), status=400)
 
     # Mocking endpoint responses raising errors
     with pytest.raises(DataverseError, match=r"Error with GET request: .+"):
@@ -157,11 +175,15 @@ def test_dataverse_client_request_failures(
     with pytest.raises(DataverseError, match=r"Error with DELETE request: .+"):
         c.delete(postfix)
 
-    with pytest.raises(DataverseError):
+    with pytest.raises(DataverseError, match=r"Error with POST request: .+"):
         c.post("$batch")
 
 
-def entity_called_with_both_args(caplog, dataverse_client, dataverse_entity_name):
+def test_entity_called_with_both_args(
+    caplog,
+    dataverse_client,
+    dataverse_entity_name,
+):
     c: DataverseClient = dataverse_client
 
     with pytest.raises(DataverseError, match="Please provide valid input."):
@@ -169,12 +191,15 @@ def entity_called_with_both_args(caplog, dataverse_client, dataverse_entity_name
 
     # Initiating with both args - exactly one should be used
     # Will not trigger validation
-    c.entity(logical_name=dataverse_entity_name, entity_set_name=dataverse_entity_name)
+    c.entity(
+        logical_name=dataverse_entity_name,
+        entity_set_name=dataverse_entity_name,
+    )
+    assert "Using entity set name. Entity will not be validated." in caplog.text
 
 
 @pytest.fixture
 def entity_validated(
-    caplog,
     dataverse_client,
     dataverse_entity_name,
     mocked_init_response,
@@ -182,6 +207,19 @@ def entity_validated(
     c: DataverseClient = dataverse_client
 
     entity = c.entity(logical_name=dataverse_entity_name)
+
+    return entity
+
+
+@pytest.fixture
+def entity_unvalidated(
+    dataverse_client,
+    dataverse_entity_name,
+):
+    c: DataverseClient = dataverse_client
+
+    entity_name = dataverse_entity_name
+    entity = c.entity(entity_set_name=entity_name)
 
     return entity
 
@@ -215,21 +253,29 @@ def test_entity_validated(
         assert all(col in entity.schema.columns for col in key)
 
 
-@pytest.fixture
-def entity_unvalidated(
-    dataverse_client,
-    dataverse_entity_name,
+@pytest.mark.parametrize(
+    "data, mode, result",
+    [
+        ({"testid": 1, "test_string": "foo"}, None, None),
+        ({"testid": 1, "test_pk": "A", "test_string": "foo"}, "write", {"testid"}),
+        ({"test_pk": "A", "test_int": 2}, "create", {"test_pk"}),
+    ],
+)
+def test_data_validation(
+    data,
+    mode,
+    result,
+    entity_validated,
+    mocked_init_response,
 ):
-    c: DataverseClient = dataverse_client
+    entity: DataverseEntity = entity_validated
+    data = convert_data(data)
 
-    entity_name = dataverse_entity_name
-    entity = c.entity(entity_set_name=entity_name)
-
-    return entity
+    assert entity._validate_payload(data=data, mode=mode) == result
 
 
 def test_entity_unvalidated(
-    entity_unvalidated, dataverse_api_url, dataverse_entity_name
+    caplog, entity_unvalidated, dataverse_api_url, dataverse_entity_name
 ):
     entity: DataverseEntity = entity_unvalidated
 
@@ -239,3 +285,9 @@ def test_entity_unvalidated(
     assert entity.schema.columns is None
     assert entity._validate is False
     assert entity._client.api_url == dataverse_api_url
+
+    with caplog.at_level(logging.INFO):
+        validation = entity._validate_payload({"foo": 1, "bar": 2})
+
+    assert validation is None
+    assert "Data validation not performed." in caplog.text
