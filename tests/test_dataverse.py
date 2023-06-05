@@ -179,25 +179,6 @@ def test_dataverse_client_request_failures(
         c.post("$batch")
 
 
-def test_entity_called_with_both_args(
-    caplog,
-    dataverse_client,
-    dataverse_entity_name,
-):
-    c: DataverseClient = dataverse_client
-
-    with pytest.raises(DataverseError, match="Please provide valid input."):
-        c.entity()
-
-    # Initiating with both args - exactly one should be used
-    # Will not trigger validation
-    c.entity(
-        logical_name=dataverse_entity_name,
-        entity_set_name=dataverse_entity_name,
-    )
-    assert "Using entity set name. Entity will not be validated." in caplog.text
-
-
 @pytest.fixture
 def entity_validated(
     dataverse_client,
@@ -206,20 +187,17 @@ def entity_validated(
 ):
     c: DataverseClient = dataverse_client
 
-    entity = c.entity(logical_name=dataverse_entity_name)
+    entity = c.entity(logical_name=dataverse_entity_name, validate=True)
 
     return entity
 
 
 @pytest.fixture
-def entity_unvalidated(
-    dataverse_client,
-    dataverse_entity_name,
-):
+def entity_unvalidated(dataverse_client, dataverse_entity_name, mocked_init_response):
     c: DataverseClient = dataverse_client
 
     entity_name = dataverse_entity_name
-    entity = c.entity(entity_set_name=entity_name)
+    entity = c.entity(logical_name=entity_name)
 
     return entity
 
@@ -275,14 +253,16 @@ def test_data_validation(
 
 
 def test_entity_unvalidated(
-    caplog, entity_unvalidated, dataverse_api_url, dataverse_entity_name
+    caplog,
+    entity_unvalidated,
+    dataverse_api_url,
+    dataverse_entity_name,
+    mocked_init_response,
 ):
     entity: DataverseEntity = entity_unvalidated
 
-    assert entity.schema.name == dataverse_entity_name
-    assert entity.schema.key is None
-    assert entity.schema.altkeys is None
-    assert entity.schema.columns is None
+    assert entity.schema.name == dataverse_entity_name + "s"
+    assert entity.schema.key == "testid"
     assert entity._validate is False
     assert entity._client.api_url == dataverse_api_url
 
