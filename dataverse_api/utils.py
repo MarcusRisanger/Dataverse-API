@@ -75,6 +75,7 @@ def parse_entity_metadata(metadata: list[str]) -> DataverseTableSchema:
       - A list containing batch GET operation responses from Dataverse.
       - The list must contain three
     """
+    columns, altkeys = None, None  # Optional, will not be assigned if no validation
     for item in metadata:
         data = json.loads(item)
         if "$entity" in item:
@@ -269,26 +270,33 @@ def batch_id_generator() -> str:
 
 
 def batch_command(batch_id: str, api_url: str, row: DataverseBatchCommand) -> str:
-    if row.mode == "GET":
-        row_command = f"""\
-        --{batch_id}
-        Content-Type: application/http
-        Content-Transfer-Encoding: binary
+    """
+    Translates a batch command to the actual request string payload.
 
-        {row.mode} {api_url}{row.uri} HTTP/1.1
+    Args:
+      - batch_id: Unique-ish string that delinates the batch
+      - api_url: The Dataverse Resource API endpoint
+      - row: The associated batch command data
+    """
 
-        """
-    else:
-        row_command = f"""\
-        --{batch_id}
-        Content-Type: application/http
-        Content-Transfer-Encoding: binary
+    uri = api_url + row.uri
+    data = row.data
 
-        {row.mode} {api_url}{row.uri} HTTP/1.1
-        Content-Type: application/json{'; type=entry' if row.mode=="POST" else""}
+    if row.mode == "PUT":
+        col, value = list(row.data.items())[0]
+        uri += f"/{col}"
+        data = {"value": value}
 
-        {json.dumps(row.data)}
-        """
+    row_command = f"""\
+    --{batch_id}
+    Content-Type: application/http
+    Content-Transfer-Encoding: binary
+
+    {row.mode} {uri} HTTP/1.1
+    Content-Type: application/json{'; type=entry' if row.mode=="POST" else""}
+
+    {json.dumps(data)}
+    """
     return dedent(row_command)
 
 
