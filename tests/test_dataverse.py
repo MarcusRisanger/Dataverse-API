@@ -5,13 +5,13 @@ import pytest
 import requests
 import responses
 
-from dataverse_api.dataverse import DataverseClient, DataverseEntity
-from dataverse_api.utils import (
+from dataverse_api.dataclasses import (
     DataverseBatchCommand,
     DataverseColumn,
     DataverseError,
-    convert_data,
 )
+from dataverse_api.dataverse import DataverseClient, DataverseEntity
+from dataverse_api.utils import convert_data
 
 
 @pytest.fixture

@@ -1,111 +1,50 @@
 import json
 import logging
 from collections.abc import Iterator
-from dataclasses import dataclass
+from datetime import datetime as dt
 from textwrap import dedent
 from typing import Any, Literal, Optional, Union
 from uuid import uuid4
 
 import pandas as pd
+import requests
 
-log = logging.getLogger()
-
-
-@dataclass
-class DataverseBatchCommand:
-    uri: str
-    mode: str
-    data: Optional[dict[str, Any]] = None
+from dataverse_api.dataclasses import DataverseBatchCommand, DataverseColumn
+from dataverse_api.errors import DataverseError
 
 
-@dataclass
-class DataverseEntitySet:
-    entity_set_name: str
-    entity_set_key: str
-
-
-@dataclass
-class DataverseColumn:
-    schema_name: str
-    can_create: bool
-    can_update: bool
-
-
-@dataclass
-class DataverseTableSchema:
-    name: str
-    key: Optional[str] = None
-    columns: Optional[dict[str, DataverseColumn]] = None
-    altkeys: Optional[list[set[str]]] = None
-
-
-class DataverseError(Exception):
-    def __init__(self, message: str, status_code=None, response=None) -> None:
-        super().__init__(message)
-        self.status_code = status_code
-        self.response = response
-
-
-def extract_batch_response_data(response_text: str) -> list[dict]:
+def get_val(col: dict, attr: Literal["Min", "Max"]) -> Union[dt, int, float]:
     """
-    Retrieves the data contained in a batch request return string.
+    Used to parse column metadata to clean up code in schema module, to
+    handle both datetime min/max and regular int/float min/max attributes.
+    """
+    try:
+        val = dt.fromisoformat(str(col.get(f"{attr}SupportedValue"))[:-1] + "+00:00")
+    except ValueError:
+        val = col.get(f"{attr}Value")
+    return val
+
+
+def extract_batch_response_data(response: requests.Response) -> list[dict]:
+    """
+    Retrieves the data contained in a batch request return Response.
+    Order of arguments is based on order of batch commands.
 
     Args:
       - The text string returned by the request.
 
     Returns:
-      - List of strings containing data in request return. Ready for
+      - List of dicts containing data in request return. Ready for
         `parse_entity_metadata` function.
     """
-
+    response_text = response.text
     out = []
     for row in response_text.splitlines():
         if len(row) == 0:
             continue
         if row[0] == "{":
-            out.append(row)
+            out.append(json.loads(row))
     return out
-
-
-def parse_entity_metadata(metadata: list[str]) -> DataverseTableSchema:
-    """
-    Parses entity metadata from list of dicts.
-
-    Args:
-      - A list containing batch GET operation responses from Dataverse.
-      - The list must contain three
-    """
-    columns, altkeys = None, None  # Optional, will not be assigned if no validation
-    for item in metadata:
-        data = json.loads(item)
-        if "$entity" in item:
-            name, key = parse_meta_entity(data)
-        elif "/Attributes" in item:
-            columns = parse_meta_columns(data)
-        elif "/Keys" in item:
-            altkeys = parse_meta_keys(data)
-
-    return DataverseTableSchema(name=name, key=key, columns=columns, altkeys=altkeys)
-
-
-def parse_meta_entity(entity_metadata: dict[Any]) -> tuple[str, str]:
-    """
-    Parses the available columns based on the EntityMetadata EntityType,
-    given in response from the EntityDefinitions() endpoint.
-
-    Required properties in Response body:
-      - EntitySetName
-      - PrimaryIdAttribute
-
-    Returns:
-      - tuple: EntitySetName , PrimaryIdAttribute
-    """
-    try:
-        name = entity_metadata["EntitySetName"]
-        key = entity_metadata["PrimaryIdAttribute"]
-    except KeyError:
-        raise DataverseError("Payload does not contain the necessary columns.")
-    return name, key
 
 
 def parse_meta_columns(
@@ -143,34 +82,6 @@ def parse_meta_columns(
             raise DataverseError("Payload does not contain the necessary columns.")
 
     return columns
-
-
-def parse_meta_keys(
-    keys_metadata: list[Any],
-) -> list[set[str]]:
-    """
-    Parses the available alternate keys based on the EntityKeyMetadata EntityType,
-    given in response from the EntityDefinitions()/Keys endpoint.
-
-    Required properties in Response body:
-      - KeyAttributes
-
-    Optional properties in Response body:
-      - None
-
-    Returns:
-      - List of alternate key column combinations as sets.
-    """
-    keys: list[set] = list()
-
-    items: list[dict] = keys_metadata["value"]
-    for item in items:
-        try:
-            keys.append(set(item["KeyAttributes"]))  # KeyAttributes is a List
-        except KeyError:
-            raise DataverseError("Payload does not contain the necessary columns.")
-
-    return keys
 
 
 def chunk_data(
@@ -335,4 +246,4 @@ def find_invalid_columns(
         raise DataverseError(f"Found columns not valid for {mode}: {cols}")
 
     if baddies and mode == "upsert":
-        log.warning(f"Found columns that may throw errors in upsert: {cols}")
+        logging.warning(f"Found columns that may throw errors in upsert: {cols}")

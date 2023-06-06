@@ -4,10 +4,12 @@ import logging
 import pandas as pd
 import pytest
 
-from dataverse_api.utils import (
+from dataverse_api.dataclasses import (
     DataverseBatchCommand,
     DataverseColumn,
     DataverseError,
+)
+from dataverse_api.utils import (
     chunk_data,
     convert_data,
     expand_headers,
