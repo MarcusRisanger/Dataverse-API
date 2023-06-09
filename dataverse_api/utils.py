@@ -1,3 +1,10 @@
+"""
+Contains various utils, to simplify code in the main modules.
+
+Author: Marcus Risanger
+"""
+
+
 import json
 import logging
 from collections.abc import Iterator
@@ -17,6 +24,19 @@ def get_val(col: dict, attr: Literal["Min", "Max"]) -> Union[dt, int, float]:
     """
     Used to parse column metadata to clean up code in schema module, to
     handle both datetime min/max and regular int/float min/max attributes.
+
+    Min/Max values are yielded from the API with different attribute names,
+    and are in different formats. We cast time formates to datetime, otherwise
+    pass the JSON parsed value directly. Both support <, > operations for
+    validating that columnar values are within their limits.
+
+    Args:
+      - col: The dictionary representing the column definition from the API
+      - attr: Whether the function should grab the min or max value.
+
+    Returns:
+      - Respective column value limit. `datetime` for DateTime type columns,
+        otherwise `int` or `float` for numerical columns, else `None`.
     """
     try:
         val = dt.fromisoformat(str(col.get(f"{attr}SupportedValue"))[:-1] + "+00:00")

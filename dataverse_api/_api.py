@@ -1,3 +1,11 @@
+"""
+Contains the DataverseAPI class, where the standard requests against
+the Dataverse Web API are stored. Meant to be inherited by other
+classes requiring calls against the API.
+
+Author: Marcus Risanger
+"""
+
 import logging
 from collections.abc import Callable
 from typing import Any, Optional

@@ -1,5 +1,11 @@
+"""
+Contains the DataverseSchema class, used for retrieving and
+processing the Entity schema from Dataverse.
+
+Author: Marcus Risanger
+"""
+
 import logging
-from typing import Optional
 
 from dataverse_api._api import DataverseAPI
 from dataverse_api.dataclasses import (
@@ -17,7 +23,7 @@ class DataverseSchema(DataverseAPI):
         self,
         auth: DataverseAuth,
         logical_name: str,
-        validate: Optional[bool] = False,
+        validate: bool = False,
     ):
         super().__init__(auth=auth)
         self.validate = validate
@@ -39,7 +45,8 @@ class DataverseSchema(DataverseAPI):
         Required for initialization using logical name of Dataverse Entity.
         Fetches entity metadata and column/altkey metadata if validation is True.
 
-        Note: The order of DataverseBatchCommands is important!
+        Note: The order of DataverseBatchCommands is important due to unpacking
+        into the `DataverseRawSchema` object on return.
         """
         url = f"EntityDefinitions(LogicalName='{logical_name}')"
         data = [DataverseBatchCommand(url, "GET")]

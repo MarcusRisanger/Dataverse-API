@@ -1,5 +1,6 @@
 """
-Contains the DataverseEntity class, the main programming interface with Dataverse API.
+Contains the DataverseEntity class, the main interface
+to use with the Dataverse Web API.
 
 Author: Marcus Risanger
 """
@@ -39,7 +40,7 @@ class DataverseEntity(DataverseAPI):
         self,
         logical_name: str,
         auth: DataverseAuth,
-        validate: Optional[bool] = False,
+        validate: bool = False,
     ):
         super().__init__(auth=auth)
         self._validate = validate

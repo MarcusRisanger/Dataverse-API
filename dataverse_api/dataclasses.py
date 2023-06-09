@@ -1,3 +1,11 @@
+"""
+Contains the different dataclasses used to handle data structures
+in the other modules in the package.
+
+Author: Marcus Risanger
+"""
+
+
 import logging
 from dataclasses import dataclass
 from datetime import datetime as dt

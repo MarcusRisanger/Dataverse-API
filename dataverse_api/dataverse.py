@@ -1,6 +1,14 @@
+"""
+Contains the `DataverseClient` class, used to instantiate a connection
+to the Dataverse Web API and to spawn `DataverseEntity` objects for
+interacting with tables.
+
+Author: Marcus Risanger
+"""
+
+
 import logging
 from typing import Optional
-from urllib.parse import urljoin
 
 from dataverse_api.dataclasses import DataverseAuth
 from dataverse_api.entity import DataverseEntity
@@ -19,14 +27,7 @@ class DataverseClient:
 
     def __init__(self, auth: DataverseAuth):
         self._auth = auth
-        self._api_url = urljoin(auth.resource, "/api/data/v9.2/")
         self._entity_cache: dict[str, DataverseEntity] = {}
-        self._default_headers = {
-            "Accept": "application/json",
-            "OData-MaxVersion": "4.0",
-            "OData-Version": "4.0",
-            "Content-Type": "application/json",
-        }
 
     def entity(
         self, logical_name: str, validate: Optional[bool] = False
@@ -47,7 +48,9 @@ class DataverseClient:
         """
         if logical_name not in self._entity_cache:
             self._entity_cache[logical_name] = DataverseEntity(
-                auth=self._auth, logical_name=logical_name, validate=validate
+                auth=self._auth,
+                logical_name=logical_name,
+                validate=validate,
             )
 
         return self._entity_cache[logical_name]

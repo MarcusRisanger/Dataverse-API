@@ -1,5 +1,7 @@
 """
 Collection of Error classes specific to Dataverse API.
+
+Author: Marcus Risanger
 """
 
 
