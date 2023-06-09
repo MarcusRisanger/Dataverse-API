@@ -49,20 +49,28 @@ class DataverseAPI:
         }
 
     def _get(
-        self, url: str, additional_headers: Optional[dict] = None, **kwargs
+        self,
+        url: Optional[str] = None,
+        additional_headers: Optional[dict] = None,
+        **kwargs,
     ) -> requests.Response:
         """
         GET is used to retrieve data from Dataverse.
 
-        Args:
+        Optional args:
           - url: Appended to API endpoint
           - additional_headers: Headers to overwrite default headers
+
+        Kwargs:
           - data: Request payload (str, bytes etc.)
           - json: Request JSON serializable payload
           - params: Relevant request parameters
+          - url_override: The complete request URL, overriding the url keyword.
         """
+        url = kwargs.get("url_override") or urljoin(self.api_url, url)
+        if url is None:
+            raise DataverseError("Needs either url or url_override argument as kwarg.")
         headers = expand_headers(self._default_headers, additional_headers)
-        url = urljoin(self.api_url, url)
 
         try:
             response = requests.get(

@@ -334,12 +334,16 @@ class DataverseEntity(DataverseAPI):
 
         return key
 
-    def read(self, select: Optional[list[str]] = None, page_size: Optional[int] = None):
+    def read(
+        self,
+        select: Optional[list[str]] = None,
+        top: Optional[int] = None,
+        page_size: Optional[int] = None,
+    ):
         """
         Reads entity.
 
-        TODO: Support advanced query params: select, expand, filter, orderby, top
-        TODO: Support paging if server responds with
+        TODO: Support advanced query params: expand, filter, orderby
         """
 
         additional_headers = dict()
@@ -349,9 +353,18 @@ class DataverseEntity(DataverseAPI):
         params = dict()
         if select is not None:
             params["$select"] = ",".join(select)
+        if top is not None:
+            params["$top"] = top
 
-        return self._get(
-            url=self.schema.name,
-            additional_headers=additional_headers,
-            params=params,
-        )
+        output = []
+        url = self.schema.name
+
+        # Looping through pages
+        while url:
+            response: dict = self._get(
+                url=url, additional_headers=additional_headers, params=params
+            ).json()
+            output.extend(response["value"])
+            url = response.get("@odata.nextLink")
+
+        return output
