@@ -16,10 +16,18 @@ from dataverse_api.dataclasses import (
     DataverseAuth,
     DataverseBatchCommand,
     DataverseEntitySchema,
+    DataverseExpand,
+    DataverseOrderby,
 )
 from dataverse_api.errors import DataverseError
 from dataverse_api.schema import DataverseSchema
-from dataverse_api.utils import convert_data, extract_key, find_invalid_columns
+from dataverse_api.utils import (
+    convert_data,
+    extract_key,
+    find_invalid_columns,
+    parse_expand,
+    parse_orderby,
+)
 
 
 class DataverseEntity(DataverseAPI):
@@ -337,13 +345,25 @@ class DataverseEntity(DataverseAPI):
     def read(
         self,
         select: Optional[list[str]] = None,
+        filter: Optional[str] = None,
+        expand: Optional[Union[str, list[DataverseExpand]]] = None,
+        orderby: Optional[Union[str, list[DataverseOrderby]]] = None,
         top: Optional[int] = None,
+        apply: Optional[str] = None,
         page_size: Optional[int] = None,
     ):
         """
         Reads entity.
 
-        TODO: Support advanced query params: expand, filter, orderby
+        Optional args:
+          - select: List of columns to return from the table.
+          - filter: A fully qualified filtering string.
+          - expand: A fully qualified expand string or a dict where
+            each key corresponds to a related table, and each value is
+            a list of related columns to select.
+          - orderby: A fully qualified order_by string or a list of
+            two-element tuples with column name first and asc/desc designation.
+
         """
 
         additional_headers = dict()
@@ -353,8 +373,16 @@ class DataverseEntity(DataverseAPI):
         params = dict()
         if select is not None:
             params["$select"] = ",".join(select)
+        if filter is not None:
+            params["$filter"] = filter
+        if expand is not None:
+            params["$expand"] = parse_expand(expand, self.schema.relationships)
+        if orderby is not None:
+            params["$orderby"] = parse_orderby(orderby, self.schema.relationships)
         if top is not None:
             params["$top"] = top
+        if apply is not None:
+            params["$apply"] = apply
 
         output = []
         url = self.schema.name

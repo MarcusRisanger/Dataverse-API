@@ -16,8 +16,13 @@ from uuid import uuid4
 import pandas as pd
 import requests
 
-from dataverse_api.dataclasses import DataverseBatchCommand, DataverseColumn
-from dataverse_api.errors import DataverseError
+from dataverse_api.dataclasses import (
+    DataverseBatchCommand,
+    DataverseColumn,
+    DataverseExpand,
+    DataverseOrderby,
+)
+from dataverse_api.errors import DataverseError, DataverseValidationError
 
 
 def get_val(col: dict, attr: Literal["Min", "Max"]) -> Union[dt, int, float]:
@@ -65,43 +70,6 @@ def extract_batch_response_data(response: requests.Response) -> list[dict]:
         if row[0] == "{":
             out.append(json.loads(row))
     return out
-
-
-def parse_meta_columns(
-    attribute_metadata: dict[Any],
-) -> dict[str, DataverseColumn]:
-    """
-    Parses the available columns based on the AttributeMetadata EntityType,
-    given in response from the EntityDefinitions()/Attribute endpoint.
-
-    Required properties in Response body:
-      - LogicalName
-      - SchemaName
-      - IsValidForCreate
-      - IsValidForUpdate
-
-    Optional properties in Response body:
-      - IsValidODataAttribute
-
-    Returns:
-      - Dict with column names as key and `DataverseColumn` as values.
-    """
-    columns = dict()
-    items: list[dict] = attribute_metadata["value"]
-    for item in items:
-        try:
-            if item.get("IsValidODataAttribute", True) and (
-                item["IsValidForCreate"] or item["IsValidForUpdate"]
-            ):
-                columns[item["LogicalName"]] = DataverseColumn(
-                    schema_name=item["SchemaName"],
-                    can_create=item["IsValidForCreate"],
-                    can_update=item["IsValidForUpdate"],
-                )
-        except KeyError:
-            raise DataverseError("Payload does not contain the necessary columns.")
-
-    return columns
 
 
 def chunk_data(
@@ -267,3 +235,106 @@ def find_invalid_columns(
 
     if baddies and mode == "upsert":
         logging.warning(f"Found columns that may throw errors in upsert: {cols}")
+
+
+def parse_expand(
+    expand: Union[str, DataverseExpand, list[DataverseExpand]],
+    valid_cols: Optional[list[str]] = None,
+) -> str:
+    if type(expand) == str:
+        return expand
+
+    if type(expand) != list:
+        expand = [expand]
+    output = []
+    for rule in expand:
+        output.append(parse_expand_element(rule, valid_cols))
+
+    return ",".join(output)
+
+
+def parse_expand_element(
+    expand: DataverseExpand, valid_cols: Optional[list[str]] = None
+) -> str:
+    """
+    Parses the expansion data and returns an appropriate string for
+    querying the Dataverse entity.
+
+    Args:
+      - expand: An instance of `DataverseExpand` that describes the
+        expansion rules to apply.
+      - valid_cols: An optional argument to handle validation of first-level
+        expansion table name validation.
+    """
+    # Some validation rules
+    if expand.expand and (expand.orderby or expand.expand.orderby):
+        raise DataverseValidationError("Cannot use orderby with nested expand.")
+    if valid_cols is not None:
+        if expand.table not in valid_cols:
+            raise DataverseValidationError("Expansion target entity not valid.")
+
+    # Parsing
+    elements = []
+    if expand.select:
+        elements.append(f"$select={','.join(expand.select)}")
+    if expand.filter:
+        elements.append(f"$filter={expand.filter}")
+    if expand.orderby:
+        ordering = parse_orderby(expand.orderby)
+        elements.append(f"$orderby={ordering}")
+    if expand.top:
+        elements.append(f"$top={expand.top}")
+    if expand.expand:
+        elements.append(f"$expand={parse_expand(expand.expand)})")
+    return f"{expand.table}({';'.join(elements)})"
+
+
+def parse_orderby(
+    orderby: Union[str, list[DataverseOrderby]],
+    valid_cols: Optional[list[str]] = None,
+):
+    """
+    Parses the orderby argument for Dataverse querying.
+
+    Accepts both fully qualified strings or a list of
+    `DataverseOrdeby` dataclasses.
+    """
+    if type(orderby) == str:
+        return orderby
+
+    # Validation rules
+    if valid_cols is not None:
+        if not all(i.attr in valid_cols for i in orderby):
+            raise DataverseValidationError("Attribute in orderby not valid.")
+
+    ordering = []
+    for order in orderby:
+        ordering.append(f"{order.attr} {order.direction}")
+    return ",".join(ordering)
+
+
+def assign_expected_type(dataverse_type: str) -> type:
+    """
+    Returns the expected data type based on the column
+    attribute type string.
+    """
+    floats = ["MoneyType", "DoubleType", "DecimalType"]
+    ints = ["BigIntType", "IntegerType"]
+    dates = ["DateTimeType"]
+    strings = [
+        "PicklistType",
+        "StringType",
+        "MemoType",
+        "UniqueidentifierType",
+    ]
+
+    if dataverse_type in floats:
+        return float
+    elif dataverse_type in ints:
+        return int
+    elif dataverse_type in strings:
+        return str
+    elif dataverse_type in dates:
+        return dt
+    elif dataverse_type == "BooleanType":
+        return bool

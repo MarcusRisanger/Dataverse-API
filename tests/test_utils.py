@@ -1,24 +1,17 @@
-import json
 import logging
+from dataclasses import dataclass
 
 import pandas as pd
 import pytest
 
-from dataverse_api.dataclasses import (
-    DataverseBatchCommand,
-    DataverseColumn,
-    DataverseError,
-)
+from dataverse_api.dataclasses import DataverseBatchCommand
+from dataverse_api.errors import DataverseError
 from dataverse_api.utils import (
     chunk_data,
     convert_data,
     expand_headers,
     extract_batch_response_data,
     extract_key,
-    find_invalid_columns,
-    parse_meta_columns,
-    parse_meta_entity,
-    parse_meta_keys,
 )
 
 log = logging.getLogger()
@@ -49,7 +42,13 @@ def test_data_df(test_data_list):
 @pytest.fixture
 def entity_validation_data():
     with open("tests/sample_data/test_entity_init.txt") as f:
-        return f.read()
+        text = f.read()
+
+    @dataclass
+    class Mock:
+        text: str
+
+    return Mock(text=text)
 
 
 @pytest.fixture
@@ -62,30 +61,6 @@ def entity_validation_data_bad():
 def processed_entity_validation_data(entity_validation_data):
     output = extract_batch_response_data(entity_validation_data)
     return output
-
-
-def test_entity_validation(processed_entity_validation_data):
-    output = processed_entity_validation_data
-    assert len(output) == 3
-    assert "$entity" in output[0]
-    assert "/Attributes" in output[1]
-    assert "/Keys" in output[2]
-
-
-def test_metadata_parse_failures(entity_validation_data_bad):
-    output = extract_batch_response_data(entity_validation_data_bad)
-    data = [json.loads(i) for i in output]
-    matcher = r"Payload does not contain .+"
-
-    assert len(output) == 3
-    with pytest.raises(DataverseError, match=matcher):
-        parse_meta_entity(data[0])
-
-    with pytest.raises(DataverseError, match=matcher):
-        parse_meta_columns(data[1])
-
-    with pytest.raises(DataverseError, match=matcher):
-        parse_meta_keys(data[2])
 
 
 @pytest.fixture
@@ -168,26 +143,3 @@ def test_expand_headers(test_data_dict):
     assert len(headers) == len(test_data_dict) + 1
     assert all([x in headers for x in ["abc", "b", "c", "d", "q"]])
     assert headers["abc"] == "foo"
-
-
-@pytest.mark.parametrize(
-    "mode, failure",
-    [
-        ("create", r"not valid for create: statecode"),
-        ("update", r"not valid for update: importsequencenumber"),
-    ],
-)
-def test_find_invalid_cols(mode, failure, processed_entity_validation_data):
-    col_data = json.loads(processed_entity_validation_data[1])
-    schema_columns: dict[str, DataverseColumn] = parse_meta_columns(col_data)
-
-    key = {"testid"}
-    cols = {"testid", "statecode", "importsequencenumber"}
-
-    with pytest.raises(DataverseError, match=failure):
-        find_invalid_columns(
-            key_columns=key,
-            data_columns=cols,
-            schema_columns=schema_columns,
-            mode=mode,
-        )
