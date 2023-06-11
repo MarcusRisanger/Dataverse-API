@@ -338,3 +338,5 @@ def assign_expected_type(dataverse_type: str) -> type:
         return dt
     elif dataverse_type == "BooleanType":
         return bool
+    elif dataverse_type == "ImageType":
+        return bytes

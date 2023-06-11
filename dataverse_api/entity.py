@@ -17,6 +17,7 @@ from dataverse_api.dataclasses import (
     DataverseBatchCommand,
     DataverseEntitySchema,
     DataverseExpand,
+    DataverseImageFile,
     DataverseOrderby,
 )
 from dataverse_api.errors import DataverseError
@@ -57,7 +58,7 @@ class DataverseEntity(DataverseAPI):
         ).fetch()
 
     def update_single_value(
-        self, data: dict[str, Any], key_columns: Optional[set[str]] = None
+        self, data: dict[str, Any], key_columns: Optional[Union[str, set[str]]] = None
     ) -> None:
         """
         Updates singular column value for a specific row in Entity.
@@ -226,7 +227,7 @@ class DataverseEntity(DataverseAPI):
         self,
         data: list[dict],
         mode: Literal["PATCH", "POST", "PUT", "DELETE"],
-        key_columns: Optional[set[str]] = None,
+        key_columns: Optional[Union[str, set[str]]] = None,
     ) -> list[DataverseBatchCommand]:
         """
         Transforms submitted data to Batch Operations commands.
@@ -396,3 +397,29 @@ class DataverseEntity(DataverseAPI):
             url = response.get("@odata.nextLink")
 
         return output
+
+    def upload_image(
+        self,
+        image: DataverseImageFile,
+        image_column: str,
+        data: dict[str, Any],
+        key_columns: Optional[Union[str, set[str]]] = None,
+    ):
+        extension = image.file_name.split(".")[1]
+        if self._validate and extension in self.schema.illegal_extensions:
+            raise DataverseError(
+                f"Image extension '{extension}' blocked by organization."
+            )
+
+        key_columns = key_columns or self._validate_payload([data], mode="insert")
+        _, row_key = extract_key(data=data, key_columns=key_columns)
+
+        additional_headers = {
+            "Content-Type": "application/octet-stream",
+            "x-ms-file-name": image.file_name,
+            "Content-Length": str(len(image.payload)),
+        }
+
+        url = f"{self.schema.name}({row_key})/{image_column}"
+
+        self._patch(url=url, additional_headers=additional_headers, data=image.payload)

@@ -18,31 +18,41 @@ log = logging.getLogger()
 
 @dataclass
 class DataverseAuth:
+    """
+    For encapsulating Dataverse authentication parameters.
+    """
+
     resource: str
     auth: Union[ClientCredentialAuth, DeviceCodeAuth]
 
 
 @dataclass
 class DataverseBatchCommand:
+    """
+    For encapsulating a singular Dataverse batch command.
+    """
+
     uri: str
     mode: str = "GET"
     data: Optional[dict[str, Any]] = None
 
 
 @dataclass
-class DataverseEntitySet:
-    entity_set_name: str
-    entity_set_key: str
-
-
-@dataclass
 class DataverseOrderby:
+    """
+    For structuring $orderby Dataverse query clauses.
+    """
+
     attr: str
     direction: Literal["asc", "desc"] = "asc"
 
 
 @dataclass
 class DataverseExpand:
+    """
+    For structuring $expand Dataverse query clauses.
+    """
+
     table: str
     select: list[str]
     filter: Optional[str] = None
@@ -52,7 +62,21 @@ class DataverseExpand:
 
 
 @dataclass
+class DataverseImageFile:
+    """
+    For encapsulating image data for uploading to Dataverse.
+    """
+
+    file_name: str
+    payload: bytes
+
+
+@dataclass
 class DataverseColumn:
+    """
+    For describing an Entity Attribute (table column).
+    """
+
     schema_name: str
     can_create: bool
     can_update: bool
@@ -69,9 +93,14 @@ class DataverseColumn:
 
 @dataclass
 class DataverseEntitySchema:
+    """
+    For describing the schema of an Entity-
+    """
+
     name: Optional[str] = None
     key: Optional[str] = None
     language_code: Optional[int] = None
+    illegal_extensions: Optional[list[str]] = None
     columns: Optional[dict[str, DataverseColumn]] = None
     altkeys: Optional[list[set[str]]] = None
     relationships: Optional[list[str]] = None
@@ -79,10 +108,14 @@ class DataverseEntitySchema:
 
 @dataclass
 class DataverseRawSchema:
+    """
+    For storing the raw schema data API responses.
+    """
+
     entity_data: Optional[dict] = None
+    organization_data: Optional[int] = None
     column_data: Optional[dict] = None
     altkey_data: Optional[dict] = None
-    language_data: Optional[int] = None
     one_many_data: Optional[dict] = None
     many_one_data: Optional[dict] = None
     choice_data: Optional[dict] = None

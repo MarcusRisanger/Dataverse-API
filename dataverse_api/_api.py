@@ -8,7 +8,7 @@ Author: Marcus Risanger
 
 import logging
 from collections.abc import Callable
-from typing import Any, Optional
+from typing import Any, Optional, Union
 from urllib.parse import urljoin
 
 import requests
@@ -147,7 +147,8 @@ class DataverseAPI:
     def _patch(
         self,
         url: str,
-        data: dict[str, Any],
+        data: Optional[Union[str, bytes]] = None,
+        json: Optional[dict[str, Any]] = None,
         additional_headers: Optional[dict] = None,
     ) -> requests.Response:
         """
@@ -167,7 +168,8 @@ class DataverseAPI:
                 url=url,
                 auth=self._auth,
                 headers=headers,
-                json=data,
+                data=data,
+                json=json,
             )
             response.raise_for_status()
             return response

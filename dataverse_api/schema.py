@@ -59,13 +59,21 @@ class DataverseSchema(DataverseAPI):
         into the `DataverseRawSchema` object on return.
         """
         url = f"EntityDefinitions(LogicalName='{self.logical_name}')"
-        data = [DataverseBatchCommand(url, "GET")]
+        organization_columns = [
+            "languagecode",
+            "blockedattachments",
+        ]
+        org_cols = ",".join(organization_columns)
+
+        data = [
+            DataverseBatchCommand(url),
+            DataverseBatchCommand(f"organizations?$select={org_cols}"),
+        ]
         if self.validate:
             data.extend(
                 [
                     DataverseBatchCommand(url + "/Attributes"),
                     DataverseBatchCommand(url + "/Keys"),
-                    DataverseBatchCommand("organizations?$select=languagecode"),
                     DataverseBatchCommand(url + "/OneToManyRelationships"),
                     DataverseBatchCommand(url + "/ManyToOneRelationships"),
                 ]
@@ -93,9 +101,11 @@ class DataverseSchema(DataverseAPI):
         Parses the raw schema for Organizations table to assign the
         correct language code to the schema.
         """
-        code = self.raw_schema.language_data["value"][0]["languagecode"]
+        code = self.raw_schema.organization_data["value"][0]["languagecode"]
         self.schema.language_code = code
-        logging.info(f"Language code: {self.schema.language_code}")
+
+        exts: str = self.raw_schema.organization_data["value"][0]["blockedattachments"]
+        self.schema.illegal_extensions = exts.split(";")
 
     def _parse_meta_entity(self):
         """
