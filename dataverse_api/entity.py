@@ -17,7 +17,7 @@ from dataverse_api.dataclasses import (
     DataverseBatchCommand,
     DataverseEntitySchema,
     DataverseExpand,
-    DataverseImageFile,
+    DataverseFile,
     DataverseOrderby,
 )
 from dataverse_api.errors import DataverseError
@@ -85,10 +85,15 @@ class DataverseEntity(DataverseAPI):
         column, value = list(data.items())[0]
 
         response = self._put(
-            entity_name=self.schema.name, key=row_key, column=column, value=value
+            entity_name=self.schema.entity.name,
+            key=row_key,
+            column=column,
+            value=value,
         )
         if response:
-            logging.info(f"Successfully updated {row_key} in {self.schema.name}.")
+            logging.info(
+                f"Successfully updated {row_key} in {self.schema.entity.name}."
+            )
 
     def update_single_column(
         self,
@@ -152,7 +157,8 @@ class DataverseEntity(DataverseAPI):
 
         if self._batch_operation(batch_data):
             logging.info(
-                f"Successfully updated {len(batch_data)} rows in {self.schema.name}."
+                f"Successfully updated {len(batch_data)} rows"
+                + f"in {self.schema.entity.name}."
             )
 
     def insert(
@@ -175,7 +181,7 @@ class DataverseEntity(DataverseAPI):
         self._validate_payload(data, mode="create")
 
         logging.info(
-            f"Performing insert of {len(data)} elements into {self.schema.name}."
+            f"Performing insert of {len(data)} elements into {self.schema.entity.name}."
         )
 
         # Converting to Batch Commands
@@ -183,7 +189,7 @@ class DataverseEntity(DataverseAPI):
 
         self._batch_operation(batch_data)
         logging.info(
-            f"Successfully inserted {len(batch_data)} rows to {self.schema.name}."
+            f"Successfully inserted {len(batch_data)} rows to {self.schema.entity.name}."
         )
 
     def upsert(
@@ -206,7 +212,7 @@ class DataverseEntity(DataverseAPI):
         key_columns = key_columns or self._validate_payload(data, mode="upsert")
 
         logging.info(
-            f"Performing upsert of {len(data)} elements into {self.schema.name}."
+            f"Performing upsert of {len(data)} elements into {self.schema.entity.name}."
         )
 
         if key_columns is None and not self._validate:
@@ -220,7 +226,7 @@ class DataverseEntity(DataverseAPI):
 
         self._batch_operation(batch_data)
         logging.info(
-            f"Successfully upserted {len(batch_data)} rows to {self.schema.name}."
+            f"Successfully upserted {len(batch_data)} rows to {self.schema.entity.name}."
         )
 
     def _prepare_batch_data(
@@ -255,10 +261,10 @@ class DataverseEntity(DataverseAPI):
         for row in data:
             if mode in ["PATCH", "PUT", "DELETE"]:
                 row_data, row_key = extract_key(data=row, key_columns=key_columns)
-                uri = f"{self.schema.name}({row_key})"
+                uri = f"{self.schema.entity.name}({row_key})"
                 output.append(DataverseBatchCommand(uri=uri, mode=mode, data=row_data))
             else:
-                uri = f"{self.schema.name}"
+                uri = f"{self.schema.entity.name}"
                 output.append(DataverseBatchCommand(uri=uri, mode=mode, data=row))
 
         return output
@@ -295,14 +301,14 @@ class DataverseEntity(DataverseAPI):
             data_columns.update(row.keys())
 
         # Getting a set of all columns present in all rows of data
-        complete_columns = {k for k in self.schema.columns.keys()}
+        complete_columns = {k for k in self.schema.attributes.keys()}
         for row in data:
             contains_values = {k for k, v in row.items() if v is not None}
             complete_columns = complete_columns.intersection(contains_values)
 
         # Checking column names against schema
-        if not data_columns.issubset(self.schema.columns):
-            bad_columns = list(data_columns.difference(self.schema.columns))
+        if not data_columns.issubset(self.schema.attributes):
+            bad_columns = list(data_columns.difference(self.schema.attributes))
             raise DataverseError(
                 (
                     "Found bad payload columns not present "
@@ -317,9 +323,9 @@ class DataverseEntity(DataverseAPI):
             return None
 
         # Checking for available keys against schema
-        if self.schema.key in complete_columns:
+        if self.schema.entity.primary_attr in complete_columns:
             logging.info("Key column present in all rows, using as key.")
-            key = {self.schema.key}
+            key = {self.schema.entity.primary_attr}
         elif self.schema.altkeys:
             # Checking if any valid altkeys can be formed from columns
             # Preferring shortest possible altkeys
@@ -337,7 +343,7 @@ class DataverseEntity(DataverseAPI):
         find_invalid_columns(
             key_columns=key,
             data_columns=data_columns,
-            schema_columns=self.schema.columns,
+            schema_columns=self.schema.attributes,
             mode=mode,
         )
 
@@ -386,7 +392,7 @@ class DataverseEntity(DataverseAPI):
             params["$apply"] = apply
 
         output = []
-        url = self.schema.name
+        url = self.schema.entity.name
 
         # Looping through pages
         while url:
@@ -398,28 +404,46 @@ class DataverseEntity(DataverseAPI):
 
         return output
 
+    def upload_file(self) -> None:
+        raise NotImplementedError("Sorry!")
+
     def upload_image(
         self,
-        image: DataverseImageFile,
-        image_column: str,
+        image: DataverseFile,
         data: dict[str, Any],
         key_columns: Optional[Union[str, set[str]]] = None,
-    ):
+        image_column: Optional[str] = None,
+    ) -> None:
+        """
+        Uploads image to the Dataverse entity.
+
+        Args:
+          - image: `DataverseImageFile` containing image name and byte payload
+          - data: Dict containing row key information
+          - key_columns: Optional set of key columns found in data
+          - image_column: Optional override if image is to be uploaded to
+            a non-primary image column
+        """
         extension = image.file_name.split(".")[1]
-        if self._validate and extension in self.schema.illegal_extensions:
+        if self._validate and extension in self.schema.entity.illegal_extensions:
             raise DataverseError(
                 f"Image extension '{extension}' blocked by organization."
             )
 
+        if image_column is None:
+            image_column = self.schema.entity.primary_img
+
         key_columns = key_columns or self._validate_payload([data], mode="insert")
         _, row_key = extract_key(data=data, key_columns=key_columns)
 
+        url = f"{self.schema.entity.name}({row_key})/{image_column}"
         additional_headers = {
             "Content-Type": "application/octet-stream",
             "x-ms-file-name": image.file_name,
             "Content-Length": str(len(image.payload)),
         }
 
-        url = f"{self.schema.name}({row_key})/{image_column}"
-
         self._patch(url=url, additional_headers=additional_headers, data=image.payload)
+
+    def _upload_large_file(self, image: DataverseFile):
+        pass

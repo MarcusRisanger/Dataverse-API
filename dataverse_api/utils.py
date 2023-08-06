@@ -18,7 +18,7 @@ import requests
 
 from dataverse_api.dataclasses import (
     DataverseBatchCommand,
-    DataverseColumn,
+    DataverseEntityAttribute,
     DataverseExpand,
     DataverseOrderby,
 )
@@ -202,7 +202,7 @@ def batch_command(batch_id: str, api_url: str, row: DataverseBatchCommand) -> st
 def find_invalid_columns(
     key_columns: set[str],
     data_columns: set[str],
-    schema_columns: dict[str, DataverseColumn],
+    schema_columns: dict[str, DataverseEntityAttribute],
     mode: Literal["create", "update", "upsert"],
 ):
     """
@@ -318,9 +318,11 @@ def assign_expected_type(dataverse_type: str) -> type:
     Returns the expected data type based on the column
     attribute type string.
     """
+    dates = ["DateTimeType"]
+    bools = ["BooleanType"]
     floats = ["MoneyType", "DoubleType", "DecimalType"]
     ints = ["BigIntType", "IntegerType"]
-    dates = ["DateTimeType"]
+    octets = ["ImageType", "FileType"]
     strings = [
         "PicklistType",
         "StringType",
@@ -336,7 +338,7 @@ def assign_expected_type(dataverse_type: str) -> type:
         return str
     elif dataverse_type in dates:
         return dt
-    elif dataverse_type == "BooleanType":
-        return bool
-    elif dataverse_type == "ImageType":
+    elif dataverse_type in octets:
         return bytes
+    elif dataverse_type in bools:
+        return bool

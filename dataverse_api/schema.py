@@ -11,7 +11,9 @@ from dataverse_api._api import DataverseAPI
 from dataverse_api.dataclasses import (
     DataverseAuth,
     DataverseBatchCommand,
-    DataverseColumn,
+    DataverseChoice,
+    DataverseEntityAttribute,
+    DataverseEntityData,
     DataverseEntitySchema,
     DataverseRawSchema,
 )
@@ -42,6 +44,7 @@ class DataverseSchema(DataverseAPI):
         self.logical_name = logical_name
         self.schema = DataverseEntitySchema()
         self.raw_schema: DataverseRawSchema = self._get_entity_metadata()
+        self.choice_columns: list[DataverseChoice] = None
 
     def fetch(self) -> DataverseEntitySchema:
         """
@@ -88,56 +91,61 @@ class DataverseSchema(DataverseAPI):
         """
         logging.info("Parsing EntitySet metadata.")
         self._parse_meta_entity()
+        self._parse_organization_info()
         if self.validate:
             logging.info("Parsing Validation metadata.")
-            self._parse_language_code()
             self._parse_meta_columns()
             self._parse_meta_keys()
             self._parse_relationship_metadata()
             self._parse_picklist_metadata()
-
-    def _parse_language_code(self):
-        """
-        Parses the raw schema for Organizations table to assign the
-        correct language code to the schema.
-        """
-        code = self.raw_schema.organization_data["value"][0]["languagecode"]
-        self.schema.language_code = code
-
-        exts: str = self.raw_schema.organization_data["value"][0]["blockedattachments"]
-        self.schema.illegal_extensions = exts.split(";")
 
     def _parse_meta_entity(self):
         """
         Parses the raw schema for EntitySet to assign the correct
         entity name and primary key data to schema.
         """
-        self.schema.name = self.raw_schema.entity_data["EntitySetName"]
-        self.schema.key = self.raw_schema.entity_data["PrimaryIdAttribute"]
-        logging.info(f"EntitySetName: {self.schema.name}")
-        logging.info(f"Primary Key: {self.schema.key}")
+        entity_data = DataverseEntityData(
+            name=self.raw_schema.entity_data["EntitySetName"],
+            primary_attr=self.raw_schema.entity_data["PrimaryIdAttribute"],
+            primary_img=self.raw_schema.entity_data["PrimaryImageAttribute"],
+        )
+        self.schema.entity = entity_data
+        logging.info(f"EntitySetName: {self.schema.entity.name}")
+
+    def _parse_organization_info(self):
+        """
+        Parses the raw schema for Organizations table to assign the
+        correct language code to the schema.
+        """
+        code: str = self.raw_schema.organization_data["value"][0]["languagecode"]
+        self.schema.entity.language_code = code
+
+        exts: str = self.raw_schema.organization_data["value"][0]["blockedattachments"]
+        self.schema.entity.illegal_extensions = exts.split(";")
 
     def _parse_meta_columns(self):
         """
         Parses the raw schema for Attributes to assign the correct
         metadata per attribute into the schema.
         """
-        schema_columns = dict()
-        cols: list[dict] = self.raw_schema.column_data["value"]
+        attribute_schema = dict()
+        cols: list[dict] = self.raw_schema.attribute_data["value"]
         for col in cols:
+            logical_name = col["LogicalName"]
             valid_attr = col["IsValidODataAttribute"]
             valid_create = col["IsValidForCreate"]
             valid_update = col["IsValidForUpdate"]
+            attr_type = col["AttributeTypeName"]["Value"]
 
             if not valid_attr or (not valid_create and not valid_update):
                 continue
 
-            schema_columns[col["LogicalName"]] = DataverseColumn(
+            attribute_schema[logical_name] = DataverseEntityAttribute(
                 schema_name=col["SchemaName"],
                 can_create=valid_create,
                 can_update=valid_update,
-                attr_type=col["AttributeType"],
-                data_type=assign_expected_type(col["AttributeTypeName"]["Value"]),
+                attr_type=attr_type,
+                data_type=assign_expected_type(attr_type),
                 max_height=col.get("MaxHeight"),
                 max_length=col.get("MaxLength"),
                 max_size=col.get("MaxSizeInKB"),
@@ -145,7 +153,7 @@ class DataverseSchema(DataverseAPI):
                 max_value=get_val(col, "Max"),
                 min_value=get_val(col, "Min"),
             )
-        self.schema.columns = schema_columns
+        self.schema.attributes = attribute_schema
 
     def _parse_meta_keys(self) -> None:
         """
@@ -163,23 +171,32 @@ class DataverseSchema(DataverseAPI):
         Looks for Picklist columns in the schema and fetches the
         related picklist choice information. Stores choice information
         directly in the existing column schema.
+
+        TODO: Add stuff like STATECODE and multi-column picklists
         """
-        picklist_cols = [
-            col_name
-            for col_name, col in self.schema.columns.items()
-            if col.attr_type == "Picklist"
+        meta_types = {
+            "PicklistType": "PicklistAttributeMetadata",
+            "MultiSelectPicklistType": "MultiSelectPicklistAttributeMetadata",
+            "StateType": "StateAttributeMetadata",
+            "StatusType": "StatusAttributeMetadata",
+        }
+
+        picklist_attrs = [
+            (attr_name, attr.attr_type)
+            for attr_name, attr in self.schema.attributes.items()
+            if attr.attr_type in meta_types
         ]
 
-        if len(picklist_cols) == 0:
+        if len(picklist_attrs) == 0:
             return
 
         # Preparing batch command to retrieve all picklists simultaneously
         batch: list[DataverseBatchCommand] = []
-        for col in picklist_cols:
+        for attr_name, attr_type in picklist_attrs:
             meta_url = (
                 f"EntityDefinitions(LogicalName='{self.logical_name}')"
-                + f"/Attributes(LogicalName='{col}')"
-                + "/Microsoft.Dynamics.CRM.PicklistAttributeMetadata?$select=LogicalName"
+                + f"/Attributes(LogicalName='{attr_name}')"
+                + f"/Microsoft.Dynamics.CRM.{meta_types[attr_type]}?$select=LogicalName"
                 + "&$expand=OptionSet($select=Options),GlobalOptionSet($select=Options)"
             )
             batch.append(DataverseBatchCommand(meta_url))
@@ -200,9 +217,9 @@ class DataverseSchema(DataverseAPI):
             choices = dict()
             for option in col["OptionSet"]["Options"]:
                 for label in option["Label"]["LocalizedLabels"]:
-                    if label["LanguageCode"] == self.schema.language_code:
+                    if label["LanguageCode"] == self.schema.entity.language_code:
                         choices[label["Label"]] = option["Value"]
-            self.schema.columns[col["LogicalName"]].choices = choices
+            self.schema.attributes[col["LogicalName"]].choices = choices
 
     def _parse_relationship_metadata(self) -> None:
         """

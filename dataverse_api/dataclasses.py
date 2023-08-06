@@ -62,7 +62,13 @@ class DataverseExpand:
 
 
 @dataclass
-class DataverseImageFile:
+class DataverseChoice:
+    logical_name: str
+    metadata: str
+
+
+@dataclass
+class DataverseFile:
     """
     For encapsulating image data for uploading to Dataverse.
     """
@@ -72,7 +78,7 @@ class DataverseImageFile:
 
 
 @dataclass
-class DataverseColumn:
+class DataverseEntityAttribute:
     """
     For describing an Entity Attribute (table column).
     """
@@ -92,16 +98,22 @@ class DataverseColumn:
 
 
 @dataclass
+class DataverseEntityData:
+    name: str
+    primary_attr: str
+    primary_img: str
+    language_code: Optional[int] = None
+    illegal_extensions: Optional[list[str]] = None
+
+
+@dataclass
 class DataverseEntitySchema:
     """
     For describing the schema of an Entity-
     """
 
-    name: Optional[str] = None
-    key: Optional[str] = None
-    language_code: Optional[int] = None
-    illegal_extensions: Optional[list[str]] = None
-    columns: Optional[dict[str, DataverseColumn]] = None
+    entity: Optional[DataverseEntityData] = None
+    attributes: Optional[dict[str, DataverseEntityAttribute]] = None
     altkeys: Optional[list[set[str]]] = None
     relationships: Optional[list[str]] = None
 
@@ -114,7 +126,7 @@ class DataverseRawSchema:
 
     entity_data: Optional[dict] = None
     organization_data: Optional[int] = None
-    column_data: Optional[dict] = None
+    attribute_data: Optional[dict] = None
     altkey_data: Optional[dict] = None
     one_many_data: Optional[dict] = None
     many_one_data: Optional[dict] = None
