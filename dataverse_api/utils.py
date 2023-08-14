@@ -239,7 +239,7 @@ def find_invalid_columns(
 
 def parse_expand(
     expand: Union[str, DataverseExpand, list[DataverseExpand]],
-    valid_cols: Optional[list[str]] = None,
+    valid_entities: Optional[list[str]] = None,
 ) -> str:
     """
     Parses an expand clause and returns an appropriate string for
@@ -249,8 +249,8 @@ def parse_expand(
       - expand: Either a manually written expand clause, an instance
         of `DataverseExpand` or a list of `DataverseExpand` objects
         that describe the full set of expansions to apply.
-      - valid_cols: An optoinal argument to handle validation of
-        first-level expansion table name validation.
+      - valid_entities: An optional argument to handle validation of
+        first-level expansion entity name validation.
 
     """
     if type(expand) == str:
@@ -260,13 +260,13 @@ def parse_expand(
         expand = [expand]
     output = []
     for rule in expand:
-        output.append(parse_expand_element(rule, valid_cols))
+        output.append(parse_expand_element(rule, valid_entities))
 
     return ",".join(output)
 
 
 def parse_expand_element(
-    expand: DataverseExpand, valid_cols: Optional[list[str]] = None
+    expand: DataverseExpand, valid_entities: Optional[list[str]] = None
 ) -> str:
     """
     Parses an expansion rule and returns an appropriate string for
@@ -275,19 +275,22 @@ def parse_expand_element(
     Args:
       - expand: An instance of `DataverseExpand` that describes the
         expansion rules to apply.
-      - valid_cols: An optional argument to handle validation of first-level
-        expansion table name validation.
+      - valid_entities: An optional argument to handle validation of
+        whether referenced entity exist in any 1-M or M-1 relationship
+        with current entity.
 
     Raises:
-      - `DataverseValidationError` if an expand clause contains an orderby.
+      - `DataverseValidationError` if an expand clause contains a nested expand
+        clause and either of these specify an orderby clause.
       - `DataverseValidationError` if an the first expand clause refers to a
         table not in the list of valid columns.
     """
+
     # Some validation rules
     if expand.expand and (expand.orderby or expand.expand.orderby):
         raise DataverseValidationError("Cannot use orderby with nested expand.")
-    if valid_cols is not None:
-        if expand.table not in valid_cols:
+    if valid_entities is not None:
+        if expand.table not in valid_entities:
             raise DataverseValidationError("Expansion target entity not valid.")
 
     # Parsing
@@ -318,6 +321,9 @@ def parse_orderby(
     """
     if type(orderby) == str:
         return orderby
+
+    if type(orderby) != list:
+        orderby = [orderby]
 
     # Validation rules
     if valid_cols is not None:

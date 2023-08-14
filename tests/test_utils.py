@@ -4,14 +4,21 @@ from dataclasses import dataclass
 import pandas as pd
 import pytest
 
-from dataverse_api.dataclasses import DataverseBatchCommand
-from dataverse_api.errors import DataverseError
+from dataverse_api.dataclasses import (
+    DataverseBatchCommand,
+    DataverseExpand,
+    DataverseOrderby,
+)
+from dataverse_api.errors import DataverseError, DataverseValidationError
 from dataverse_api.utils import (
     chunk_data,
     convert_data,
     expand_headers,
     extract_batch_response_data,
     extract_key,
+    parse_expand,
+    parse_expand_element,
+    parse_orderby,
 )
 
 log = logging.getLogger()
@@ -143,3 +150,58 @@ def test_expand_headers(test_data_dict):
     assert len(headers) == len(test_data_dict) + 1
     assert all([x in headers for x in ["abc", "b", "c", "d", "q"]])
     assert headers["abc"] == "foo"
+
+
+def test_parse_orderby():
+    orderby_str = "abc,123"
+    orderby_lst_valid = [DataverseOrderby("abc"), DataverseOrderby("123", "desc")]
+    orderby_lst_invalid = [DataverseOrderby("abc"), DataverseOrderby("wrong")]
+    valid_cols = ["abc", "123", "def"]
+
+    assert parse_orderby(orderby_str) == "abc,123"
+    assert parse_orderby(orderby_lst_valid, valid_cols) == "abc asc,123 desc"
+    assert parse_orderby(orderby_lst_valid) == "abc asc,123 desc"
+    assert parse_orderby(orderby_lst_invalid) == "abc asc,wrong asc"
+
+    with pytest.raises(DataverseValidationError, match=r".*not valid."):
+        parse_orderby(orderby_lst_invalid, valid_cols)
+
+
+@pytest.fixture
+def expansion():
+    exp = DataverseExpand(
+        table="test",
+        select=["col1", "col2"],
+        filter="col1 eq 'hello'",
+        orderby=DataverseOrderby("col1"),
+        top=2,
+    )
+    return exp
+
+
+@pytest.fixture
+def expansion_result():
+    expanded_string = (
+        "test("
+        + "$select=col1,col2;"
+        + "$filter=col1 eq 'hello';"
+        + "$orderby=col1 asc;"
+        + "$top=2"
+        + ")"
+    )
+    return expanded_string
+
+
+def test_parse_expand(expansion, expansion_result):
+    expand_str = "hello"
+    valid_entities = ["foo"]
+
+    assert parse_expand(expand_str) == "hello"
+    assert parse_expand(expansion) == expansion_result
+
+    with pytest.raises(DataverseValidationError, match=r".*not valid"):
+        parse_expand(expansion, valid_entities)
+
+
+def test_parse_expand_element(expansion, expansion_result):
+    assert parse_expand_element(expansion) == expansion_result

@@ -222,18 +222,18 @@ def test_entity_validated(
     entity: DataverseEntity = entity_validated
 
     assert entity._validate is True
-    assert entity.schema.name == dataverse_entity_name + "s"
-    assert entity.schema.key == "testid"
+    assert entity.schema.entity.name == dataverse_entity_name + "s"
+    assert entity.schema.entity.primary_attr == "testid"
     assert entity.schema.altkeys == [
         {"test_pk"},
         {"test_value_number", "test_value_text"},
     ]
-    assert len(entity.schema.columns) == 22
-    assert entity.schema.columns["test_pk"].can_create is True
-    assert entity.schema.language_code == 1033
+    assert len(entity.schema.attributes) == 22
+    assert entity.schema.attributes["test_pk"].can_create is True
+    assert entity.schema.entity.language_code == 1033
     assert (
         all(
-            i in entity.schema.columns
+            i in entity.schema.attributes
             for i in [
                 "testid",
                 "test_pk",
@@ -243,10 +243,10 @@ def test_entity_validated(
         )
         is True
     )
-    assert len(entity.schema.columns["test_choice_unsync"].choices) == 2
-    assert entity.schema.key in entity.schema.columns
+    assert len(entity.schema.attributes["test_choice_unsync"].choices) == 2
+    assert entity.schema.entity.primary_attr in entity.schema.attributes
     for key in entity.schema.altkeys:
-        assert all(col in entity.schema.columns for col in key)
+        assert all(col in entity.schema.attributes for col in key)
 
 
 @pytest.mark.parametrize(
@@ -279,8 +279,8 @@ def test_entity_unvalidated(
 ):
     entity: DataverseEntity = entity_unvalidated
 
-    assert entity.schema.name == dataverse_entity_name + "s"
-    assert entity.schema.key == "testid"
+    assert entity.schema.entity.name == dataverse_entity_name + "s"
+    assert entity.schema.entity.primary_attr == "testid"
     assert entity._validate is False
     assert entity.api_url == dataverse_api_url
 

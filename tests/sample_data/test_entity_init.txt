@@ -11,6 +11,16 @@ OData-Version: 4.0
 Content-Type: application/http
 Content-Transfer-Encoding: binary
 
+
+HTTP/1.1 200 OK
+Content-Type: application/json; odata.metadata=minimal
+OData-Version: 4.0
+
+{"@odata.context":"https://xxx.crm4.dynamics.com/api/data/v9.2/$metadata#organizations(languagecode,blockedattachments)","value":[{"@odata.etag":"W/\"9645587\"","languagecode":1033,"blockedattachments":"ade;adp;app;asa;ashx;asmx;asp;bas;bat;cdx;cer;chm;class;cmd;com;config;cpl;crt;csh;dll;exe;fxp;hlp;hta;htr;htw;ida;idc;idq;inf;ins;isp;its;jar;js;jse;ksh;lnk;mad;maf;mag;mam;maq;mar;mas;mat;mau;mav;maw;mda;mdb;mde;mdt;mdw;mdz;msc;msh;msh1;msh1xml;msh2;msh2xml;mshxml;msi;msp;mst;ops;pcd;pif;prf;prg;printer;pst;reg;rem;scf;scr;sct;shb;shs;shtm;shtml;soap;stm;tmp;url;vb;vbe;vbs;vsmacros;vss;vst;vsw;ws;wsc;wsf;wsh","organizationid":"8831320d-1c20-4de5-aa9a-30d8db73afbc"}]}
+--batchresponse_b2757bea-c6fc-4394-9e9b-e29405ea083b
+Content-Type: application/http
+Content-Transfer-Encoding: binary
+
 HTTP/1.1 200 OK
 Content-Type: application/json; odata.metadata=minimal
 OData-Version: 4.0
@@ -25,15 +35,6 @@ Content-Type: application/json; odata.metadata=minimal
 OData-Version: 4.0
 
 {"@odata.context":"https://xxx.crm4.dynamics.com/api/data/v9.2/$metadata#EntityDefinitions('test')/Keys","value":[{"LogicalName":"altkey","SchemaName":"altkey","EntityLogicalName":"test","KeyAttributes":["test_pk"],"IsManaged":false,"IntroducedVersion":"1.0.0.0","EntityKeyIndexStatus":"Active","AsyncJob":"00000000-0000-0000-0000-000000000000","IsSynchronous":false,"IsExportKey":false,"IsSecondaryKey":false,"MetadataId":"07fc9b12-59eb-ed11-8849-6045bd886b00","HasChanged":null,"DisplayName":{"LocalizedLabels":[{"Label":"altkey","LanguageCode":1033,"IsManaged":false,"MetadataId":"94ef9a5b-9aed-4797-a415-ed386acd36de","HasChanged":null}],"UserLocalizedLabel":{"Label":"altkey","LanguageCode":1033,"IsManaged":false,"MetadataId":"94ef9a5b-9aed-4797-a415-ed386acd36de","HasChanged":null}},"IsCustomizable":{"Value":false,"CanBeChanged":true,"ManagedPropertyLogicalName":"iscustomizable"}},{"KeyAttributes":["test_value_text","test_value_number"]}]}
---batchresponse_b2757bea-c6fc-4394-9e9b-e29405ea083b
-Content-Type: application/http
-Content-Transfer-Encoding: binary
-
-HTTP/1.1 200 OK
-Content-Type: application/json; odata.metadata=minimal
-OData-Version: 4.0
-
-{"@odata.context":"https://xxx.crm4.dynamics.com/api/data/v9.2/$metadata#organizations(languagecode)","value":[{"@odata.etag":"W/\"9645587\"","languagecode":1033,"organizationid":"8831320d-1c20-4de5-aa9a-30d8db73afbc"}]}
 --batchresponse_b2757bea-c6fc-4394-9e9b-e29405ea083b
 Content-Type: application/http
 Content-Transfer-Encoding: binary

@@ -351,7 +351,7 @@ class DataverseEntity(DataverseAPI):
 
     def read(
         self,
-        select: Optional[list[str]] = None,
+        select: Optional[Union[str, list[str]]] = None,
         filter: Optional[str] = None,
         expand: Optional[Union[str, list[DataverseExpand]]] = None,
         orderby: Optional[Union[str, list[DataverseOrderby]]] = None,
@@ -362,14 +362,19 @@ class DataverseEntity(DataverseAPI):
         """
         Reads entity.
 
-        Optional args:
-          - select: List of columns to return from the table.
+        Optional querying args:
+          - select: A single column or list of columns to return from the
+            current entity.
           - filter: A fully qualified filtering string.
-          - expand: A fully qualified expand string or a dict where
-            each key corresponds to a related table, and each value is
-            a list of related columns to select.
+          - expand: A fully qualified expand string or a list of
+            `DataverseExpand` objects.
           - orderby: A fully qualified order_by string or a list of
-            two-element tuples with column name first and asc/desc designation.
+            `DataverseOrderby` objects.
+          - top: Optional limit on returned records.
+          - apply: A fully qualified string describing aggregation
+            and grouping of returned records.
+          - page_size: Optional parameter limiting number of records
+            retrieved per API call.
 
         """
 
