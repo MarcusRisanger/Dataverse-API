@@ -214,7 +214,7 @@ def find_invalid_columns(
       - data_columns: The data columns passed from user
       - schema_columns: The data columns available in schema
     """
-    baddies = set()
+    invalid_cols = set()
     for col in data_columns:
         if col in key_columns:
             continue
@@ -223,17 +223,17 @@ def find_invalid_columns(
         update = schema_columns[col].can_update
 
         if not create and mode == "create":
-            baddies.add(col)
+            invalid_cols.add(col)
         elif not update and mode == "update":
-            baddies.add(col)
+            invalid_cols.add(col)
         elif (create ^ update) and mode == "upsert":  # XOR: if only one is true
-            baddies.add(col)
+            invalid_cols.add(col)
 
-    if baddies and (mode in ["create", "update"]):
-        cols = ", ".join(sorted(baddies))
+    if invalid_cols and (mode in ["create", "update"]):
+        cols = ", ".join(sorted(invalid_cols))
         raise DataverseError(f"Found columns not valid for {mode}: {cols}")
 
-    if baddies and mode == "upsert":
+    if invalid_cols and mode == "upsert":
         logging.warning(f"Found columns that may throw errors in upsert: {cols}")
 
 
