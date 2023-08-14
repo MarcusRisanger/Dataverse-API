@@ -241,6 +241,18 @@ def parse_expand(
     expand: Union[str, DataverseExpand, list[DataverseExpand]],
     valid_cols: Optional[list[str]] = None,
 ) -> str:
+    """
+    Parses an expand clause and returns an appropriate string for
+    querying the Dataverse entity.
+
+    Args:
+      - expand: Either a manually written expand clause, an instance
+        of `DataverseExpand` or a list of `DataverseExpand` objects
+        that describe the full set of expansions to apply.
+      - valid_cols: An optoinal argument to handle validation of
+        first-level expansion table name validation.
+
+    """
     if type(expand) == str:
         return expand
 
@@ -257,7 +269,7 @@ def parse_expand_element(
     expand: DataverseExpand, valid_cols: Optional[list[str]] = None
 ) -> str:
     """
-    Parses the expansion data and returns an appropriate string for
+    Parses an expansion rule and returns an appropriate string for
     querying the Dataverse entity.
 
     Args:
@@ -265,6 +277,11 @@ def parse_expand_element(
         expansion rules to apply.
       - valid_cols: An optional argument to handle validation of first-level
         expansion table name validation.
+
+    Raises:
+      - `DataverseValidationError` if an expand clause contains an orderby.
+      - `DataverseValidationError` if an the first expand clause refers to a
+        table not in the list of valid columns.
     """
     # Some validation rules
     if expand.expand and (expand.orderby or expand.expand.orderby):
