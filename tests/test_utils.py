@@ -1,4 +1,3 @@
-import logging
 from dataclasses import dataclass
 
 import pandas as pd
@@ -20,8 +19,6 @@ from dataverse_api.utils import (
     parse_expand_element,
     parse_orderby,
 )
-
-log = logging.getLogger()
 
 
 @pytest.fixture

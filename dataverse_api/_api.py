@@ -22,6 +22,8 @@ from dataverse_api.utils import (
     expand_headers,
 )
 
+log = logging.getLogger("dataverse-api")
+
 
 class DataverseAPI:
     """
@@ -246,7 +248,7 @@ class DataverseAPI:
                 "If-None-Match": "null",
             }
 
-            logging.debug(
+            log.debug(
                 f"Sending batch ID {batch_id} containing {len(chunk)} "
                 + "commands for processing in Dataverse."
             )
@@ -254,7 +256,7 @@ class DataverseAPI:
             response = self._post(
                 url="$batch", additional_headers=additional_headers, data=batch_data
             )
-            logging.debug(f"Successfully completed {len(chunk)} batch command chunk.")
+            log.debug(f"Successfully completed {len(chunk)} batch command chunk.")
 
-        logging.debug("Successfully completed all batch commands.")
+        log.debug("Successfully completed all batch commands.")
         return response

@@ -5,7 +5,7 @@ import pytest
 import requests
 import responses
 
-from dataverse_api.dataclasses import DataverseAuth, DataverseBatchCommand
+from dataverse_api.dataclasses import DataverseBatchCommand
 from dataverse_api.dataverse import DataverseClient
 from dataverse_api.entity import DataverseEntity
 from dataverse_api.utils import convert_data
@@ -53,7 +53,6 @@ def dataverse_access_token():
 @pytest.fixture
 def dataverse_auth(
     dataverse_access_token,
-    dataverse_resource,
 ):
     class MockAuth:
         def __init__(self):
@@ -72,7 +71,7 @@ def dataverse_auth(
             return input_request
 
     auth = MockAuth()
-    return DataverseAuth(resource=dataverse_resource, auth=auth)
+    return auth
 
 
 @pytest.fixture
@@ -105,8 +104,8 @@ def mocked_init_response(
 
 
 @pytest.fixture
-def dataverse_client(dataverse_auth) -> DataverseClient:
-    client = DataverseClient(auth=dataverse_auth)
+def dataverse_client(dataverse_auth, dataverse_resource) -> DataverseClient:
+    client = DataverseClient(resource=dataverse_resource, auth=dataverse_auth)
     return client
 
 

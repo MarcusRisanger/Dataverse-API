@@ -7,6 +7,7 @@ Author: Marcus Risanger
 
 import json
 import logging
+import re
 from collections.abc import Iterator
 from datetime import datetime as dt
 from textwrap import dedent
@@ -23,6 +24,12 @@ from dataverse_api.dataclasses import (
     DataverseOrderby,
 )
 from dataverse_api.errors import DataverseError, DataverseValidationError
+
+log = logging.getLogger("dataverse-api")
+
+
+def check_resource_url(url: str) -> bool:
+    re.compile(pattern=r"https:\/{2}.*\.crm[1-9]?\.dynamics\.com")
 
 
 def get_val(col: dict, attr: Literal["Min", "Max"]) -> Union[dt, int, float]:
@@ -234,7 +241,7 @@ def find_invalid_columns(
         raise DataverseError(f"Found columns not valid for {mode}: {cols}")
 
     if invalid_cols and mode == "upsert":
-        logging.warning(f"Found columns that may throw errors in upsert: {cols}")
+        log.warning(f"Found columns that may throw errors in upsert: {cols}")
 
 
 def parse_expand(

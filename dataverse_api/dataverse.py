@@ -13,8 +13,7 @@ from typing import Optional
 from dataverse_api.dataclasses import DataverseAuth
 from dataverse_api.entity import DataverseEntity
 
-log = logging.getLogger()
-logging.basicConfig(level=logging.INFO)
+log = logging.getLogger("dataverse-api")
 
 
 class DataverseClient:

@@ -30,6 +30,8 @@ from dataverse_api.utils import (
     parse_orderby,
 )
 
+log = logging.getLogger("dataverse-api")
+
 
 class DataverseEntity(DataverseAPI):
     """
@@ -91,9 +93,7 @@ class DataverseEntity(DataverseAPI):
             value=value,
         )
         if response:
-            logging.info(
-                f"Successfully updated {row_key} in {self.schema.entity.name}."
-            )
+            log.info(f"Successfully updated {row_key} in {self.schema.entity.name}.")
 
     def update_single_column(
         self,
@@ -156,7 +156,7 @@ class DataverseEntity(DataverseAPI):
         )
 
         if self._batch_operation(batch_data):
-            logging.info(
+            log.info(
                 f"Successfully updated {len(batch_data)} rows"
                 + f"in {self.schema.entity.name}."
             )
@@ -180,7 +180,7 @@ class DataverseEntity(DataverseAPI):
         # Validation just run to make sure appropriate keys are present
         self._validate_payload(data, mode="create")
 
-        logging.info(
+        log.debug(
             f"Performing insert of {len(data)} elements into {self.schema.entity.name}."
         )
 
@@ -188,7 +188,7 @@ class DataverseEntity(DataverseAPI):
         batch_data = self._prepare_batch_data(data=data, mode="POST")
 
         self._batch_operation(batch_data)
-        logging.info(
+        log.debug(
             f"Successfully inserted {len(batch_data)} rows to {self.schema.entity.name}."
         )
 
@@ -211,7 +211,7 @@ class DataverseEntity(DataverseAPI):
         data = convert_data(data)
         key_columns = key_columns or self._validate_payload(data, mode="upsert")
 
-        logging.info(
+        log.debug(
             f"Performing upsert of {len(data)} elements into {self.schema.entity.name}."
         )
 
@@ -225,7 +225,7 @@ class DataverseEntity(DataverseAPI):
         )
 
         self._batch_operation(batch_data)
-        logging.info(
+        log.debug(
             f"Successfully upserted {len(batch_data)} rows to {self.schema.entity.name}."
         )
 
@@ -292,7 +292,7 @@ class DataverseEntity(DataverseAPI):
           - No key or alternate key can be formed from columns (if write_mode = True)
         """
         if not self._validate:
-            logging.info("Data validation not performed.")
+            log.info("Data validation not performed.")
             return None
 
         # Getting a set of all columns supplied in data
@@ -317,21 +317,21 @@ class DataverseEntity(DataverseAPI):
             )
 
         if mode is None:
-            logging.info(
+            log.info(
                 "Data validation completed - all columns valid according to schema."
             )
             return None
 
         # Checking for available keys against schema
         if self.schema.entity.primary_attr in complete_columns:
-            logging.info("Key column present in all rows, using as key.")
+            log.debug("Key column present in all rows, using as key.")
             key = {self.schema.entity.primary_attr}
         elif self.schema.altkeys:
             # Checking if any valid altkeys can be formed from columns
             # Preferring shortest possible altkeys
             for altkey in sorted(self.schema.altkeys, key=len):
                 if altkey.issubset(complete_columns):
-                    logging.info(
+                    log.debug(
                         ("A consistent alternate key can be formed from all rows.")
                     )
                     key = altkey
@@ -451,4 +451,4 @@ class DataverseEntity(DataverseAPI):
         self._patch(url=url, additional_headers=additional_headers, data=image.payload)
 
     def _upload_large_file(self, image: DataverseFile):
-        pass
+        raise NotImplementedError("Sorry!")

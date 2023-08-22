@@ -23,6 +23,8 @@ from dataverse_api.utils import (
     get_val,
 )
 
+log = logging.getLogger("dataverse-api")
+
 
 class DataverseSchema(DataverseAPI):
     """
@@ -89,15 +91,16 @@ class DataverseSchema(DataverseAPI):
         """
         Parses the initial raw entity data into the appropriate schema.
         """
-        logging.info("Parsing EntitySet metadata.")
+        log.debug("Parsing EntitySet metadata.")
         self._parse_meta_entity()
         self._parse_organization_info()
         if self.validate:
-            logging.info("Parsing Validation metadata.")
+            log.debug("Parsing Validation metadata.")
             self._parse_meta_columns()
             self._parse_meta_keys()
             self._parse_relationship_metadata()
             self._parse_picklist_metadata()
+        log.debug("Metadata parsing complete.")
 
     def _parse_meta_entity(self):
         """
@@ -110,7 +113,7 @@ class DataverseSchema(DataverseAPI):
             primary_img=self.raw_schema.entity_data["PrimaryImageAttribute"],
         )
         self.schema.entity = entity_data
-        logging.info(f"EntitySetName: {self.schema.entity.name}")
+        log.info(f"EntitySetName: {self.schema.entity.name}")
 
     def _parse_organization_info(self):
         """
