@@ -22,11 +22,12 @@ class DataverseClient:
     Base class used to instantiate Entities for manipulation.
 
     Args:
-      - auth: Contains authorization callable and related Dataverse resource
+      - resource: Dynamics url for Dataverse environment
+      - auth: Authorization callable for Dataverse resource
     """
 
-    def __init__(self, auth: DataverseAuth):
-        self._auth = auth
+    def __init__(self, resource: str, auth: DataverseAuth):
+        self._auth = DataverseAuth(resource=resource, auth=auth)
         self._entity_cache: dict[str, DataverseEntity] = {}
 
     def entity(
