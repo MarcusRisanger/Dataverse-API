@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "dataverse-api"
-version = "0.2.4"
+version = "0.3.0"
 description = "Abstraction layer for interacting with Microsoft Dataverse in Python. Supports batch operations!"
 authors = ["Marcus Risanger <69350948+MarcusRisanger@users.noreply.github.com>"]
 readme = "README.md"

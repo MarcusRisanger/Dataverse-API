@@ -1,176 +1,77 @@
+"""
+Contains various utils, to simplify code in the main modules.
+
+Author: Marcus Risanger
+"""
+
+
 import json
 import logging
 from collections.abc import Iterator
-from dataclasses import dataclass
+from datetime import datetime as dt
 from textwrap import dedent
 from typing import Any, Literal, Optional, Union
 from uuid import uuid4
 
 import pandas as pd
+import requests
 
-log = logging.getLogger()
+from dataverse_api.dataclasses import (
+    DataverseBatchCommand,
+    DataverseEntityAttribute,
+    DataverseExpand,
+    DataverseOrderby,
+)
+from dataverse_api.errors import DataverseError, DataverseValidationError
 
-
-@dataclass
-class DataverseBatchCommand:
-    uri: str
-    mode: str
-    data: Optional[dict[str, Any]] = None
-
-
-@dataclass
-class DataverseEntitySet:
-    entity_set_name: str
-    entity_set_key: str
+log = logging.getLogger("dataverse-api")
 
 
-@dataclass
-class DataverseColumn:
-    schema_name: str
-    can_create: bool
-    can_update: bool
-
-
-@dataclass
-class DataverseTableSchema:
-    name: str
-    key: Optional[str] = None
-    columns: Optional[dict[str, DataverseColumn]] = None
-    altkeys: Optional[list[set[str]]] = None
-
-
-class DataverseError(Exception):
-    def __init__(self, message: str, status_code=None, response=None) -> None:
-        super().__init__(message)
-        self.status_code = status_code
-        self.response = response
-
-
-def extract_batch_response_data(response_text: str) -> list[dict]:
+def get_val(col: dict, attr: Literal["Min", "Max"]) -> Union[dt, int, float]:
     """
-    Retrieves the data contained in a batch request return string.
+    Used to parse column metadata to clean up code in schema module, to
+    handle both datetime min/max and regular int/float min/max attributes.
+
+    Min/Max values are yielded from the API with different attribute names,
+    and are in different formats. We cast time formates to datetime, otherwise
+    pass the JSON parsed value directly. Both support <, > operations for
+    validating that columnar values are within their limits.
+
+    Args:
+      - col: The dictionary representing the column definition from the API
+      - attr: Whether the function should grab the min or max value.
+
+    Returns:
+      - Respective column value limit. `datetime` for DateTime type columns,
+        otherwise `int` or `float` for numerical columns, else `None`.
+    """
+    try:
+        val = dt.fromisoformat(str(col.get(f"{attr}SupportedValue"))[:-1] + "+00:00")
+    except ValueError:
+        val = col.get(f"{attr}Value")
+    return val
+
+
+def extract_batch_response_data(response: requests.Response) -> list[dict]:
+    """
+    Retrieves the data contained in a batch request return Response.
+    Order of arguments is based on order of batch commands.
 
     Args:
       - The text string returned by the request.
 
     Returns:
-      - List of strings containing data in request return. Ready for
+      - List of dicts containing data in request return. Ready for
         `parse_entity_metadata` function.
     """
-
+    response_text = response.text
     out = []
     for row in response_text.splitlines():
         if len(row) == 0:
             continue
         if row[0] == "{":
-            out.append(row)
+            out.append(json.loads(row))
     return out
-
-
-def parse_entity_metadata(metadata: list[str]) -> DataverseTableSchema:
-    """
-    Parses entity metadata from list of dicts.
-
-    Args:
-      - A list containing batch GET operation responses from Dataverse.
-      - The list must contain three
-    """
-    columns, altkeys = None, None  # Optional, will not be assigned if no validation
-    for item in metadata:
-        data = json.loads(item)
-        if "$entity" in item:
-            name, key = parse_meta_entity(data)
-        elif "/Attributes" in item:
-            columns = parse_meta_columns(data)
-        elif "/Keys" in item:
-            altkeys = parse_meta_keys(data)
-
-    return DataverseTableSchema(name=name, key=key, columns=columns, altkeys=altkeys)
-
-
-def parse_meta_entity(entity_metadata: dict[Any]) -> tuple[str, str]:
-    """
-    Parses the available columns based on the EntityMetadata EntityType,
-    given in response from the EntityDefinitions() endpoint.
-
-    Required properties in Response body:
-      - EntitySetName
-      - PrimaryIdAttribute
-
-    Returns:
-      - tuple: EntitySetName , PrimaryIdAttribute
-    """
-    try:
-        name = entity_metadata["EntitySetName"]
-        key = entity_metadata["PrimaryIdAttribute"]
-    except KeyError:
-        raise DataverseError("Payload does not contain the necessary columns.")
-    return name, key
-
-
-def parse_meta_columns(
-    attribute_metadata: dict[Any],
-) -> dict[str, DataverseColumn]:
-    """
-    Parses the available columns based on the AttributeMetadata EntityType,
-    given in response from the EntityDefinitions()/Attribute endpoint.
-
-    Required properties in Response body:
-      - LogicalName
-      - SchemaName
-      - IsValidForCreate
-      - IsValidForUpdate
-
-    Optional properties in Response body:
-      - IsValidODataAttribute
-
-    Returns:
-      - Dict with column names as key and `DataverseColumn` as values.
-    """
-    columns = dict()
-    items: list[dict] = attribute_metadata["value"]
-    for item in items:
-        try:
-            if item.get("IsValidODataAttribute", True) and (
-                item["IsValidForCreate"] or item["IsValidForUpdate"]
-            ):
-                columns[item["LogicalName"]] = DataverseColumn(
-                    schema_name=item["SchemaName"],
-                    can_create=item["IsValidForCreate"],
-                    can_update=item["IsValidForUpdate"],
-                )
-        except KeyError:
-            raise DataverseError("Payload does not contain the necessary columns.")
-
-    return columns
-
-
-def parse_meta_keys(
-    keys_metadata: list[Any],
-) -> list[set[str]]:
-    """
-    Parses the available alternate keys based on the EntityKeyMetadata EntityType,
-    given in response from the EntityDefinitions()/Keys endpoint.
-
-    Required properties in Response body:
-      - KeyAttributes
-
-    Optional properties in Response body:
-      - None
-
-    Returns:
-      - List of alternate key column combinations as sets.
-    """
-    keys: list[set] = list()
-
-    items: list[dict] = keys_metadata["value"]
-    for item in items:
-        try:
-            keys.append(set(item["KeyAttributes"]))  # KeyAttributes is a List
-        except KeyError:
-            raise DataverseError("Payload does not contain the necessary columns.")
-
-    return keys
 
 
 def chunk_data(
@@ -303,7 +204,7 @@ def batch_command(batch_id: str, api_url: str, row: DataverseBatchCommand) -> st
 def find_invalid_columns(
     key_columns: set[str],
     data_columns: set[str],
-    schema_columns: dict[str, DataverseColumn],
+    schema_columns: dict[str, DataverseEntityAttribute],
     mode: Literal["create", "update", "upsert"],
 ):
     """
@@ -315,7 +216,7 @@ def find_invalid_columns(
       - data_columns: The data columns passed from user
       - schema_columns: The data columns available in schema
     """
-    baddies = set()
+    invalid_cols = set()
     for col in data_columns:
         if col in key_columns:
             continue
@@ -324,15 +225,145 @@ def find_invalid_columns(
         update = schema_columns[col].can_update
 
         if not create and mode == "create":
-            baddies.add(col)
+            invalid_cols.add(col)
         elif not update and mode == "update":
-            baddies.add(col)
+            invalid_cols.add(col)
         elif (create ^ update) and mode == "upsert":  # XOR: if only one is true
-            baddies.add(col)
+            invalid_cols.add(col)
 
-    if baddies and (mode in ["create", "update"]):
-        cols = ", ".join(sorted(baddies))
+    if invalid_cols and (mode in ["create", "update"]):
+        cols = ", ".join(sorted(invalid_cols))
         raise DataverseError(f"Found columns not valid for {mode}: {cols}")
 
-    if baddies and mode == "upsert":
+    if invalid_cols and mode == "upsert":
         log.warning(f"Found columns that may throw errors in upsert: {cols}")
+
+
+def parse_expand(
+    expand: Union[str, DataverseExpand, list[DataverseExpand]],
+    valid_entities: Optional[list[str]] = None,
+) -> str:
+    """
+    Parses an expand clause and returns an appropriate string for
+    querying the Dataverse entity.
+
+    Args:
+      - expand: Either a manually written expand clause, an instance
+        of `DataverseExpand` or a list of `DataverseExpand` objects
+        that describe the full set of expansions to apply.
+      - valid_entities: An optional argument to handle validation of
+        first-level expansion entity name validation.
+
+    """
+    if type(expand) == str:
+        return expand
+
+    if type(expand) != list:
+        expand = [expand]
+    output = []
+    for rule in expand:
+        output.append(parse_expand_element(rule, valid_entities))
+
+    return ",".join(output)
+
+
+def parse_expand_element(
+    expand: DataverseExpand, valid_entities: Optional[list[str]] = None
+) -> str:
+    """
+    Parses an expansion rule and returns an appropriate string for
+    querying the Dataverse entity.
+
+    Args:
+      - expand: An instance of `DataverseExpand` that describes the
+        expansion rules to apply.
+      - valid_entities: An optional argument to handle validation of
+        whether referenced entity exist in any 1-M or M-1 relationship
+        with current entity.
+
+    Raises:
+      - `DataverseValidationError` if an expand clause contains a nested expand
+        clause and either of these specify an orderby clause.
+      - `DataverseValidationError` if an the first expand clause refers to a
+        table not in the list of valid columns.
+    """
+
+    # Some validation rules
+    if expand.expand and (expand.orderby or expand.expand.orderby):
+        raise DataverseValidationError("Cannot use orderby with nested expand.")
+    if valid_entities is not None:
+        if expand.table not in valid_entities:
+            raise DataverseValidationError("Expansion target entity not valid.")
+
+    # Parsing
+    elements = []
+    if expand.select:
+        elements.append(f"$select={','.join(expand.select)}")
+    if expand.filter:
+        elements.append(f"$filter={expand.filter}")
+    if expand.orderby:
+        ordering = parse_orderby(expand.orderby)
+        elements.append(f"$orderby={ordering}")
+    if expand.top:
+        elements.append(f"$top={expand.top}")
+    if expand.expand:
+        elements.append(f"$expand={parse_expand(expand.expand)})")
+    return f"{expand.table}({';'.join(elements)})"
+
+
+def parse_orderby(
+    orderby: Union[str, list[DataverseOrderby]],
+    valid_cols: Optional[list[str]] = None,
+):
+    """
+    Parses the orderby argument for Dataverse querying.
+
+    Accepts both fully qualified strings or a list of
+    `DataverseOrdeby` dataclasses.
+    """
+    if type(orderby) == str:
+        return orderby
+
+    if type(orderby) != list:
+        orderby = [orderby]
+
+    # Validation rules
+    if valid_cols is not None:
+        if not all(i.attr in valid_cols for i in orderby):
+            raise DataverseValidationError("Attribute in orderby not valid.")
+
+    ordering = []
+    for order in orderby:
+        ordering.append(f"{order.attr} {order.direction}")
+    return ",".join(ordering)
+
+
+def assign_expected_type(dataverse_type: str) -> type:
+    """
+    Returns the expected data type based on the column
+    attribute type string.
+    """
+    dates = ["DateTimeType"]
+    bools = ["BooleanType"]
+    floats = ["MoneyType", "DoubleType", "DecimalType"]
+    ints = ["BigIntType", "IntegerType"]
+    octets = ["ImageType", "FileType"]
+    strings = [
+        "PicklistType",
+        "StringType",
+        "MemoType",
+        "UniqueidentifierType",
+    ]
+
+    if dataverse_type in floats:
+        return float
+    elif dataverse_type in ints:
+        return int
+    elif dataverse_type in strings:
+        return str
+    elif dataverse_type in dates:
+        return dt
+    elif dataverse_type in octets:
+        return bytes
+    elif dataverse_type in bools:
+        return bool
