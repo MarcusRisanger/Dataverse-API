@@ -23,7 +23,7 @@ from msal_requests_auth.auth import ClientCredentialAuth
 app_id = os.environ["app_id"]
 authority_url = os.environ["authority_url"]
 client_secret = os.environ["client_secret"]
-url = os.environ["url"]
+url = os.environ["url"]  # https://org_identifier.crm.dynamics.com
 scopes = [url + "/.default"]
 
 
@@ -50,10 +50,9 @@ table.upsert(data)
 
 ### Optional validation
 
-Instantiating a new `DataverseEntity` with `logical_name` triggers additional validation to take place, based on the EntityMetadata API endpoints. Upon instantiation, calls will be made to the API to fetch the `EntitySetName` used in API
-queries, together with column names and alternate key Attribute combinations.
+Instantiating a new `DataverseEntity` with `validate=True` triggers additional validation to take place, based on the EntityMetadata API endpoints. With this enabled, a query will be sent to the API to fetch column names, possible expand relationships, choice column definitions and more - this will be stored in `DataverseEntity().schema`.
 
-When validation is enabled, the client both checks that columns referred to in the data are valid according to the schema, and will automatically pick a suitable row ID for batch operations. While this is nice, it is mostly thought of as a debugging tool to develop scripts, since it carries the overhead of retrieving the information from the API. It is recommended to instantiate Entities by using the `entity_set_name` argument and specifying key columns in your data when preparing scripts for production.
+When validation is enabled, the client both checks that columns referred to in the data are valid according to the schema, and will automatically pick a suitable row ID for batch operations. While this is nice, it is mostly thought of as a debugging tool to develop scripts, since it carries the slight additional overhead of retrieving the information from the API.
 
 ## Development environment
 
