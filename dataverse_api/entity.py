@@ -5,6 +5,7 @@ to use with the Dataverse Web API.
 Author: Marcus Risanger
 """
 
+from __future__ import annotations
 
 import logging
 from typing import Any, Literal, Optional, Union
@@ -52,7 +53,7 @@ class DataverseEntity(DataverseAPI):
         logical_name: str,
         auth: DataverseAuth,
         validate: bool = False,
-    ):
+    ) -> None:
         super().__init__(auth=auth)
         self._validate = validate
         self.schema: DataverseEntitySchema = DataverseSchema(
@@ -409,12 +410,71 @@ class DataverseEntity(DataverseAPI):
 
         return output
 
-    def upload_file(self) -> None:
-        raise NotImplementedError("Sorry!")
+    def upload_file(
+        self,
+        file_name: str,
+        file_content: bytes,
+        data: dict[str, Any],
+        key_columns: Optional[Union[str, set[str]]] = None,
+        file_column: Optional[str] = None,
+    ) -> None:
+        """
+        Uploads image to the Dataverse entity.
+
+        Args:
+          - file_name: Name of image name and byte payload
+          - file_content: Image payload, bytes
+          - data: Dict containing row key information
+          - key_columns: Optional set of key columns found in data
+          - file_column: Optional override if image is to be uploaded to
+            a non-primary file column
+        """
+        file = DataverseFile(file_name=file_name, payload=file_content)
+
+        extension = file.file_name.split(".")[1]
+        if self._validate and extension in self.schema.entity.illegal_extensions:
+            raise DataverseError(
+                f"File extension '{extension}' blocked by organization."
+            )
+
+        key_columns = key_columns or self._validate_payload([data], mode="insert")
+        _, row_key = extract_key(data=data, key_columns=key_columns)
+
+        if len(file.payload) > 134217728:
+            log.debug("File too large for single API request. Chunking.")
+            self._upload_large_file(file=file, row_key=row_key, file_column=file_column)
+
+        url = f"{self.schema.entity.name}({row_key})/{file_column}"
+        additional_headers = {
+            "Content-Type": "application/octet-stream",
+            "x-ms-file-name": file.file_name,
+            "Content-Length": str(len(file.payload)),
+        }
+
+        self._patch(url=url, additional_headers=additional_headers, data=file.payload)
+
+        # If file is less than 128 MB, upload in single chunk
+
+        """
+        PATCH [Organization Uri]/api/data/v9.2/accounts
+          (<accountid>)/sample_filecolumn HTTP/1.1
+        OData-MaxVersion: 4.0
+        OData-Version: 4.0
+        If-None-Match: null
+        Accept: application/json
+        Content-Type: application/octet-stream
+        x-ms-file-name: 4094kb.txt
+        Content-Length: 4191273
+
+        < binary content removed for brevity>
+        """
+
+        # Else break up in chunks
 
     def upload_image(
         self,
-        image: DataverseFile,
+        file_name: str,
+        file_content: bytes,
         data: dict[str, Any],
         key_columns: Optional[Union[str, set[str]]] = None,
         image_column: Optional[str] = None,
@@ -423,32 +483,39 @@ class DataverseEntity(DataverseAPI):
         Uploads image to the Dataverse entity.
 
         Args:
-          - image: `DataverseImageFile` containing image name and byte payload
+          - file_name: Name of image name and byte payload
+          - file_content: Image payload, bytes
           - data: Dict containing row key information
           - key_columns: Optional set of key columns found in data
           - image_column: Optional override if image is to be uploaded to
             a non-primary image column
         """
-        extension = image.file_name.split(".")[1]
-        if self._validate and extension in self.schema.entity.illegal_extensions:
-            raise DataverseError(
-                f"Image extension '{extension}' blocked by organization."
-            )
+        image = DataverseFile(file_name=file_name, payload=file_content)
 
         if image_column is None:
             image_column = self.schema.entity.primary_img
 
-        key_columns = key_columns or self._validate_payload([data], mode="insert")
-        _, row_key = extract_key(data=data, key_columns=key_columns)
+        self.upload_file(
+            file_name=image.file_name,
+            file_content=image.payload,
+            data=data,
+            key_columns=key_columns,
+            file_column=image_column,
+        )
 
-        url = f"{self.schema.entity.name}({row_key})/{image_column}"
+    def _upload_large_file(
+        self,
+        file: DataverseFile,
+        row_key: str,
+        file_column: str,
+    ):
+        raise NotImplementedError("Sorry!")
+
+        url = f"{self.schema.entity.name}({row_key})/{file_column}"
         additional_headers = {
-            "Content-Type": "application/octet-stream",
-            "x-ms-file-name": image.file_name,
-            "Content-Length": str(len(image.payload)),
+            "x-ms-transfer-mode": "chunked",
+            "x-ms-file-name": file.file_name,
         }
 
-        self._patch(url=url, additional_headers=additional_headers, data=image.payload)
-
-    def _upload_large_file(self, image: DataverseFile):
-        raise NotImplementedError("Sorry!")
+        while url:
+            self._patch(url, additional_headers=additional_headers)
