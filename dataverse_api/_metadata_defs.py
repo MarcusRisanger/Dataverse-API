@@ -14,7 +14,7 @@ class ManagedProperty:
     Creates metadata for managed properties in Dataverse.
     """
 
-    value: Union[str, bool]
+    value: bool
     can_be_changed: bool
     managed_property_name: str
 
@@ -23,6 +23,19 @@ class ManagedProperty:
             "Value": self.value,
             "CanBeChanged": self.can_be_changed,
             "ManagedPropertyLogicalName": self.managed_property_name,
+        }
+
+
+@dataclass
+class RequiredLevel:
+    value: Literal["None", "ApplicationRequired", "Recommended"] = "None"
+    can_be_changed: bool = True
+
+    def __call__(self) -> dict[str, Any]:
+        return {
+            "Value": self.value,
+            "CanBeChanged": self.can_be_changed,
+            "ManagedPropertyLogicalName": "canmodifyrequirementlevelsettings",
         }
 
 
@@ -87,7 +100,7 @@ class AttributeMetadata(_BaseMetadata):
     Includes metadata from BaseMetadata.
     """
 
-    required_level: ManagedProperty
+    required_level: RequiredLevel
 
     def _attr_metadata(self) -> dict[str, Any]:
         attr_metadata = {
@@ -130,6 +143,136 @@ class StringAttributeMetadata(AttributeMetadata):
         }
         base.update(self._attr_metadata())
         return base
+
+
+@dataclass
+class LookupAttributeMetadata(AttributeMetadata):
+    """
+    Create metadata for Lookup attribute.
+    Includes metadata from AttributeMetadata and BaseMetadata.
+    """
+
+    def __call__(self) -> dict[str, Any]:
+        base = {
+            "@odata.type": BASE + "LookupAttributeMetadata",
+            "AttributeType": "Lookup",
+            "AttributeTypeName": {"Value": "LookupType"},
+        }
+        base.update(self._attr_metadata())
+        return base
+
+
+@dataclass
+class CascadeConfiguration:
+    assign: Literal[
+        "NoCascade",
+        "Cascade",
+        "Active",
+        "UserOwned",
+        "RemoveLink",
+        "Restrict",
+    ] = "Cascade"
+    delete: Literal[
+        "NoCascade",
+        "Cascade",
+        "Active",
+        "UserOwned",
+        "RemoveLink",
+        "Restrict",
+    ] = "Cascade"
+    merge: Literal[
+        "NoCascade",
+        "Cascade",
+        "Active",
+        "UserOwned",
+        "RemoveLink",
+        "Restrict",
+    ] = "Cascade"
+    reparent: Literal[
+        "NoCascade",
+        "Cascade",
+        "Active",
+        "UserOwned",
+        "RemoveLink",
+        "Restrict",
+    ] = "Cascade"
+    share: Literal[
+        "NoCascade",
+        "Cascade",
+        "Active",
+        "UserOwned",
+        "RemoveLink",
+        "Restrict",
+    ] = "Cascade"
+    unshare: Literal[
+        "NoCascade",
+        "Cascade",
+        "Active",
+        "UserOwned",
+        "RemoveLink",
+        "Restrict",
+    ] = "Cascade"
+
+    def __call__(self) -> dict[str, str]:
+        return {
+            "Assign": self.assign,
+            "Delete": self.delete,
+            "Merge": self.merge,
+            "Reparent": self.reparent,
+            "Share": self.share,
+            "Unshare": self.unshare,
+        }
+
+
+@dataclass
+class AssociatedMenuConfiguration:
+    behavior: Literal["UseCollectionName", "UseLabel", "DoNotDisplay"]
+    group: Literal["Details", "Sales", "Service", "Marketing"]
+    label: Label
+    order: int
+
+    def __call__(self) -> dict[str, Any]:
+        return {
+            "Behavior": self.behavior,
+            "Group": self.group,
+            "Label": self.label(),
+            "Order": self.order,
+        }
+
+
+@dataclass
+class _RelationshipMetadataBase:
+    schema_name: str
+    cascade_configuration: CascadeConfiguration
+
+    def _base_metadata(self) -> dict[str, Any]:
+        return {
+            "SchemaName": self.schema_name,
+            "CascadeConfiguration": self.cascade_configuration(),
+        }
+
+
+@dataclass
+class OneToManyRelationshipMetadata(_RelationshipMetadataBase):
+    associated_menu_config: AssociatedMenuConfiguration
+    # referenced_attribute: str
+    referenced_entity: str
+    referencing_entity: str
+    lookup: LookupAttributeMetadata
+
+    def __call__(self) -> dict[str, Any]:
+        relationship_metadata = {
+            "@odata.type": "Microsoft.Dynamics.CRM.OneToManyRelationshipMetadata",
+            "SchemaName": self.schema_name,
+            "CascadeConfiguration": self.cascade_configuration(),
+            "AssociatedMenuConfiguration": self.associated_menu_config(),
+            # "ReferencedAttribute": self.referenced_attribute,
+            "ReferencedEntity": self.referenced_entity,
+            "ReferencingEntity": self.referencing_entity,
+            "Lookup": self.lookup(),
+        }
+        relationship_metadata.update(self._base_metadata())
+        return relationship_metadata
 
 
 @dataclass
