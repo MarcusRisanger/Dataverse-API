@@ -295,22 +295,20 @@ class DataverseEntity(DataverseAPI):
             log.info("Data validation not performed.")
             return None
 
-        # Getting a set of all columns supplied in data,
-        # and a set of columns that is present in every row of data
-        supplied_columns = set()
-        complete_columns = {k for k in self.schema.attributes.keys()}
-
+        # Getting a set of all columns supplied in data
+        data_columns = set()
         for row in data:
-            # Updating set of supplied columns
-            supplied_columns.update(row.keys())
+            data_columns.update(row.keys())
 
-            # Updating set of columns present in ALL rows
-            row_keys = {k for k, v in row.items() if v is not None}
-            complete_columns = complete_columns.intersection(row_keys)
+        # Getting a set of all columns present in all rows of data
+        complete_columns = {k for k in self.schema.attributes.keys()}
+        for row in data:
+            contains_values = {k for k, v in row.items() if v is not None}
+            complete_columns = complete_columns.intersection(contains_values)
 
         # Checking column names against schema
-        if not supplied_columns.issubset(self.schema.attributes):
-            bad_columns = list(supplied_columns.difference(self.schema.attributes))
+        if not data_columns.issubset(self.schema.attributes):
+            bad_columns = list(data_columns.difference(self.schema.attributes))
             raise DataverseError(
                 (
                     "Found bad payload columns not present "
@@ -344,7 +342,7 @@ class DataverseEntity(DataverseAPI):
 
         find_invalid_columns(
             key_columns=key,
-            data_columns=supplied_columns,
+            data_columns=data_columns,
             schema_columns=self.schema.attributes,
             mode=mode,
         )
