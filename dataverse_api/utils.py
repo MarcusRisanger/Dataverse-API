@@ -21,6 +21,7 @@ from dataverse_api.dataclasses import (
     DataverseEntityAttribute,
     DataverseExpand,
     DataverseOrderby,
+    DataverseRelationships,
 )
 from dataverse_api.errors import DataverseError, DataverseValidationError
 
@@ -241,7 +242,7 @@ def find_invalid_columns(
 
 def parse_expand(
     expand: Union[str, DataverseExpand, list[DataverseExpand]],
-    valid_entities: Optional[list[str]] = None,
+    relationships: Optional[DataverseRelationships] = None,
 ) -> str:
     """
     Parses an expand clause and returns an appropriate string for
@@ -260,9 +261,13 @@ def parse_expand(
 
     if type(expand) != list:
         expand = [expand]
+
+    if relationships is not None:
+        relationships = relationships()  # Calls to get columns
+
     output = []
     for rule in expand:
-        output.append(parse_expand_element(rule, valid_entities))
+        output.append(parse_expand_element(rule, relationships))
 
     return ",".join(output)
 

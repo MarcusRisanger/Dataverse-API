@@ -7,6 +7,7 @@ from dataverse_api.dataclasses import (
     DataverseBatchCommand,
     DataverseExpand,
     DataverseOrderby,
+    DataverseRelationships,
 )
 from dataverse_api.errors import DataverseError, DataverseValidationError
 from dataverse_api.utils import (
@@ -189,15 +190,20 @@ def expansion_result():
     return expanded_string
 
 
-def test_parse_expand(expansion, expansion_result):
+@pytest.fixture
+def relationships():
+    rels = DataverseRelationships(single_valued=["Foo"], collection_valued=["Bar"])
+    return rels
+
+
+def test_parse_expand(expansion, expansion_result, relationships):
     expand_str = "hello"
-    valid_entities = ["foo"]
 
     assert parse_expand(expand_str) == "hello"
     assert parse_expand(expansion) == expansion_result
 
     with pytest.raises(DataverseValidationError, match=r".*not valid"):
-        parse_expand(expansion, valid_entities)
+        parse_expand(expansion, relationships)
 
 
 def test_parse_expand_element(expansion, expansion_result):

@@ -15,6 +15,7 @@ from dataverse_api.dataclasses import (
     DataverseEntityData,
     DataverseEntitySchema,
     DataverseRawSchema,
+    DataverseRelationships,
 )
 from dataverse_api.utils import (
     assign_expected_type,
@@ -234,18 +235,33 @@ class DataverseSchema(DataverseAPI):
         The metadata returned by the OneToMany and ManyToOne API endpoints
         are the same, but the "direction" of the relationship determines
         which attribute is the valid one in a query expand clause.
+
+        Collection-valued attributes point to the many-side of a relationship
+        these are available for *deep inserts*, creating rows in the parent and
+        child tables simultaneously.
+
+        Single-valued attributes point to the one-side of a relationship
+        these are available for *binding* (associating) rows in current
+        entity against a specific parent entity record.
+
+        Both single-valued and collection-valued attributes can be used
+        in expand-clauses in a query.
         """
-        valid_entities = []
+
+        collection_valued = []
         attr = "ReferencedEntityNavigationPropertyName"
         for rel in self.raw_schema.one_many_data["value"]:
             if rel["ReferencingEntity"] == "asyncoperation":
                 # Expanding relationships to this Entity returns
                 # a 500 response from the server, don't know why
                 continue
-            valid_entities.append(rel[attr])
+            collection_valued.append(rel[attr])
 
+        single_valued = []
         attr = "ReferencingEntityNavigationPropertyName"
         for rel in self.raw_schema.many_one_data["value"]:
-            valid_entities.append(rel[attr])
+            single_valued.append(rel[attr])
 
-        self.schema.relationships = valid_entities
+        self.schema.relationships = DataverseRelationships(
+            single_valued=single_valued, collection_valued=collection_valued
+        )

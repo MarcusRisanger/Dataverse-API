@@ -102,15 +102,28 @@ class DataverseEntityData:
 
 
 @dataclass
+class DataverseRelationships:
+    """
+    For describing relationships for Entity.
+    """
+
+    single_valued: list[str]
+    collection_valued: list[str]
+
+    def __call__(self) -> Any:
+        return self.single_valued + self.collection_valued
+
+
+@dataclass
 class DataverseEntitySchema:
     """
-    For describing the schema of an Entity-
+    For describing the schema of an Entity.
     """
 
     entity: Optional[DataverseEntityData] = None
     attributes: Optional[dict[str, DataverseEntityAttribute]] = None
     altkeys: Optional[list[set[str]]] = None
-    relationships: Optional[list[str]] = None
+    relationships: Optional[DataverseRelationships] = None
 
 
 @dataclass
