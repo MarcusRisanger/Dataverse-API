@@ -47,7 +47,7 @@ class LocalizedLabel:
     """
 
     label: str
-    languagecode: int
+    languagecode: int = 1033
 
     def __call__(self) -> dict[str, Any]:
         return {
