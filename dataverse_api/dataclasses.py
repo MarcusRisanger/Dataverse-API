@@ -90,7 +90,7 @@ class DataverseEntityAttribute:
     data_type: Any
     max_height: Optional[int] = None
     max_length: Optional[int] = None
-    max_size: Optional[int] = None
+    max_size_kb: Optional[int] = None
     max_width: Optional[int] = None
     max_value: Optional[Union[dt, int, float]] = None
     min_value: Optional[Union[dt, int, float]] = None

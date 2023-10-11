@@ -140,7 +140,11 @@ class DataverseSchema(DataverseAPI):
             valid_update = col["IsValidForUpdate"]
             attr_type = col["AttributeTypeName"]["Value"]
 
-            if not valid_attr or (not valid_create and not valid_update):
+            if (
+                not valid_attr
+                or (not valid_create and not valid_update)
+                and attr_type != "FileType"
+            ):
                 continue
 
             attribute_schema[logical_name] = DataverseEntityAttribute(
@@ -151,11 +155,12 @@ class DataverseSchema(DataverseAPI):
                 data_type=assign_expected_type(attr_type),
                 max_height=col.get("MaxHeight"),
                 max_length=col.get("MaxLength"),
-                max_size=col.get("MaxSizeInKB"),
+                max_size_kb=col.get("MaxSizeInKB"),
                 max_width=col.get("MaxWidth"),
                 max_value=get_val(col, "Max"),
                 min_value=get_val(col, "Min"),
             )
+
         self.schema.attributes = attribute_schema
 
     def _parse_meta_keys(self) -> None:
