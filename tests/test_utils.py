@@ -7,9 +7,8 @@ from dataverse_api.dataclasses import (
     DataverseBatchCommand,
     DataverseExpand,
     DataverseOrderby,
-    DataverseRelationships,
 )
-from dataverse_api.errors import DataverseError, DataverseValidationError
+from dataverse_api.errors import DataverseError
 from dataverse_api.utils import (
     chunk_data,
     convert_data,
@@ -154,15 +153,11 @@ def test_parse_orderby():
     orderby_str = "abc,123"
     orderby_lst_valid = [DataverseOrderby("abc"), DataverseOrderby("123", "desc")]
     orderby_lst_invalid = [DataverseOrderby("abc"), DataverseOrderby("wrong")]
-    valid_cols = ["abc", "123", "def"]
 
     assert parse_orderby(orderby_str) == "abc,123"
-    assert parse_orderby(orderby_lst_valid, valid_cols) == "abc asc,123 desc"
+    assert parse_orderby(orderby_lst_valid) == "abc asc,123 desc"
     assert parse_orderby(orderby_lst_valid) == "abc asc,123 desc"
     assert parse_orderby(orderby_lst_invalid) == "abc asc,wrong asc"
-
-    with pytest.raises(DataverseValidationError, match=r".*not valid."):
-        parse_orderby(orderby_lst_invalid, valid_cols)
 
 
 @pytest.fixture
@@ -190,20 +185,11 @@ def expansion_result():
     return expanded_string
 
 
-@pytest.fixture
-def relationships():
-    rels = DataverseRelationships(single_valued=["Foo"], collection_valued=["Bar"])
-    return rels
-
-
-def test_parse_expand(expansion, expansion_result, relationships):
+def test_parse_expand(expansion, expansion_result):
     expand_str = "hello"
 
     assert parse_expand(expand_str) == "hello"
     assert parse_expand(expansion) == expansion_result
-
-    with pytest.raises(DataverseValidationError, match=r".*not valid"):
-        parse_expand(expansion, relationships)
 
 
 def test_parse_expand_element(expansion, expansion_result):

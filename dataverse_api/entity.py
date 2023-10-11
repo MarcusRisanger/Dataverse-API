@@ -392,9 +392,9 @@ class DataverseEntity(DataverseAPI):
         if filter is not None:
             params["$filter"] = filter
         if expand is not None:
-            params["$expand"] = parse_expand(expand, self.schema.relationships)
+            params["$expand"] = parse_expand(expand)
         if orderby is not None:
-            params["$orderby"] = parse_orderby(orderby, self.schema.relationships)
+            params["$orderby"] = parse_orderby(orderby)
         if top is not None:
             params["$top"] = top
         if apply is not None:
