@@ -187,11 +187,10 @@ class DataverseSchema(DataverseAPI):
             "StatusType": "StatusAttributeMetadata",
         }
 
-        picklist_attrs = [
-            (attr_name, attr.attr_type)
-            for attr_name, attr in self.schema.attributes.items()
-            if attr.attr_type in meta_types
-        ]
+        picklist_attrs: list[tuple[str, str]] = list()
+        for attr_name, attr in self.schema.attributes.items():
+            if attr.attr_type in meta_types:
+                picklist_attrs.append((attr_name, attr.attr_type))
 
         if len(picklist_attrs) == 0:
             return
