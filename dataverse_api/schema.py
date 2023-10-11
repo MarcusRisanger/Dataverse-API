@@ -11,7 +11,6 @@ from dataverse_api._api import DataverseAPI
 from dataverse_api.dataclasses import (
     DataverseAuth,
     DataverseBatchCommand,
-    DataverseChoice,
     DataverseEntityAttribute,
     DataverseEntityData,
     DataverseEntitySchema,
@@ -46,7 +45,6 @@ class DataverseSchema(DataverseAPI):
         self.logical_name = logical_name
         self.schema = DataverseEntitySchema()
         self.raw_schema: DataverseRawSchema = self._get_entity_metadata()
-        self.choice_columns: list[DataverseChoice] = None
 
     def fetch(self) -> DataverseEntitySchema:
         """

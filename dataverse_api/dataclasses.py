@@ -6,14 +6,11 @@ Author: Marcus Risanger
 """
 
 
-import logging
 from dataclasses import dataclass
 from datetime import datetime as dt
 from typing import Any, Literal, Optional, Union
 
 from msal_requests_auth.auth import ClientCredentialAuth, DeviceCodeAuth
-
-log = logging.getLogger()
 
 
 @dataclass
@@ -62,12 +59,6 @@ class DataverseExpand:
 
 
 @dataclass
-class DataverseChoice:
-    logical_name: str
-    metadata: str
-
-
-@dataclass
 class DataverseFile:
     """
     For encapsulating image data for uploading to Dataverse.
@@ -99,6 +90,10 @@ class DataverseEntityAttribute:
 
 @dataclass
 class DataverseEntityData:
+    """
+    Basic attributes for Entity.
+    """
+
     name: str
     primary_attr: str
     primary_img: str
