@@ -414,9 +414,9 @@ class DataverseEntity(DataverseAPI):
         self,
         file_name: str,
         file_content: bytes,
-        data: dict[str, Any],
+        file_column: str,
+        row: dict[str, Any],
         key_columns: Optional[Union[str, set[str]]] = None,
-        file_column: Optional[str] = None,
     ) -> None:
         """
         Uploads image to the Dataverse entity.
@@ -424,21 +424,15 @@ class DataverseEntity(DataverseAPI):
         Args:
           - file_name: Name of image name and byte payload
           - file_content: Image payload, bytes
-          - data: Dict containing row key information
-          - key_columns: Optional set of key columns found in data
           - file_column: Optional override if image is to be uploaded to
             a non-primary file column
+          - row: Dict containing row key information
+          - key_columns: Optional set of key columns found in data
         """
         file = DataverseFile(file_name=file_name, payload=file_content)
 
-        extension = file.file_name.split(".")[1]
-        if self._validate and extension in self.schema.entity.illegal_extensions:
-            raise DataverseError(
-                f"File extension '{extension}' blocked by organization."
-            )
-
-        key_columns = key_columns or self._validate_payload([data], mode="insert")
-        _, row_key = extract_key(data=data, key_columns=key_columns)
+        key_columns = key_columns or self._validate_payload([row], mode="insert")
+        _, row_key = extract_key(data=row, key_columns=key_columns)
 
         if len(file.payload) > 134217728:
             log.debug("File too large for single API request. Chunking.")
@@ -475,9 +469,9 @@ class DataverseEntity(DataverseAPI):
         self,
         file_name: str,
         file_content: bytes,
-        data: dict[str, Any],
+        image_column: str,
+        row: dict[str, Any],
         key_columns: Optional[Union[str, set[str]]] = None,
-        image_column: Optional[str] = None,
     ) -> None:
         """
         Uploads image to the Dataverse entity.
@@ -485,20 +479,16 @@ class DataverseEntity(DataverseAPI):
         Args:
           - file_name: Name of image name and byte payload
           - file_content: Image payload, bytes
-          - data: Dict containing row key information
+          - image_column: Target image column
+          - row: Dict containing row key information
           - key_columns: Optional set of key columns found in data
-          - image_column: Optional override if image is to be uploaded to
-            a non-primary image column
         """
         image = DataverseFile(file_name=file_name, payload=file_content)
-
-        if image_column is None:
-            image_column = self.schema.entity.primary_img
 
         self.upload_file(
             file_name=image.file_name,
             file_content=image.payload,
-            data=data,
+            row=row,
             key_columns=key_columns,
             file_column=image_column,
         )
