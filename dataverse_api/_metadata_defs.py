@@ -162,56 +162,24 @@ class LookupAttributeMetadata(AttributeMetadata):
         return base
 
 
+CascadeType = Literal[
+    "NoCascade",
+    "Cascade",
+    "Active",
+    "UserOwned",
+    "RemoveLink",
+    "Restrict",
+]
+
+
 @dataclass
 class CascadeConfiguration:
-    assign: Literal[
-        "NoCascade",
-        "Cascade",
-        "Active",
-        "UserOwned",
-        "RemoveLink",
-        "Restrict",
-    ] = "Cascade"
-    delete: Literal[
-        "NoCascade",
-        "Cascade",
-        "Active",
-        "UserOwned",
-        "RemoveLink",
-        "Restrict",
-    ] = "Cascade"
-    merge: Literal[
-        "NoCascade",
-        "Cascade",
-        "Active",
-        "UserOwned",
-        "RemoveLink",
-        "Restrict",
-    ] = "Cascade"
-    reparent: Literal[
-        "NoCascade",
-        "Cascade",
-        "Active",
-        "UserOwned",
-        "RemoveLink",
-        "Restrict",
-    ] = "Cascade"
-    share: Literal[
-        "NoCascade",
-        "Cascade",
-        "Active",
-        "UserOwned",
-        "RemoveLink",
-        "Restrict",
-    ] = "Cascade"
-    unshare: Literal[
-        "NoCascade",
-        "Cascade",
-        "Active",
-        "UserOwned",
-        "RemoveLink",
-        "Restrict",
-    ] = "Cascade"
+    assign: CascadeType = "Cascade"
+    delete: CascadeType = "Cascade"
+    merge: CascadeType = "Cascade"
+    reparent: CascadeType = "Cascade"
+    share: CascadeType = "Cascade"
+    unshare: CascadeType = "Cascade"
 
     def __call__(self) -> dict[str, str]:
         return {
