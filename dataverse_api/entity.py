@@ -13,6 +13,7 @@ from typing import Any, Literal, Optional, Union
 import pandas as pd
 
 from dataverse_api._api import DataverseAPI
+from dataverse_api._metadata_defs import EntityKeyMetadata, Label, ManagedProperty
 from dataverse_api.dataclasses import (
     DataverseAuth,
     DataverseBatchCommand,
@@ -56,6 +57,7 @@ class DataverseEntity(DataverseAPI):
     ) -> None:
         super().__init__(auth=auth)
         self._validate = validate
+        self.logical_name = logical_name
         self.schema: DataverseEntitySchema = DataverseSchema(
             auth=auth, logical_name=logical_name, validate=validate
         ).fetch()
@@ -88,10 +90,8 @@ class DataverseEntity(DataverseAPI):
         column, value = list(data.items())[0]
 
         response = self._put(
-            entity_name=self.schema.entity.name,
-            key=row_key,
-            column=column,
-            value=value,
+            url=f"{self.schema.entity.name}({row_key})/{column}",
+            json={"value": value},
         )
         if response:
             log.info(f"Successfully updated {row_key} in {self.schema.entity.name}.")
@@ -114,7 +114,7 @@ class DataverseEntity(DataverseAPI):
           - liberal: If set to True, this will allow for different columns to be
             updated on a per-row basis, but still just one column per row.
             Default behavior is that each update points to one singular
-            column in Dataverse, across all rows.
+            column in Dataverse for update, across all rows.
 
         Raises:
           - DataverseError if no key column is supplied, or none can be found
@@ -512,3 +512,49 @@ class DataverseEntity(DataverseAPI):
 
         while url:
             self._patch(url, additional_headers=additional_headers)
+
+    def add_alternate_key(
+        self,
+        schema_name: str,
+        key_attributes: list[str],
+        display_name: Label,
+        is_customizable: Optional[ManagedProperty] = None,
+    ) -> None:
+        """
+        Method for adding an alternate key to the Entity.
+
+        Args:
+          - schema_name: Schema name for key. Will also be Logical name (lowercased).
+          - key_attributes: List of key attributes that comprise the alternate key.
+          - display_name: The display name of the alternate key.
+        """
+
+        if is_customizable is None:
+            is_customizable = ManagedProperty(
+                value=True, can_be_changed=True, managed_property_name="iscustomizable"
+            )
+
+        meta = EntityKeyMetadata(
+            display_name=display_name,
+            schema_name=schema_name,
+            key_attributes=key_attributes,
+        )
+
+        self._post(
+            url=(f"EntityDefinitions(LogicalName='{self.logical_name}')" + "/Keys"),
+            json=meta(),
+        )
+
+    def remove_alternate_key(self, logical_name: str) -> None:
+        """
+        Method for removing a given alternate key.
+
+        Args:
+          - logical_name: Logical name of key to be deleted for Entity.
+        """
+        self._delete(
+            url=(
+                f"EntityDefinitions(LogicalName='{self.logical_name}')"
+                + f"/Keys(LogicalName='{logical_name}')"
+            )
+        )

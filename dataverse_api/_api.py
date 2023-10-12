@@ -125,25 +125,30 @@ class DataverseAPI:
             )
 
     def _put(
-        self, entity_name: str, key: str, column: str, value: Any
+        self,
+        url: str,
+        additional_headers: Optional[dict] = None,
+        data: Optional[str] = None,
+        json: Optional[dict] = None,
     ) -> requests.Response:
         """
         PUT is used to update a single column value for a single record.
 
         Args:
-          - entity_name: Table where record exists
-          - key: Either primary key or alternate key of record, appropriately formatted
-          - column: The column to access for changing value
-          - value: The value to be persisted to Dataverse in column
+          - url: Appended to API endpoint
+          - additional_headers: Headers to overwrite default headers
+          - data: Request payload (str, bytes etc.)
+          - json: Request JSON serializable payload
         """
-        url = f"{urljoin(self.api_url,entity_name)}({key})/{column}"
-
+        headers = expand_headers(self._default_headers, additional_headers)
+        url = urljoin(self.api_url, url)
         try:
             response = requests.put(
                 url=url,
                 auth=self._auth,
-                headers=self._default_headers,
-                json={"value": value},
+                headers=headers,
+                data=data,
+                json=json,
             )
             response.raise_for_status()
             return response

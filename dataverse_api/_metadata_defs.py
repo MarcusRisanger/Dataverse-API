@@ -268,3 +268,17 @@ class EntityMetadata(_BaseMetadata):
         }
         entity_metadata.update(self._base_metadata())
         return entity_metadata
+
+
+@dataclass
+class EntityKeyMetadata:
+    schema_name: str
+    display_name: Label
+    key_attributes: list[str]
+
+    def __call__(self) -> Any:
+        return {
+            "SchemaName": self.schema_name,
+            "DisplayName": self.display_name(),
+            "KeyAttributes": self.key_attributes,
+        }
