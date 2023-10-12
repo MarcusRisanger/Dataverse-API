@@ -89,7 +89,13 @@ class DataverseClient(DataverseAPI):
           - schema_name: Entity schema name
           - attributes: Entity attribute(s). If a list is submitted, the list must
             contain at least one `StringAttributeMetadata` tagged as primary attribute.
-          - description
+          - description: String (or `Label`) describing the Entity.
+          - display_name: String (or `Label`) with the Entity display name.
+        Optional:
+          - display_collection_name: String (or `Label`) with the Entity display name.
+          - has_activities: Whether activities are associated with this Entity.
+          - has_notes: Whether notes are associated with this Entity.
+          - is_activity: Whether the Entity is an activity.
         """
         if type(description) == str:
             description = Label(description)
