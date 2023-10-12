@@ -5,6 +5,8 @@ This contains some dataclasses for metadata handling.
 from dataclasses import dataclass
 from typing import Any, Literal, Type, Union
 
+from box import Box as RawMetadata  # noqa
+
 BASE = "Microsoft.Dynamics.CRM."
 
 

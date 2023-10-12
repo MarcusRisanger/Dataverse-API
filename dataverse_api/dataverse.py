@@ -10,6 +10,7 @@ Author: Marcus Risanger
 import logging
 from typing import Optional, Type, Union
 
+from box import BoxError
 from msal_requests_auth.auth import ClientCredentialAuth, DeviceCodeAuth
 
 from dataverse_api._api import DataverseAPI
@@ -17,6 +18,7 @@ from dataverse_api._metadata_defs import (
     AttributeMetadata,
     EntityMetadata,
     Label,
+    RawMetadata,
     StringAttributeMetadata,
 )
 from dataverse_api.dataclasses import DataverseAuth
@@ -133,3 +135,58 @@ class DataverseClient(DataverseAPI):
         )
 
         self._post(url="EntityDefinitions", json=table())
+
+    def delete_entity(self, logical_name: str):
+        """
+        Deletes the targeted entity in Dataverse.
+
+        Args:
+          - logical_name: Logical name of Entity to delete.
+        """
+
+        self._delete(f"EntityDefinitions(LogicalName='{logical_name}')")
+
+    def update_entity(
+        self,
+        entity_definition: RawMetadata,
+        merge_labels: bool = False,
+    ):
+        """
+        Updates Dataverse with the supplied EntityMetadata definition.
+
+        Args:
+          - entity_definition: `RawMetadata` (as returned by the
+            `get_entity_metadata` method)
+          - marge_labels: Whether the existing `LocalizedLabels`
+            that are not overwritten by the new definition will be
+            preserved or removed. Default behavior is `False`.
+        """
+
+        try:
+            logical_name = RawMetadata.LogicalName
+        except BoxError:
+            raise DataverseError("Logical name not found in EntityMetadata.")
+
+        if merge_labels:
+            additional_headers = {"MSCRM.MergeLabels": True}
+
+        self._put(
+            f"EntityDefinitions(LogicalName='{logical_name}')",
+            additional_headers=additional_headers,
+            json=entity_definition.to_json(),
+        )
+
+    def get_entity_metadata(self, logical_name: str) -> RawMetadata:
+        """
+        Retrieves the EntityMetadata from Dataverse encapsulated in a `Box`.
+
+        Can be used to update the metadata of an entity using the
+        `update_entity` method.
+
+        Args:
+          - logical_name: Logical name of Entity to retrieve Metadata for.
+        """
+
+        meta = self._get(f"EntityDefinitions(LogicalName='{logical_name}')").json()
+
+        return RawMetadata(meta)
