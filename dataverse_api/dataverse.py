@@ -15,10 +15,15 @@ from msal_requests_auth.auth import ClientCredentialAuth, DeviceCodeAuth
 
 from dataverse_api._api import DataverseAPI
 from dataverse_api._metadata_defs import (
+    AssociatedMenuConfiguration,
     AttributeMetadata,
+    CascadeConfiguration,
     EntityMetadata,
     Label,
+    LookupAttributeMetadata,
+    OneToManyRelationshipMetadata,
     RawMetadata,
+    RequiredLevel,
     StringAttributeMetadata,
 )
 from dataverse_api.dataclasses import DataverseAuth
@@ -75,9 +80,9 @@ class DataverseClient(DataverseAPI):
     def create_entity(
         self,
         schema_name: str,
-        attributes: Union[StringAttributeMetadata, list[Type[AttributeMetadata]]],
         description: Union[str, Label],
         display_name: Union[str, Label],
+        attributes: Union[str, StringAttributeMetadata, list[Type[AttributeMetadata]]],
         display_collection_name: Optional[Union[str, Label]] = None,
         ownership_type: str = "None",
         has_activities: bool = False,
@@ -89,7 +94,9 @@ class DataverseClient(DataverseAPI):
 
         Args:
           - schema_name: Entity schema name
-          - attributes: Entity attribute(s). If a list is submitted, the list must
+          - attributes: Either a str (schema name of primary attr),
+            `StringAttributeMetadata` for the primary attribute, or a list of
+            `AttributeMetadata` descendants.
             contain at least one `StringAttributeMetadata` tagged as primary attribute.
           - description: String (or `Label`) describing the Entity.
           - display_name: String (or `Label`) with the Entity display name.
@@ -99,6 +106,18 @@ class DataverseClient(DataverseAPI):
           - has_notes: Whether notes are associated with this Entity.
           - is_activity: Whether the Entity is an activity.
         """
+
+        if type(attributes) == str:
+            attributes = StringAttributeMetadata(
+                schema_name=attributes,
+                description=Label(f"Primary attribute for {schema_name}."),
+                display_name=Label("Primary Attribute"),
+                required_level=RequiredLevel(),
+                format_name="Text",
+                is_primary=True,
+                max_length=100,
+            )
+
         if type(description) == str:
             description = Label(description)
 
@@ -119,9 +138,12 @@ class DataverseClient(DataverseAPI):
             if type(attr) == StringAttributeMetadata:
                 if attr.is_primary:
                     primary += 1
-        if primary == 0 or primary > 1:
+        if primary == 0:
             raise DataverseError("No primary attribute given.")
+        elif primary > 1:
+            raise DataverseError("Too many primary attributes given.")
 
+        # Entity Definition
         table = EntityMetadata(
             schema_name=schema_name,
             description=description,
@@ -190,3 +212,58 @@ class DataverseClient(DataverseAPI):
         meta = self._get(f"EntityDefinitions(LogicalName='{logical_name}')").json()
 
         return RawMetadata(meta)
+
+    def relate_entities_one_many(
+        self,
+        relationship_display_name: Union[str, Label],
+        relationship_column_schema_name: str,
+        one_side_entity_logical_name: str,
+        many_side_entity_logical_name: str,
+        relationship_schema_name: Optional[str] = None,
+        cascade_configuration: Optional[CascadeConfiguration] = None,
+        associated_menu_config: Optional[AssociatedMenuConfiguration] = None,
+    ) -> None:
+        """
+        Establishes a new one-to-many relationship in Dataverse
+        between tagged entities.
+
+        Args:
+          - relationship_display_name: Display name of relationship and lookup
+          - relationship_column_schema_name: Lookup column schema name
+          - one_side_entity_logical_name: Name of Entity on one-side
+          - many_side_entity_logical_name: Name of Entity on many-side
+          - cascade_configuration: Optional cascade config override.
+          - associated_menu_config: Optonal associated menu config override.
+        """
+        if type(relationship_display_name) == str:
+            relationship_display_name = Label(relationship_display_name)
+
+        if relationship_schema_name is None:
+            relationship_schema_name = (
+                f"rel_{many_side_entity_logical_name}"
+                + f"_{one_side_entity_logical_name}"
+            )[:41]
+
+        if cascade_configuration is None:
+            cascade_configuration = CascadeConfiguration()
+
+        if associated_menu_config is None:
+            associated_menu_config = AssociatedMenuConfiguration()
+
+        lookup = LookupAttributeMetadata(
+            description=relationship_display_name,
+            display_name=relationship_display_name,
+            schema_name=relationship_column_schema_name,
+            required_level=RequiredLevel(),
+        )
+
+        rel = OneToManyRelationshipMetadata(
+            schema_name=relationship_schema_name,
+            cascade_configuration=cascade_configuration,
+            associated_menu_config=associated_menu_config,
+            referenced_entity=one_side_entity_logical_name,
+            referencing_entity=many_side_entity_logical_name,
+            lookup=lookup,
+        )
+
+        self._post(url="RelationshipDefinitions", json=rel())

@@ -3,7 +3,7 @@ This contains some dataclasses for metadata handling.
 """
 
 from dataclasses import dataclass
-from typing import Any, Literal, Type, Union
+from typing import Any, Literal, Optional, Type, Union
 
 from box import Box as RawMetadata  # noqa
 
@@ -196,10 +196,12 @@ class CascadeConfiguration:
 
 @dataclass
 class AssociatedMenuConfiguration:
-    behavior: Literal["UseCollectionName", "UseLabel", "DoNotDisplay"]
-    group: Literal["Details", "Sales", "Service", "Marketing"]
-    label: Label
-    order: int
+    behavior: Literal[
+        "UseCollectionName", "UseLabel", "DoNotDisplay"
+    ] = "UseCollectionName"
+    group: Literal["Details", "Sales", "Service", "Marketing"] = "Details"
+    order: int = 10000
+    label: Optional[Label] = Label("")
 
     def __call__(self) -> dict[str, Any]:
         return {
@@ -224,11 +226,11 @@ class _RelationshipMetadataBase:
 
 @dataclass
 class OneToManyRelationshipMetadata(_RelationshipMetadataBase):
-    associated_menu_config: AssociatedMenuConfiguration
     # referenced_attribute: str
     referenced_entity: str
     referencing_entity: str
     lookup: LookupAttributeMetadata
+    associated_menu_config: AssociatedMenuConfiguration
 
     def __call__(self) -> dict[str, Any]:
         relationship_metadata = {
@@ -236,7 +238,6 @@ class OneToManyRelationshipMetadata(_RelationshipMetadataBase):
             "SchemaName": self.schema_name,
             "CascadeConfiguration": self.cascade_configuration(),
             "AssociatedMenuConfiguration": self.associated_menu_config(),
-            # "ReferencedAttribute": self.referenced_attribute,
             "ReferencedEntity": self.referenced_entity,
             "ReferencingEntity": self.referencing_entity,
             "Lookup": self.lookup(),
