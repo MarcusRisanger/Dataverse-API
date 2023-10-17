@@ -504,6 +504,8 @@ class DataverseEntity(DataverseAPI):
     ):
         raise NotImplementedError("Sorry!")
 
+        # Needs to implement chunking
+
         url = f"{self.schema.entity.name}({row_key})/{file_column}"
         additional_headers = {
             "x-ms-transfer-mode": "chunked",
