@@ -6,14 +6,11 @@ Author: Marcus Risanger
 """
 
 
-import logging
 from dataclasses import dataclass
 from datetime import datetime as dt
 from typing import Any, Literal, Optional, Union
 
 from msal_requests_auth.auth import ClientCredentialAuth, DeviceCodeAuth
-
-log = logging.getLogger()
 
 
 @dataclass
@@ -62,12 +59,6 @@ class DataverseExpand:
 
 
 @dataclass
-class DataverseChoice:
-    logical_name: str
-    metadata: str
-
-
-@dataclass
 class DataverseFile:
     """
     For encapsulating image data for uploading to Dataverse.
@@ -90,7 +81,7 @@ class DataverseEntityAttribute:
     data_type: Any
     max_height: Optional[int] = None
     max_length: Optional[int] = None
-    max_size: Optional[int] = None
+    max_size_kb: Optional[int] = None
     max_width: Optional[int] = None
     max_value: Optional[Union[dt, int, float]] = None
     min_value: Optional[Union[dt, int, float]] = None
@@ -99,6 +90,10 @@ class DataverseEntityAttribute:
 
 @dataclass
 class DataverseEntityData:
+    """
+    Basic attributes for Entity.
+    """
+
     name: str
     primary_attr: str
     primary_img: str
@@ -107,15 +102,28 @@ class DataverseEntityData:
 
 
 @dataclass
+class DataverseRelationships:
+    """
+    For describing relationships for Entity.
+    """
+
+    single_valued: list[str]
+    collection_valued: list[str]
+
+    def __call__(self) -> Any:
+        return self.single_valued + self.collection_valued
+
+
+@dataclass
 class DataverseEntitySchema:
     """
-    For describing the schema of an Entity-
+    For describing the schema of an Entity.
     """
 
     entity: Optional[DataverseEntityData] = None
     attributes: Optional[dict[str, DataverseEntityAttribute]] = None
     altkeys: Optional[list[set[str]]] = None
-    relationships: Optional[list[str]] = None
+    relationships: Optional[DataverseRelationships] = None
 
 
 @dataclass

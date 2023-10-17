@@ -5,6 +5,7 @@ to use with the Dataverse Web API.
 Author: Marcus Risanger
 """
 
+from __future__ import annotations
 
 import logging
 from typing import Any, Literal, Optional, Union
@@ -12,6 +13,7 @@ from typing import Any, Literal, Optional, Union
 import pandas as pd
 
 from dataverse_api._api import DataverseAPI
+from dataverse_api._metadata_defs import EntityKeyMetadata, Label, ManagedProperty
 from dataverse_api.dataclasses import (
     DataverseAuth,
     DataverseBatchCommand,
@@ -52,9 +54,10 @@ class DataverseEntity(DataverseAPI):
         logical_name: str,
         auth: DataverseAuth,
         validate: bool = False,
-    ):
+    ) -> None:
         super().__init__(auth=auth)
         self._validate = validate
+        self.logical_name = logical_name
         self.schema: DataverseEntitySchema = DataverseSchema(
             auth=auth, logical_name=logical_name, validate=validate
         ).fetch()
@@ -87,10 +90,8 @@ class DataverseEntity(DataverseAPI):
         column, value = list(data.items())[0]
 
         response = self._put(
-            entity_name=self.schema.entity.name,
-            key=row_key,
-            column=column,
-            value=value,
+            url=f"{self.schema.entity.name}({row_key})/{column}",
+            json={"value": value},
         )
         if response:
             log.info(f"Successfully updated {row_key} in {self.schema.entity.name}.")
@@ -113,7 +114,7 @@ class DataverseEntity(DataverseAPI):
           - liberal: If set to True, this will allow for different columns to be
             updated on a per-row basis, but still just one column per row.
             Default behavior is that each update points to one singular
-            column in Dataverse, across all rows.
+            column in Dataverse for update, across all rows.
 
         Raises:
           - DataverseError if no key column is supplied, or none can be found
@@ -161,6 +162,16 @@ class DataverseEntity(DataverseAPI):
                 + f"in {self.schema.entity.name}."
             )
 
+    def insert_row(self, data: dict[str, Any]) -> None:
+        """
+        Inserts one row of data into the selected Entity.
+
+        Args:
+          - data: JSON serializable data for entry.
+        """
+
+        self._post(url=self.logical_name, json=data)
+
     def insert(
         self,
         data: Union[dict, list[dict], pd.DataFrame],
@@ -170,11 +181,9 @@ class DataverseEntity(DataverseAPI):
 
         Args:
           - data: Data that forms the basis for insert into Dataverse.
-          - key_columns: If validation is not enabled, provide primary column or
-            columns that form an alternate key, to ensure data can be inserted.
 
         >>> data={"col1":"abc", "col2":"dac", "col3":69, "col4":"Foo"}
-        >>> table.upsert(data, key_columns={"col1","col2"})
+        >>> table.upsert(data)
         """
         data = convert_data(data)
         # Validation just run to make sure appropriate keys are present
@@ -291,24 +300,27 @@ class DataverseEntity(DataverseAPI):
           - Column names in payload are not found in schema
           - No key or alternate key can be formed from columns (if write_mode = True)
         """
+
         if not self._validate:
             log.info("Data validation not performed.")
             return None
 
-        # Getting a set of all columns supplied in data
-        data_columns = set()
-        for row in data:
-            data_columns.update(row.keys())
-
-        # Getting a set of all columns present in all rows of data
+        # Getting a set of all columns supplied in data,
+        # and a set of columns that is present in every row of data
+        supplied_columns = set()
         complete_columns = {k for k in self.schema.attributes.keys()}
+
         for row in data:
-            contains_values = {k for k, v in row.items() if v is not None}
-            complete_columns = complete_columns.intersection(contains_values)
+            # Updating set of supplied columns
+            supplied_columns.update(row.keys())
+
+            # Updating set of columns present in ALL rows
+            row_keys = {k for k, v in row.items() if v is not None}
+            complete_columns = complete_columns.intersection(row_keys)
 
         # Checking column names against schema
-        if not data_columns.issubset(self.schema.attributes):
-            bad_columns = list(data_columns.difference(self.schema.attributes))
+        if not supplied_columns.issubset(self.schema.attributes):
+            bad_columns = list(supplied_columns.difference(self.schema.attributes))
             raise DataverseError(
                 (
                     "Found bad payload columns not present "
@@ -342,7 +354,7 @@ class DataverseEntity(DataverseAPI):
 
         find_invalid_columns(
             key_columns=key,
-            data_columns=data_columns,
+            data_columns=supplied_columns,
             schema_columns=self.schema.attributes,
             mode=mode,
         )
@@ -388,9 +400,9 @@ class DataverseEntity(DataverseAPI):
         if filter is not None:
             params["$filter"] = filter
         if expand is not None:
-            params["$expand"] = parse_expand(expand, self.schema.relationships)
+            params["$expand"] = parse_expand(expand)
         if orderby is not None:
-            params["$orderby"] = parse_orderby(orderby, self.schema.relationships)
+            params["$orderby"] = parse_orderby(orderby)
         if top is not None:
             params["$top"] = top
         if apply is not None:
@@ -409,46 +421,150 @@ class DataverseEntity(DataverseAPI):
 
         return output
 
-    def upload_file(self) -> None:
-        raise NotImplementedError("Sorry!")
-
-    def upload_image(
+    def upload_file(
         self,
-        image: DataverseFile,
-        data: dict[str, Any],
+        file_name: str,
+        file_content: bytes,
+        file_column: str,
+        row: dict[str, Any],
         key_columns: Optional[Union[str, set[str]]] = None,
-        image_column: Optional[str] = None,
     ) -> None:
         """
         Uploads image to the Dataverse entity.
 
         Args:
-          - image: `DataverseImageFile` containing image name and byte payload
-          - data: Dict containing row key information
+          - file_name: Name of image name and byte payload
+          - file_content: Image payload, bytes
+          - file_column: Optional override if image is to be uploaded to
+            a non-primary file column
+          - row: Dict containing row key information
           - key_columns: Optional set of key columns found in data
-          - image_column: Optional override if image is to be uploaded to
-            a non-primary image column
         """
-        extension = image.file_name.split(".")[1]
-        if self._validate and extension in self.schema.entity.illegal_extensions:
-            raise DataverseError(
-                f"Image extension '{extension}' blocked by organization."
-            )
+        file = DataverseFile(file_name=file_name, payload=file_content)
 
-        if image_column is None:
-            image_column = self.schema.entity.primary_img
+        key_columns = key_columns or self._validate_payload([row], mode="insert")
+        _, row_key = extract_key(data=row, key_columns=key_columns)
 
-        key_columns = key_columns or self._validate_payload([data], mode="insert")
-        _, row_key = extract_key(data=data, key_columns=key_columns)
+        if len(file.payload) > 134217728:
+            log.debug("File too large for single API request. Chunking.")
+            self._upload_large_file(file=file, row_key=row_key, file_column=file_column)
 
-        url = f"{self.schema.entity.name}({row_key})/{image_column}"
+        url = f"{self.schema.entity.name}({row_key})/{file_column}"
         additional_headers = {
             "Content-Type": "application/octet-stream",
-            "x-ms-file-name": image.file_name,
-            "Content-Length": str(len(image.payload)),
+            "x-ms-file-name": file.file_name,
+            "Content-Length": str(len(file.payload)),
         }
 
-        self._patch(url=url, additional_headers=additional_headers, data=image.payload)
+        self._patch(url=url, additional_headers=additional_headers, data=file.payload)
 
-    def _upload_large_file(self, image: DataverseFile):
+        # If file is less than 128 MB, upload in single chunk
+
+        """
+        PATCH [Organization Uri]/api/data/v9.2/accounts
+          (<accountid>)/sample_filecolumn HTTP/1.1
+        OData-MaxVersion: 4.0
+        OData-Version: 4.0
+        If-None-Match: null
+        Accept: application/json
+        Content-Type: application/octet-stream
+        x-ms-file-name: 4094kb.txt
+        Content-Length: 4191273
+
+        < binary content removed for brevity>
+        """
+
+        # Else break up in chunks
+
+    def upload_image(
+        self,
+        file_name: str,
+        file_content: bytes,
+        image_column: str,
+        row: dict[str, Any],
+        key_columns: Optional[Union[str, set[str]]] = None,
+    ) -> None:
+        """
+        Uploads image to the Dataverse entity.
+
+        Args:
+          - file_name: Name of image name and byte payload
+          - file_content: Image payload, bytes
+          - image_column: Target image column
+          - row: Dict containing row key information
+          - key_columns: Optional set of key columns found in data
+        """
+        image = DataverseFile(file_name=file_name, payload=file_content)
+
+        self.upload_file(
+            file_name=image.file_name,
+            file_content=image.payload,
+            row=row,
+            key_columns=key_columns,
+            file_column=image_column,
+        )
+
+    def _upload_large_file(
+        self,
+        file: DataverseFile,
+        row_key: str,
+        file_column: str,
+    ):
         raise NotImplementedError("Sorry!")
+
+        # Needs to implement chunking
+
+        url = f"{self.schema.entity.name}({row_key})/{file_column}"
+        additional_headers = {
+            "x-ms-transfer-mode": "chunked",
+            "x-ms-file-name": file.file_name,
+        }
+
+        while url:
+            self._patch(url, additional_headers=additional_headers)
+
+    def add_alternate_key(
+        self,
+        schema_name: str,
+        key_attributes: list[str],
+        display_name: Label,
+        is_customizable: Optional[ManagedProperty] = None,
+    ) -> None:
+        """
+        Method for adding an alternate key to the Entity.
+
+        Args:
+          - schema_name: Schema name for key. Will also be Logical name (lowercased).
+          - key_attributes: List of key attributes that comprise the alternate key.
+          - display_name: The display name of the alternate key.
+        """
+
+        if is_customizable is None:
+            is_customizable = ManagedProperty(
+                value=True, can_be_changed=True, managed_property_name="iscustomizable"
+            )
+
+        meta = EntityKeyMetadata(
+            display_name=display_name,
+            schema_name=schema_name,
+            key_attributes=key_attributes,
+        )
+
+        self._post(
+            url=(f"EntityDefinitions(LogicalName='{self.logical_name}')" + "/Keys"),
+            json=meta(),
+        )
+
+    def remove_alternate_key(self, logical_name: str) -> None:
+        """
+        Method for removing a given alternate key.
+
+        Args:
+          - logical_name: Logical name of key to be deleted for Entity.
+        """
+        self._delete(
+            url=(
+                f"EntityDefinitions(LogicalName='{self.logical_name}')"
+                + f"/Keys(LogicalName='{logical_name}')"
+            )
+        )

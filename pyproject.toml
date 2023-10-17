@@ -10,6 +10,7 @@ python = "^3.9"
 msal = "^1.22.0"
 msal-requests-auth = "^0.7.0"
 pandas = "^2.0.1"
+python-box = ">=7.0,<8.0"
 
 
 [tool.poetry.group.dev.dependencies]

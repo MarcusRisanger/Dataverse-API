@@ -11,11 +11,11 @@ from dataverse_api._api import DataverseAPI
 from dataverse_api.dataclasses import (
     DataverseAuth,
     DataverseBatchCommand,
-    DataverseChoice,
     DataverseEntityAttribute,
     DataverseEntityData,
     DataverseEntitySchema,
     DataverseRawSchema,
+    DataverseRelationships,
 )
 from dataverse_api.utils import (
     assign_expected_type,
@@ -46,7 +46,6 @@ class DataverseSchema(DataverseAPI):
         self.logical_name = logical_name
         self.schema = DataverseEntitySchema()
         self.raw_schema: DataverseRawSchema = self._get_entity_metadata()
-        self.choice_columns: list[DataverseChoice] = None
 
     def fetch(self) -> DataverseEntitySchema:
         """
@@ -140,7 +139,11 @@ class DataverseSchema(DataverseAPI):
             valid_update = col["IsValidForUpdate"]
             attr_type = col["AttributeTypeName"]["Value"]
 
-            if not valid_attr or (not valid_create and not valid_update):
+            if (
+                not valid_attr
+                or (not valid_create and not valid_update)
+                and attr_type != "FileType"
+            ):
                 continue
 
             attribute_schema[logical_name] = DataverseEntityAttribute(
@@ -151,11 +154,12 @@ class DataverseSchema(DataverseAPI):
                 data_type=assign_expected_type(attr_type),
                 max_height=col.get("MaxHeight"),
                 max_length=col.get("MaxLength"),
-                max_size=col.get("MaxSizeInKB"),
+                max_size_kb=col.get("MaxSizeInKB"),
                 max_width=col.get("MaxWidth"),
                 max_value=get_val(col, "Max"),
                 min_value=get_val(col, "Min"),
             )
+
         self.schema.attributes = attribute_schema
 
     def _parse_meta_keys(self) -> None:
@@ -184,11 +188,10 @@ class DataverseSchema(DataverseAPI):
             "StatusType": "StatusAttributeMetadata",
         }
 
-        picklist_attrs = [
-            (attr_name, attr.attr_type)
-            for attr_name, attr in self.schema.attributes.items()
-            if attr.attr_type in meta_types
-        ]
+        picklist_attrs: list[tuple[str, str]] = list()
+        for attr_name, attr in self.schema.attributes.items():
+            if attr.attr_type in meta_types:
+                picklist_attrs.append((attr_name, attr.attr_type))
 
         if len(picklist_attrs) == 0:
             return
@@ -232,18 +235,33 @@ class DataverseSchema(DataverseAPI):
         The metadata returned by the OneToMany and ManyToOne API endpoints
         are the same, but the "direction" of the relationship determines
         which attribute is the valid one in a query expand clause.
+
+        Collection-valued attributes point to the many-side of a relationship
+        these are available for *deep inserts*, creating rows in the parent and
+        child tables simultaneously.
+
+        Single-valued attributes point to the one-side of a relationship
+        these are available for *binding* (associating) rows in current
+        entity against a specific parent entity record.
+
+        Both single-valued and collection-valued attributes can be used
+        in expand-clauses in a query.
         """
-        valid_entities = []
+
+        collection_valued = []
         attr = "ReferencedEntityNavigationPropertyName"
         for rel in self.raw_schema.one_many_data["value"]:
             if rel["ReferencingEntity"] == "asyncoperation":
                 # Expanding relationships to this Entity returns
                 # a 500 response from the server, don't know why
                 continue
-            valid_entities.append(rel[attr])
+            collection_valued.append(rel[attr])
 
+        single_valued = []
         attr = "ReferencingEntityNavigationPropertyName"
         for rel in self.raw_schema.many_one_data["value"]:
-            valid_entities.append(rel[attr])
+            single_valued.append(rel[attr])
 
-        self.schema.relationships = valid_entities
+        self.schema.relationships = DataverseRelationships(
+            single_valued=single_valued, collection_valued=collection_valued
+        )

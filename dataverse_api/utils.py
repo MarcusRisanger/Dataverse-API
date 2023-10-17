@@ -241,7 +241,6 @@ def find_invalid_columns(
 
 def parse_expand(
     expand: Union[str, DataverseExpand, list[DataverseExpand]],
-    valid_entities: Optional[list[str]] = None,
 ) -> str:
     """
     Parses an expand clause and returns an appropriate string for
@@ -260,16 +259,15 @@ def parse_expand(
 
     if type(expand) != list:
         expand = [expand]
+
     output = []
     for rule in expand:
-        output.append(parse_expand_element(rule, valid_entities))
+        output.append(parse_expand_element(rule))
 
     return ",".join(output)
 
 
-def parse_expand_element(
-    expand: DataverseExpand, valid_entities: Optional[list[str]] = None
-) -> str:
+def parse_expand_element(expand: DataverseExpand) -> str:
     """
     Parses an expansion rule and returns an appropriate string for
     querying the Dataverse entity.
@@ -291,9 +289,6 @@ def parse_expand_element(
     # Some validation rules
     if expand.expand and (expand.orderby or expand.expand.orderby):
         raise DataverseValidationError("Cannot use orderby with nested expand.")
-    if valid_entities is not None:
-        if expand.table not in valid_entities:
-            raise DataverseValidationError("Expansion target entity not valid.")
 
     # Parsing
     elements = []
@@ -313,7 +308,6 @@ def parse_expand_element(
 
 def parse_orderby(
     orderby: Union[str, list[DataverseOrderby]],
-    valid_cols: Optional[list[str]] = None,
 ):
     """
     Parses the orderby argument for Dataverse querying.
@@ -326,11 +320,6 @@ def parse_orderby(
 
     if type(orderby) != list:
         orderby = [orderby]
-
-    # Validation rules
-    if valid_cols is not None:
-        if not all(i.attr in valid_cols for i in orderby):
-            raise DataverseValidationError("Attribute in orderby not valid.")
 
     ordering = []
     for order in orderby:
