@@ -162,6 +162,16 @@ class DataverseEntity(DataverseAPI):
                 + f"in {self.schema.entity.name}."
             )
 
+    def insert_row(self, data: dict[str, Any]) -> None:
+        """
+        Inserts one row of data into the selected Entity.
+
+        Args:
+          - data: JSON serializable data for entry.
+        """
+
+        self._post(url=self.logical_name, json=data)
+
     def insert(
         self,
         data: Union[dict, list[dict], pd.DataFrame],
@@ -171,11 +181,9 @@ class DataverseEntity(DataverseAPI):
 
         Args:
           - data: Data that forms the basis for insert into Dataverse.
-          - key_columns: If validation is not enabled, provide primary column or
-            columns that form an alternate key, to ensure data can be inserted.
 
         >>> data={"col1":"abc", "col2":"dac", "col3":69, "col4":"Foo"}
-        >>> table.upsert(data, key_columns={"col1","col2"})
+        >>> table.upsert(data)
         """
         data = convert_data(data)
         # Validation just run to make sure appropriate keys are present
