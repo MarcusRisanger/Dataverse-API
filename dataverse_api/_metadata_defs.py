@@ -234,6 +234,27 @@ class DateTimeAttributeMetadata(AttributeMetadata):
         return base
 
 
+@dataclass
+class MemoAttributeMetadata(AttributeMetadata):
+    """
+    Create metadata for Memo attribute.
+    Includes metadata for `AttributeMetadata` and `BaseMetadata`.
+    """
+
+    max_length: int
+
+    def __call__(self) -> dict[str, Any]:
+        base = {
+            "@odata.type": BASE + "MemoAttributeMetadata",
+            "AttributeType": "Memo",
+            "AttributeTypeName": {"Value": "MemoType"},
+            "Format": "TextArea",
+            "MaxLength": self.max_length,
+        }
+        base.update(self._attr_metadata())
+        return base
+
+
 CascadeType = Literal[
     "NoCascade",
     "Cascade",
