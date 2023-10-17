@@ -99,7 +99,7 @@ class _BaseMetadata:
 class AttributeMetadata(_BaseMetadata):
     """
     Create metadata for Attribute.
-    Includes metadata from BaseMetadata.
+    Includes metadata from `BaseMetadata`.
     """
 
     required_level: RequiredLevel
@@ -116,7 +116,7 @@ class AttributeMetadata(_BaseMetadata):
 class StringAttributeMetadata(AttributeMetadata):
     """
     Create metadata for StringAttribute.
-    Includes metadata from AttributeMetadata and BaseMetadata.
+    Includes metadata from `AttributeMetadata` and `BaseMetadata`.
     """
 
     format_name: Literal[
@@ -151,7 +151,7 @@ class StringAttributeMetadata(AttributeMetadata):
 class LookupAttributeMetadata(AttributeMetadata):
     """
     Create metadata for Lookup attribute.
-    Includes metadata from AttributeMetadata and BaseMetadata.
+    Includes metadata from `AttributeMetadata` and `BaseMetadata`.
     """
 
     def __call__(self) -> dict[str, Any]:
@@ -159,6 +159,76 @@ class LookupAttributeMetadata(AttributeMetadata):
             "@odata.type": BASE + "LookupAttributeMetadata",
             "AttributeType": "Lookup",
             "AttributeTypeName": {"Value": "LookupType"},
+        }
+        base.update(self._attr_metadata())
+        return base
+
+
+@dataclass
+class DecimalAttributeMetadata(AttributeMetadata):
+    """
+    Create metadata for Decimal attribute.
+    Includes metadata for `AttributeMetadata` and `BaseMetadata`.
+    """
+
+    min_value: float
+    max_value: float
+    precision: int
+
+    def __call__(self) -> dict[str, Any]:
+        base = {
+            "@odata.type": BASE + "DecimalAttributeMetadata",
+            "AttributeType": "Decimal",
+            "AttributeTypeName": {"Value": "DecimalType"},
+            "MinValue": self.min_value,
+            "MaxValue": self.max_value,
+            "Precision": self.precision,
+        }
+        base.update(self._attr_metadata())
+        return base
+
+
+@dataclass
+class IntegerAttributeMetadata(AttributeMetadata):
+    """
+    Create metadata for Integer attribute.
+    Includes metadata for `AttributeMetadata` and `BaseMetadata`.
+    """
+
+    min_value: int
+    max_value: int
+    precision: int
+    format: Literal["None", "Duration", "TimeZone", "Language", "Locale"] = "None"
+
+    def __call__(self) -> dict[str, Any]:
+        base = {
+            "@odata.type": BASE + "IntegerAttributeMetadata",
+            "AttributeType": "Decimal",
+            "AttributeTypeName": {"Value": "DecimalType"},
+            "MinValue": self.min_value,
+            "MaxValue": self.max_value,
+            "Precision": self.precision,
+            "Format": self.format,
+        }
+        base.update(self._attr_metadata())
+        return base
+
+
+@dataclass
+class DateTimeAttributeMetadata(AttributeMetadata):
+    """
+    Create metadata for DateTime attribute.
+    Includes metadata for `AttributeMetadata` and `BaseMetadata`.
+    """
+
+    format: Literal["DateOnly", "DateAndTime"]
+
+    def __call__(self) -> dict[str, Any]:
+        base = {
+            "@odata.type": BASE + "DateTimeAttributeMetadata",
+            "AttributeType": "DateTime",
+            "AttributeTypeName": {"Value": "DateTimeType"},
+            "Format": self.format,
         }
         base.update(self._attr_metadata())
         return base
