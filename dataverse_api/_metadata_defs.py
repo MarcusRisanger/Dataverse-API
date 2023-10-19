@@ -110,9 +110,9 @@ class AutoNumberMetadata(AttributeMetadata):
     Includes metadata from `AttributeMetadata` and `BaseMetadata`.
     """
 
-    is_primary: bool
-    max_length: int
     auto_number_format: str
+    is_primary: bool = False
+    max_length: int = 100
     required_level: RequiredLevel = RequiredLevel()
 
     def __call__(self) -> dict[str, Any]:
@@ -222,7 +222,6 @@ class IntegerAttributeMetadata(AttributeMetadata):
 
     min_value: int
     max_value: int
-    precision: int
     format: Literal["None", "Duration", "TimeZone", "Language", "Locale"] = "None"
     required_level: RequiredLevel = RequiredLevel()
 
@@ -233,7 +232,6 @@ class IntegerAttributeMetadata(AttributeMetadata):
             "AttributeTypeName": {"Value": "DecimalType"},
             "MinValue": self.min_value,
             "MaxValue": self.max_value,
-            "Precision": self.precision,
             "Format": self.format,
             "RequiredLevel": self.required_level(),
         }
