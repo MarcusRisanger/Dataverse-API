@@ -105,9 +105,14 @@ class AttributeMetadata(_BaseMetadata):
 
 @dataclass
 class AutoNumberMetadata(AttributeMetadata):
-    is_primary: bool
-    max_length: int
+    """
+    Create metadata for StringAttribute with autonumbering.
+    Includes metadata from `AttributeMetadata` and `BaseMetadata`.
+    """
+
     auto_number_format: str
+    is_primary: bool = False
+    max_length: int = 100
     required_level: RequiredLevel = RequiredLevel()
 
     def __call__(self) -> dict[str, Any]:
@@ -217,7 +222,6 @@ class IntegerAttributeMetadata(AttributeMetadata):
 
     min_value: int
     max_value: int
-    precision: int
     format: Literal["None", "Duration", "TimeZone", "Language", "Locale"] = "None"
     required_level: RequiredLevel = RequiredLevel()
 
@@ -228,7 +232,6 @@ class IntegerAttributeMetadata(AttributeMetadata):
             "AttributeTypeName": {"Value": "DecimalType"},
             "MinValue": self.min_value,
             "MaxValue": self.max_value,
-            "Precision": self.precision,
             "Format": self.format,
             "RequiredLevel": self.required_level(),
         }
@@ -293,6 +296,10 @@ CascadeType = Literal[
 
 @dataclass
 class CascadeConfiguration:
+    """
+    Complex Enum for Cascade Configuration.
+    """
+
     assign: CascadeType = "Cascade"
     delete: CascadeType = "Cascade"
     merge: CascadeType = "Cascade"
@@ -313,6 +320,10 @@ class CascadeConfiguration:
 
 @dataclass
 class AssociatedMenuConfiguration:
+    """
+    Complex Enum for Associated Menu Config.
+    """
+
     behavior: Literal[
         "UseCollectionName", "UseLabel", "DoNotDisplay"
     ] = "UseCollectionName"
@@ -331,6 +342,10 @@ class AssociatedMenuConfiguration:
 
 @dataclass
 class _RelationshipMetadataBase:
+    """
+    Base metadata for RelationshipEntity
+    """
+
     schema_name: str
     cascade_configuration: CascadeConfiguration
 
@@ -343,7 +358,10 @@ class _RelationshipMetadataBase:
 
 @dataclass
 class OneToManyRelationshipMetadata(_RelationshipMetadataBase):
-    # referenced_attribute: str
+    """
+    Create medatada for OneToManyRelationship.
+    """
+
     referenced_entity: str
     referencing_entity: str
     lookup: LookupAttributeMetadata
@@ -392,6 +410,10 @@ class EntityMetadata(_BaseMetadata):
 
 @dataclass
 class EntityKeyMetadata:
+    """
+    Create medatata for EntityKey.
+    """
+
     schema_name: str
     display_name: Label
     key_attributes: list[str]

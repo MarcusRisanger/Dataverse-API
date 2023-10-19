@@ -87,7 +87,11 @@ class DataverseAPI:
             return response
         except requests.exceptions.HTTPError as e:
             raise DataverseError(
-                f"Error with GET request: {e.args[0]}", response=e.response
+                (
+                    f"Error with GET request: {e.args[0]}"
+                    + f"// Response body: {e.response.text}"
+                ),
+                response=e.response,
             )
 
     def _post(
@@ -117,11 +121,15 @@ class DataverseAPI:
                 data=data,
                 json=json,
             )
-            response.raise_for_status()
+            # response.raise_for_status()
             return response
         except requests.exceptions.HTTPError as e:
             raise DataverseError(
-                f"Error with POST request: {e.args[0]}", response=e.response
+                (
+                    f"Error with POST request: {e.args[0]}"
+                    + f"// Response body: {e.response.text}"
+                ),
+                response=e.response,
             )
 
     def _put(
@@ -154,7 +162,11 @@ class DataverseAPI:
             return response
         except requests.exceptions.HTTPError as e:
             raise DataverseError(
-                f"Error with PUT request: {e.args[0]}", response=e.response
+                (
+                    f"Error with POST request: {e.args[0]}"
+                    + f"// Response body: {e.response.text}"
+                ),
+                response=e.response,
             )
 
     def _patch(
@@ -188,7 +200,11 @@ class DataverseAPI:
             return response
         except requests.exceptions.HTTPError as e:
             raise DataverseError(
-                f"Error with PATCH request: {e.args[0]}", response=e.response
+                (
+                    f"Error with PATCH request: {e.args[0]}"
+                    + f"// Response body: {e.response.text}"
+                ),
+                response=e.response,
             )
 
     def _delete(
@@ -217,7 +233,11 @@ class DataverseAPI:
             return response
         except requests.exceptions.HTTPError as e:
             raise DataverseError(
-                f"Error with DELETE request: {e.args[0]}", response=e.response
+                (
+                    f"Error with DELETE request: {e.args[0]}"
+                    + f"// Response body: {e.response.text}"
+                ),
+                response=e.response,
             )
 
     def _batch_operation(
