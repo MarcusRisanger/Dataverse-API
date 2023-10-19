@@ -105,6 +105,11 @@ class AttributeMetadata(_BaseMetadata):
 
 @dataclass
 class AutoNumberMetadata(AttributeMetadata):
+    """
+    Create metadata for StringAttribute with autonumbering.
+    Includes metadata from `AttributeMetadata` and `BaseMetadata`.
+    """
+
     is_primary: bool
     max_length: int
     auto_number_format: str
@@ -293,6 +298,10 @@ CascadeType = Literal[
 
 @dataclass
 class CascadeConfiguration:
+    """
+    Complex Enum for Cascade Configuration.
+    """
+
     assign: CascadeType = "Cascade"
     delete: CascadeType = "Cascade"
     merge: CascadeType = "Cascade"
@@ -313,6 +322,10 @@ class CascadeConfiguration:
 
 @dataclass
 class AssociatedMenuConfiguration:
+    """
+    Complex Enum for Associated Menu Config.
+    """
+
     behavior: Literal[
         "UseCollectionName", "UseLabel", "DoNotDisplay"
     ] = "UseCollectionName"
@@ -331,6 +344,10 @@ class AssociatedMenuConfiguration:
 
 @dataclass
 class _RelationshipMetadataBase:
+    """
+    Base metadata for RelationshipEntity
+    """
+
     schema_name: str
     cascade_configuration: CascadeConfiguration
 
@@ -343,7 +360,10 @@ class _RelationshipMetadataBase:
 
 @dataclass
 class OneToManyRelationshipMetadata(_RelationshipMetadataBase):
-    # referenced_attribute: str
+    """
+    Create medatada for OneToManyRelationship.
+    """
+
     referenced_entity: str
     referencing_entity: str
     lookup: LookupAttributeMetadata
@@ -392,6 +412,10 @@ class EntityMetadata(_BaseMetadata):
 
 @dataclass
 class EntityKeyMetadata:
+    """
+    Create medatata for EntityKey.
+    """
+
     schema_name: str
     display_name: Label
     key_attributes: list[str]
