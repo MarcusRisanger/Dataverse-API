@@ -95,21 +95,34 @@ class _BaseMetadata:
         }
 
 
-@dataclass
 class AttributeMetadata(_BaseMetadata):
     """
-    Create metadata for Attribute.
-    Includes metadata from `BaseMetadata`.
+    To have a common descendant for Attributes.
     """
 
-    required_level: RequiredLevel
+    pass
 
-    def _attr_metadata(self) -> dict[str, Any]:
-        attr_metadata = {
+
+@dataclass
+class AutoNumberMetadata(AttributeMetadata):
+    is_primary: bool
+    max_length: int
+    auto_number_format: str
+    required_level: RequiredLevel = RequiredLevel()
+
+    def __call__(self) -> dict[str, Any]:
+        base = {
+            "@odata.type": BASE + "StringAttributeMetadata",
+            "AttributeType": "String",
+            "AttributeTypeName": {"Value": "StringType"},
+            "FormatName": {"Value": "Text"},
+            "IsPrimaryName": self.is_primary,
+            "MaxLength": self.max_length,
+            "AutoNumberFormat": self.auto_number_format,
             "RequiredLevel": self.required_level(),
         }
-        attr_metadata.update(self._base_metadata())
-        return attr_metadata
+        base.update(self._base_metadata())
+        return base
 
 
 @dataclass
@@ -130,9 +143,10 @@ class StringAttributeMetadata(AttributeMetadata):
         "Phone",
         "Json",
         "RichText",
-    ]
-    is_primary: bool
-    max_length: int
+    ] = "Text"
+    max_length: int = 100
+    is_primary: bool = False
+    required_level: RequiredLevel = RequiredLevel()
 
     def __call__(self) -> dict[str, Any]:
         base = {
@@ -142,8 +156,9 @@ class StringAttributeMetadata(AttributeMetadata):
             "IsPrimaryName": self.is_primary,
             "FormatName": {"Value": self.format_name},
             "MaxLength": self.max_length,
+            "RequiredLevel": self.required_level(),
         }
-        base.update(self._attr_metadata())
+        base.update(self._base_metadata())
         return base
 
 
@@ -154,13 +169,16 @@ class LookupAttributeMetadata(AttributeMetadata):
     Includes metadata from `AttributeMetadata` and `BaseMetadata`.
     """
 
+    required_level: RequiredLevel = RequiredLevel()
+
     def __call__(self) -> dict[str, Any]:
         base = {
             "@odata.type": BASE + "LookupAttributeMetadata",
             "AttributeType": "Lookup",
             "AttributeTypeName": {"Value": "LookupType"},
+            "RequiredLevel": self.required_level(),
         }
-        base.update(self._attr_metadata())
+        base.update(self._base_metadata())
         return base
 
 
@@ -173,7 +191,8 @@ class DecimalAttributeMetadata(AttributeMetadata):
 
     min_value: float
     max_value: float
-    precision: int
+    precision: int = 2
+    required_level: RequiredLevel = RequiredLevel()
 
     def __call__(self) -> dict[str, Any]:
         base = {
@@ -183,8 +202,9 @@ class DecimalAttributeMetadata(AttributeMetadata):
             "MinValue": self.min_value,
             "MaxValue": self.max_value,
             "Precision": self.precision,
+            "RequiredLevel": self.required_level(),
         }
-        base.update(self._attr_metadata())
+        base.update(self._base_metadata())
         return base
 
 
@@ -199,6 +219,7 @@ class IntegerAttributeMetadata(AttributeMetadata):
     max_value: int
     precision: int
     format: Literal["None", "Duration", "TimeZone", "Language", "Locale"] = "None"
+    required_level: RequiredLevel = RequiredLevel()
 
     def __call__(self) -> dict[str, Any]:
         base = {
@@ -209,8 +230,9 @@ class IntegerAttributeMetadata(AttributeMetadata):
             "MaxValue": self.max_value,
             "Precision": self.precision,
             "Format": self.format,
+            "RequiredLevel": self.required_level(),
         }
-        base.update(self._attr_metadata())
+        base.update(self._base_metadata())
         return base
 
 
@@ -221,7 +243,8 @@ class DateTimeAttributeMetadata(AttributeMetadata):
     Includes metadata for `AttributeMetadata` and `BaseMetadata`.
     """
 
-    format: Literal["DateOnly", "DateAndTime"]
+    format: Literal["DateOnly", "DateAndTime"] = "DateAndTime"
+    required_level: RequiredLevel = RequiredLevel()
 
     def __call__(self) -> dict[str, Any]:
         base = {
@@ -229,8 +252,9 @@ class DateTimeAttributeMetadata(AttributeMetadata):
             "AttributeType": "DateTime",
             "AttributeTypeName": {"Value": "DateTimeType"},
             "Format": self.format,
+            "RequiredLevel": self.required_level(),
         }
-        base.update(self._attr_metadata())
+        base.update(self._base_metadata())
         return base
 
 
@@ -242,6 +266,7 @@ class MemoAttributeMetadata(AttributeMetadata):
     """
 
     max_length: int
+    required_level: RequiredLevel = RequiredLevel()
 
     def __call__(self) -> dict[str, Any]:
         base = {
@@ -250,8 +275,9 @@ class MemoAttributeMetadata(AttributeMetadata):
             "AttributeTypeName": {"Value": "MemoType"},
             "Format": "TextArea",
             "MaxLength": self.max_length,
+            "RequiredLevel": self.required_level(),
         }
-        base.update(self._attr_metadata())
+        base.update(self._base_metadata())
         return base
 
 

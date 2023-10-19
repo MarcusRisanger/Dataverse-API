@@ -17,6 +17,7 @@ from dataverse_api._api import DataverseAPI
 from dataverse_api._metadata_defs import (
     AssociatedMenuConfiguration,
     AttributeMetadata,
+    AutoNumberMetadata,
     CascadeConfiguration,
     EntityMetadata,
     Label,
@@ -135,7 +136,7 @@ class DataverseClient(DataverseAPI):
         # Too dumb right now to think of something more elegant
         primary = 0
         for attr in attributes:
-            if type(attr) == StringAttributeMetadata:
+            if type(attr) in (StringAttributeMetadata, AutoNumberMetadata):
                 if attr.is_primary:
                     primary += 1
         if primary == 0:
