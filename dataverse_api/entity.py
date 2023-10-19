@@ -169,8 +169,8 @@ class DataverseEntity(DataverseAPI):
         Args:
           - data: JSON serializable data for entry.
         """
-
-        self._post(url=self.logical_name, json=data)
+        url = self.schema.entity.name
+        self._post(url=url, json=data)
 
     def insert(
         self,
