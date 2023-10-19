@@ -121,7 +121,7 @@ class DataverseAPI:
                 data=data,
                 json=json,
             )
-            # response.raise_for_status()
+            response.raise_for_status()
             return response
         except requests.exceptions.HTTPError as e:
             raise DataverseError(
