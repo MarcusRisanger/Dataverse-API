@@ -89,7 +89,7 @@ class DataverseAPI:
             raise DataverseError(
                 (
                     f"Error with GET request: {e.args[0]}"
-                    + f"// Response body: {e.response.text}"
+                    + f" // Response body: {e.response.text}"
                 ),
                 response=e.response,
             )
@@ -127,7 +127,7 @@ class DataverseAPI:
             raise DataverseError(
                 (
                     f"Error with POST request: {e.args[0]}"
-                    + f"// Response body: {e.response.text}"
+                    + f" // Response body: {e.response.text}"
                 ),
                 response=e.response,
             )
@@ -164,7 +164,7 @@ class DataverseAPI:
             raise DataverseError(
                 (
                     f"Error with POST request: {e.args[0]}"
-                    + f"// Response body: {e.response.text}"
+                    + f" // Response body: {e.response.text}"
                 ),
                 response=e.response,
             )
@@ -202,7 +202,7 @@ class DataverseAPI:
             raise DataverseError(
                 (
                     f"Error with PATCH request: {e.args[0]}"
-                    + f"// Response body: {e.response.text}"
+                    + f" // Response body: {e.response.text}"
                 ),
                 response=e.response,
             )
@@ -235,7 +235,7 @@ class DataverseAPI:
             raise DataverseError(
                 (
                     f"Error with DELETE request: {e.args[0]}"
-                    + f"// Response body: {e.response.text}"
+                    + f" // Response body: {e.response.text}"
                 ),
                 response=e.response,
             )

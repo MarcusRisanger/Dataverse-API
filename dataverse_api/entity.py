@@ -162,15 +162,23 @@ class DataverseEntity(DataverseAPI):
                 + f"in {self.schema.entity.name}."
             )
 
-    def insert_row(self, data: dict[str, Any]) -> None:
+    def insert_row(
+        self,
+        data: Optional[str] = None,
+        json: Optional[dict[str, Any]] = None,
+    ) -> None:
         """
         Inserts one row of data into the selected Entity.
 
         Args:
-          - data: JSON serializable data for entry.
+          - data: Data string for entry.
+          - json: JSON serializable object for entry.
         """
+        if data is None and json is None:
+            raise DataverseError("Needs either JSON or data payload!")
+
         url = self.schema.entity.name
-        self._post(url=url, json=data)
+        self._post(url=url, json=json, data=data)
 
     def insert(
         self,
