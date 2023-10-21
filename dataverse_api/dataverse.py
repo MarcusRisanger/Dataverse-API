@@ -110,35 +110,32 @@ class DataverseClient(DataverseAPI):
           - is_activity: Whether the Entity is an activity.
         """
 
-        if type(attributes) == str:
+        if isinstance(attributes, str):
             attributes = StringAttributeMetadata(
                 schema_name=attributes,
                 description=Label(f"Primary attribute for {schema_name}."),
                 display_name=Label("Primary Attribute"),
-                required_level=RequiredLevel(),
-                format_name="Text",
                 is_primary=True,
-                max_length=100,
             )
 
-        if type(description) == str:
+        if isinstance(description, str):
             description = Label(description)
 
-        if type(display_name) == str:
+        if isinstance(display_name, str):
             display_name = Label(display_name)
 
         if display_collection_name is None:
             display_collection_name = display_name
-        elif type(display_collection_name) == str:
+        elif isinstance(display_collection_name, str):
             display_collection_name = Label(display_collection_name)
 
-        if type(attributes) == StringAttributeMetadata:
+        if isinstance(attributes, StringAttributeMetadata):
             attributes = [attributes]
 
         # Controlling number of primary attributes to be == 1
         primary = 0
         for attr in attributes:
-            if type(attr) in (StringAttributeMetadata, AutoNumberMetadata):
+            if isinstance(attr, (StringAttributeMetadata, AutoNumberMetadata)):
                 if attr.is_primary:
                     primary += 1
         if primary == 0:
@@ -254,7 +251,7 @@ class DataverseClient(DataverseAPI):
           - cascade_configuration: Optional cascade config override.
           - associated_menu_config: Optonal associated menu config override.
         """
-        if type(relationship_display_name) == str:
+        if isinstance(relationship_display_name, str):
             relationship_display_name = Label(relationship_display_name)
 
         if relationship_schema_name is None:
