@@ -28,7 +28,7 @@ class ManagedProperty:
         }
 
 
-@dataclass
+@dataclass(frozen=True)
 class RequiredLevel:
     value: Literal["None", "ApplicationRequired", "Recommended"] = "None"
     can_be_changed: bool = True
@@ -41,7 +41,7 @@ class RequiredLevel:
         }
 
 
-@dataclass
+@dataclass(frozen=True)
 class LocalizedLabel:
     """
     Create metadata for LocalizedLabel, with default
@@ -59,7 +59,7 @@ class LocalizedLabel:
         }
 
 
-@dataclass
+@dataclass(frozen=True)
 class Label(LocalizedLabel):
     """
     Create metadata for Label.

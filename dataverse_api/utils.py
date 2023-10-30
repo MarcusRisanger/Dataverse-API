@@ -157,7 +157,7 @@ def extract_key(
     """
     data = data.copy()
     key_elements = []
-    if type(key_columns) == str:
+    if isinstance(key_columns, str):
         key_columns = {key_columns}
     for col in key_columns:
         key_value = data.pop(col).__repr__()  # Need repr to capture strings properly
@@ -254,10 +254,10 @@ def parse_expand(
         first-level expansion entity name validation.
 
     """
-    if type(expand) == str:
+    if isinstance(expand, str):
         return expand
 
-    if type(expand) != list:
+    if not isinstance(expand, list):
         expand = [expand]
 
     output = []
@@ -315,10 +315,10 @@ def parse_orderby(
     Accepts both fully qualified strings or a list of
     `DataverseOrdeby` dataclasses.
     """
-    if type(orderby) == str:
+    if isinstance(orderby, str):
         return orderby
 
-    if type(orderby) != list:
+    if not isinstance(orderby, list):
         orderby = [orderby]
 
     ordering = []

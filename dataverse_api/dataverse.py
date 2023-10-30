@@ -85,6 +85,7 @@ class DataverseClient(DataverseAPI):
         display_name: Union[str, Label],
         attributes: Union[str, StringAttributeMetadata, list[Type[AttributeMetadata]]],
         display_collection_name: Optional[Union[str, Label]] = None,
+        solution_name: Optional[str] = None,
         ownership_type: str = "None",
         has_activities: bool = False,
         has_notes: bool = False,
@@ -102,47 +103,51 @@ class DataverseClient(DataverseAPI):
           - description: String (or `Label`) describing the Entity.
           - display_name: String (or `Label`) with the Entity display name.
         Optional:
+          - solution_name: Unique name of solution Entity should belong to
           - display_collection_name: String (or `Label`) with the Entity display name.
           - has_activities: Whether activities are associated with this Entity.
           - has_notes: Whether notes are associated with this Entity.
           - is_activity: Whether the Entity is an activity.
         """
 
-        if type(attributes) == str:
+        if isinstance(attributes, str):
             attributes = StringAttributeMetadata(
                 schema_name=attributes,
                 description=Label(f"Primary attribute for {schema_name}."),
                 display_name=Label("Primary Attribute"),
-                required_level=RequiredLevel(),
-                format_name="Text",
                 is_primary=True,
-                max_length=100,
             )
 
-        if type(description) == str:
+        if isinstance(description, str):
             description = Label(description)
 
-        if type(display_name) == str:
+        if isinstance(display_name, str):
             display_name = Label(display_name)
 
         if display_collection_name is None:
             display_collection_name = display_name
-        elif type(display_collection_name) == str:
+        elif isinstance(display_collection_name, str):
             display_collection_name = Label(display_collection_name)
 
-        if type(attributes) == StringAttributeMetadata:
+        if isinstance(attributes, StringAttributeMetadata):
             attributes = [attributes]
 
-        # Too dumb right now to think of something more elegant
+        # Controlling number of primary attributes to be == 1
         primary = 0
         for attr in attributes:
-            if type(attr) in (StringAttributeMetadata, AutoNumberMetadata):
+            if isinstance(attr, (StringAttributeMetadata, AutoNumberMetadata)):
                 if attr.is_primary:
                     primary += 1
         if primary == 0:
             raise DataverseError("No primary attribute given.")
         elif primary > 1:
             raise DataverseError("Too many primary attributes given.")
+
+        # Assigning Entity to specific solution, needs header
+        if solution_name is not None:
+            additional_headers = {"MSCRM.SolutionUniqueName": solution_name}
+        else:
+            additional_headers = None
 
         # Entity Definition
         table = EntityMetadata(
@@ -157,7 +162,11 @@ class DataverseClient(DataverseAPI):
             attributes=attributes,
         )
 
-        self._post(url="EntityDefinitions", json=table())
+        self._post(
+            url="EntityDefinitions",
+            additional_headers=additional_headers,
+            json=table(),
+        )
 
     def delete_entity(self, logical_name: str):
         """
@@ -173,6 +182,7 @@ class DataverseClient(DataverseAPI):
         self,
         entity_definition: RawMetadata,
         merge_labels: bool = False,
+        solution_name: Optional[str] = None,
     ):
         """
         Updates Dataverse with the supplied EntityMetadata definition.
@@ -190,8 +200,13 @@ class DataverseClient(DataverseAPI):
         except BoxError:
             raise DataverseError("Logical name not found in EntityMetadata.")
 
+        additional_headers = dict()
         if merge_labels:
             additional_headers = {"MSCRM.MergeLabels": True}
+        if solution_name:
+            additional_headers = {"MSCRM.SolutionUniqueName": solution_name}
+        if not additional_headers:
+            additional_headers = None
 
         self._put(
             f"EntityDefinitions(LogicalName='{logical_name}')",
@@ -236,7 +251,7 @@ class DataverseClient(DataverseAPI):
           - cascade_configuration: Optional cascade config override.
           - associated_menu_config: Optonal associated menu config override.
         """
-        if type(relationship_display_name) == str:
+        if isinstance(relationship_display_name, str):
             relationship_display_name = Label(relationship_display_name)
 
         if relationship_schema_name is None:
