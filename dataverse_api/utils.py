@@ -7,10 +7,12 @@ Author: Marcus Risanger
 
 import json
 import logging
+import re
 from collections.abc import Iterator
 from datetime import datetime as dt
 from textwrap import dedent
 from typing import Any, Literal, Optional, Union
+from urllib.parse import quote
 from uuid import uuid4
 
 import pandas as pd
@@ -187,6 +189,9 @@ def batch_command(batch_id: str, api_url: str, row: DataverseBatchCommand) -> st
         col, value = list(row.data.items())[0]
         uri += f"/{col}"
         data = {"value": value}
+
+    # Encoding difficult stuff within string literals (æøå - looking at you!)
+    uri = re.sub(r"\'(.*)\'", lambda x: quote(x.group()), api_url + row.uri)
 
     row_command = f"""\
     --{batch_id}
