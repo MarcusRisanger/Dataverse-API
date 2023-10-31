@@ -267,15 +267,17 @@ class DataverseAPI:
             batch_id = f"batch_{batch_id_generator()}"
 
             # Preparing batch data
-            batch_data = ""
+            batch_data = []
             for row in chunk:
-                batch_data += batch_command(
-                    batch_id=batch_id, api_url=self.api_url, row=row
+                batch_data.append(
+                    batch_command(batch_id=batch_id, api_url=self.api_url, row=row)
                 )
 
             # Note: Trailing space in final line is crucial
             # Request fails to meet specification without it
-            batch_data += f"\n\n--{batch_id}--\n "
+            batch_data.append(f"\n\n--{batch_id}--\n\n")
+
+            data = "\n".join(batch_data)
 
             # Preparing batch-specific headers
             additional_headers = {
@@ -289,7 +291,7 @@ class DataverseAPI:
             )
 
             response = self._post(
-                url="$batch", additional_headers=additional_headers, data=batch_data
+                url="$batch", additional_headers=additional_headers, data=data
             )
             log.debug(f"Successfully completed {len(chunk)} batch command chunk.")
 
