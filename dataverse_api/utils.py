@@ -29,6 +29,90 @@ from dataverse_api.errors import DataverseError, DataverseValidationError
 log = logging.getLogger("dataverse-api")
 
 
+def _altkey_identify_illegal_symbols(part: str) -> None:
+    """
+    Identifies symbols used in strings that are illegal
+    in altkeys for PATCH and GET operations.
+
+    Parameters
+    ----------
+    part : str
+        The capturing group of a match part corresponding to
+        a string literal for an alternate key used in a Dataverse
+        API call, including enclosing ticks to denote a string literal.
+
+    Raises
+    ------
+    ValueError
+        If the matched part includes a string that is not
+        possible to use within an altkey.
+    """
+    illegals = ["/", "<", ">", "*", "%", "&", ":", "?", "+"]
+    if any([i in rf"{part}" for i in illegals]):
+        raise ValueError(f"Illegal symbol in alternate key url string literal: {part}.")
+
+
+def _altkey_encoding(part: str) -> str:
+    """
+    Encoding function for alternate keys in URLs to handle
+    non-English letters like æøå.
+
+    Parameters
+    ----------
+    part: str
+        The capturing group of a match part corresponding to
+        a string literal for an alternate key used in a Dataverse
+        API call, including enclosing ticks to denote a string literal.
+
+    Returns
+    -------
+    str
+        Encoded string literal, including enclosing ticks.
+    """
+    return "'" + quote(part) + "'"
+
+
+def _parse_altkey(part: re.Match):
+    """
+    Function to be called in re.sub() to handle
+    validation and encoding of alternate key part.
+
+    Parameters
+    ----------
+    part : re.Match
+        The match from a Dataverse API call URL, containing a
+        capture group with an alternate key string literal.
+
+    Returns
+    -------
+    str
+        The encoded string literal, including enclosing ticks.
+    """
+
+    capture_group = part.group(1)
+
+    _altkey_identify_illegal_symbols(capture_group)
+    return _altkey_encoding(capture_group)
+
+
+def encode_altkeys(url: str) -> str:
+    """
+    Function used to encode altkeys in Dataverse API calls.
+
+    Parameters
+    ----------
+    url : str
+        The API call URL that is to be encoded.
+
+    Returns
+    -------
+    str
+        The encoded URL.
+    """
+    pat = re.compile(r"\'([^\']*)\'")
+    return re.sub(pat, _parse_altkey, url)
+
+
 def get_val(col: dict, attr: Literal["Min", "Max"]) -> Union[dt, int, float]:
     """
     Used to parse column metadata to clean up code in schema module, to
@@ -39,12 +123,17 @@ def get_val(col: dict, attr: Literal["Min", "Max"]) -> Union[dt, int, float]:
     pass the JSON parsed value directly. Both support <, > operations for
     validating that columnar values are within their limits.
 
-    Args:
-      - col: The dictionary representing the column definition from the API
-      - attr: Whether the function should grab the min or max value.
+    Parameters
+    ----------
+    col: dict
+        The dictionary representing the column definition from the API
+    attr: str
+        Whether the function should grab the min or max value.
 
-    Returns:
-      - Respective column value limit. `datetime` for DateTime type columns,
+    Returns
+    -------
+    datetime, int, float or None
+        Respective column value limit. `datetime` for DateTime type columns,
         otherwise `int` or `float` for numerical columns, else `None`.
     """
     try:
@@ -59,12 +148,16 @@ def extract_batch_response_data(response: requests.Response) -> list[dict]:
     Retrieves the data contained in a batch request return Response.
     Order of arguments is based on order of batch commands.
 
-    Args:
-      - The text string returned by the request.
+    Parameters
+    ----------
+    response : requests.Response
+        The response returned by the batch request.
 
-    Returns:
-      - List of dicts containing data in request return. Ready for
-        `parse_entity_metadata` function.
+    Returns
+    -------
+    list of dicts
+        List of dictionaries containing data in request return.
+        Ready for `parse_entity_metadata` function.
     """
     response_text = response.text
     out = []
@@ -77,11 +170,22 @@ def extract_batch_response_data(response: requests.Response) -> list[dict]:
 
 
 def chunk_data(
-    data: list[DataverseBatchCommand], size: int
+    data: list[DataverseBatchCommand], size: int = 500
 ) -> Iterator[list[DataverseBatchCommand]]:
     """
     Simple function to chunk a list into a maximum number of
     elements per chunk.
+
+    Parameters
+    ----------
+    data : list of `DataverseBatchCommand`
+        List containing all commands to be chunked.
+    size: int, optional
+        Chunking size.
+
+    Yields
+    ------
+    list of `DataverseBatchCommand`
     """
     for i in range(0, len(data), size):
         yield data[i : i + size]  # noqa E203
@@ -93,12 +197,18 @@ def expand_headers(
     """
     Overwrites a set of (default) headers with alternate headers.
 
-    Args:
-      - headers: Default header dict
-      - additional_headers: Headers with which to add or overwrite defaults.
+    Parameters
+    ----------
+    headers: dict
+        The base headers.
+    additional_headers: dict
+        Additional headers to include. Duplicates in original header will
+        be overwritten.
 
-    Returns:
-      - New dict with replaced headers.
+    Returns
+    -------
+    dict
+        New dict with replaced headers.
     """
     new_headers = headers.copy()
     if additional_headers is not None:
@@ -112,15 +222,15 @@ def convert_data(data: Union[dict, list[dict], pd.DataFrame]) -> list[dict]:
     Normalizes data to a list of dicts, ready to be validated
     and processed into DataverseBatchCommands.
 
-    Args:
-      - data: Data payload as either a single dict, list of dicts
-        or a `pd.DataFrame`.
+    Parameters
+    ----------
+    data: dict, list of dicts or `pd.DataFrame`
+        Data payload to be normalized into a list of dicts.
 
-    Returns:
-      - Data payload as list of dicts.
-
-    Raises:
-      - DataverseError if arguments are of incorrect type.
+    Returns
+    -------
+    list of dicts
+        Data payload ready for validation/processing.
     """
     if isinstance(data, list):
         return data
@@ -148,13 +258,18 @@ def extract_key(
     >>> key = "col1=123,col2='abc'"
     >>> requests.get(f"api_endpoint/tests({key})")
 
-    Args:
-      - data: A dict containing all columns
-      - key_columns: A set containing all key columns
+    Parameters
+    ----------
+    data: dict
+        A dict containing all columns
+    key_columns: set
+        A set containing all key columns
 
-    Returns a tuple with two elements:
-      - 0: A modified data dict where any key columns are removed
-      - 1: A string that contains the Dataverse specification
+    Returns
+    -------
+    tuple
+        1st element: A modified data dict where any key columns are removed
+        2nd element: A string that contains the Dataverse specification
         row identifier
     """
     data = data.copy()
@@ -168,7 +283,14 @@ def extract_key(
 
 
 def batch_id_generator() -> str:
-    """Simply creates a unique string."""
+    """
+    Simply creates a unique string for batch IDs.
+
+    Returns
+    -------
+    str
+        UUID4 string.
+    """
     return str(uuid4())
 
 
@@ -176,10 +298,19 @@ def batch_command(batch_id: str, api_url: str, row: DataverseBatchCommand) -> st
     """
     Translates a batch command to the actual request string payload.
 
-    Args:
-      - batch_id: Unique-ish string that delinates the batch
-      - api_url: The Dataverse Resource API endpoint
-      - row: The associated batch command data
+    Parameters
+    ----------
+    batch_id: str
+        Unique-ish string that delinates the batch.
+    api_url: str
+        The Dataverse Resource API endpoint.
+    row: `DataverseBatchCommand`
+        The associated batching command data.
+
+    Returns
+    -------
+    str
+        The string representation of the batch command.
     """
 
     uri = api_url + row.uri
@@ -190,8 +321,7 @@ def batch_command(batch_id: str, api_url: str, row: DataverseBatchCommand) -> st
         uri += f"/{col}"
         data = {"value": value}
 
-    # Encoding difficult stuff within string literals (æøå - looking at you!)
-    uri = re.sub(r"\'(.*)\'", lambda x: quote(x.group()), api_url + row.uri)
+    uri = encode_altkeys(uri)
 
     row_command = f"""\
     --{batch_id}
@@ -216,10 +346,16 @@ def find_invalid_columns(
     Simple function to isolate columns passed in data as attributes
     invalid for passing in create or update.
 
-    Args:
-      - key_columns: Set of key column(s) to be ignored
-      - data_columns: The data columns passed from user
-      - schema_columns: The data columns available in schema
+    Parameters
+    ----------
+    key_columns: set of str
+        Set of key column(s) to be ignored.
+    data_columns: set of str
+        The data columns passed from user.
+    schema_columns: dict of `DataverseEntityAttribute`
+        The data columns available in schema.
+    mode: str
+        The type of operation to be carried out.
     """
     invalid_cols = set()
     for col in data_columns:
@@ -251,13 +387,17 @@ def parse_expand(
     Parses an expand clause and returns an appropriate string for
     querying the Dataverse entity.
 
-    Args:
-      - expand: Either a manually written expand clause, an instance
+    Parameters
+    ----------
+    expand : str, `DataverseExpand` or list of `DataverseExpand`
+        Either a manually written expand clause, an instance
         of `DataverseExpand` or a list of `DataverseExpand` objects
         that describe the full set of expansions to apply.
-      - valid_entities: An optional argument to handle validation of
-        first-level expansion entity name validation.
 
+    Returns
+    -------
+    str
+        String representation of the expansion clause.
     """
     if isinstance(expand, str):
         return expand
@@ -277,18 +417,17 @@ def parse_expand_element(expand: DataverseExpand) -> str:
     Parses an expansion rule and returns an appropriate string for
     querying the Dataverse entity.
 
-    Args:
-      - expand: An instance of `DataverseExpand` that describes the
+    Parameters
+    ----------
+    expand: `DataverseExpand`
+        An instance of `DataverseExpand` that describes the
         expansion rules to apply.
-      - valid_entities: An optional argument to handle validation of
-        whether referenced entity exist in any 1-M or M-1 relationship
-        with current entity.
 
-    Raises:
-      - `DataverseValidationError` if an expand clause contains a nested expand
+    Raises
+    ------
+    `DataverseValidationError`
+        If an expand clause contains a nested expand
         clause and either of these specify an orderby clause.
-      - `DataverseValidationError` if an the first expand clause refers to a
-        table not in the list of valid columns.
     """
 
     # Some validation rules
@@ -317,8 +456,16 @@ def parse_orderby(
     """
     Parses the orderby argument for Dataverse querying.
 
-    Accepts both fully qualified strings or a list of
-    `DataverseOrdeby` dataclasses.
+    Parameters
+    ----------
+    orderby: str or list of `DataverseOrderBy`
+        Either a string assumed to be fully qualified for query
+        or a list of `DataverseOrderBy` objects for parsing.
+
+    Returns
+    -------
+    str
+        A fully qualified Order By string for use in query.
     """
     if isinstance(orderby, str):
         return orderby
@@ -336,6 +483,16 @@ def assign_expected_type(dataverse_type: str) -> type:
     """
     Returns the expected data type based on the column
     attribute type string.
+
+    Parameters
+    ----------
+    dataverse_type: str
+        The type designation of a Dataverse Attribute.
+
+    Returns
+    -------
+    type
+        The corresponding Python data type for the Attribute.
     """
     dates = ["DateTimeType"]
     bools = ["BooleanType"]
