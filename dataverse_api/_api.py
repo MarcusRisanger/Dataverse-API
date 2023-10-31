@@ -19,6 +19,7 @@ from dataverse_api.utils import (
     batch_command,
     batch_id_generator,
     chunk_data,
+    encode_altkeys,
     expand_headers,
 )
 
@@ -69,9 +70,11 @@ class DataverseAPI:
           - params: Relevant request parameters
           - url_override: The complete request URL, overriding the url keyword.
         """
-        url = kwargs.get("url_override") or urljoin(self.api_url, url)
-        if url is None:
+        if kwargs.get("url_override") is None and url is None:
             raise DataverseError("Needs either url or url_override argument as kwarg.")
+
+        url_raw = kwargs.get("url_override") or urljoin(self.api_url, url)
+        url = encode_altkeys(url_raw)
         headers = expand_headers(self._default_headers, additional_headers)
 
         try:
@@ -111,7 +114,7 @@ class DataverseAPI:
           - json: Request JSON serializable payload
         """
         headers = expand_headers(self._default_headers, additional_headers)
-        url = urljoin(self.api_url, url)
+        url = encode_altkeys(urljoin(self.api_url, url))
 
         try:
             response = requests.post(
@@ -149,7 +152,8 @@ class DataverseAPI:
           - json: Request JSON serializable payload
         """
         headers = expand_headers(self._default_headers, additional_headers)
-        url = urljoin(self.api_url, url)
+        url = encode_altkeys(urljoin(self.api_url, url))
+
         try:
             response = requests.put(
                 url=url,
@@ -186,7 +190,7 @@ class DataverseAPI:
           - data: JSON serializable dictionary containing data payload.
         """
         headers = expand_headers(self._default_headers, additional_headers)
-        url = urljoin(self.api_url, url)
+        url = encode_altkeys(urljoin(self.api_url, url))
 
         try:
             response = requests.patch(
@@ -221,7 +225,7 @@ class DataverseAPI:
             or add new header elements
         """
         headers = expand_headers(self._default_headers, additional_headers)
-        url = urljoin(self.api_url, url)
+        url = encode_altkeys(urljoin(self.api_url, url))
 
         try:
             response = requests.delete(
@@ -267,15 +271,17 @@ class DataverseAPI:
             batch_id = f"batch_{batch_id_generator()}"
 
             # Preparing batch data
-            batch_data = ""
+            batch_data = []
             for row in chunk:
-                batch_data += batch_command(
-                    batch_id=batch_id, api_url=self.api_url, row=row
+                batch_data.append(
+                    batch_command(batch_id=batch_id, api_url=self.api_url, row=row)
                 )
 
             # Note: Trailing space in final line is crucial
             # Request fails to meet specification without it
-            batch_data += f"\n\n--{batch_id}--\n "
+            batch_data.append(f"\n\n--{batch_id}--\n\n")
+
+            data = "\n".join(batch_data)
 
             # Preparing batch-specific headers
             additional_headers = {
@@ -289,7 +295,7 @@ class DataverseAPI:
             )
 
             response = self._post(
-                url="$batch", additional_headers=additional_headers, data=batch_data
+                url="$batch", additional_headers=additional_headers, data=data
             )
             log.debug(f"Successfully completed {len(chunk)} batch command chunk.")
 

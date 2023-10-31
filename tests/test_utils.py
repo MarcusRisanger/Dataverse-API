@@ -10,8 +10,11 @@ from dataverse_api.dataclasses import (
 )
 from dataverse_api.errors import DataverseError
 from dataverse_api.utils import (
+    _altkey_encoding,
+    _altkey_identify_illegal_symbols,
     chunk_data,
     convert_data,
+    encode_altkeys,
     expand_headers,
     extract_batch_response_data,
     extract_key,
@@ -194,3 +197,32 @@ def test_parse_expand(expansion, expansion_result):
 
 def test_parse_expand_element(expansion, expansion_result):
     assert parse_expand_element(expansion) == expansion_result
+
+
+@pytest.fixture
+def altkeys():
+    return (("abc", "abc"), ("æ", "%C3%A6"), "abc%")
+
+
+def test_altkey_illegal_symbols(altkeys):
+    assert _altkey_identify_illegal_symbols(altkeys[0][0]) is None
+    assert _altkey_identify_illegal_symbols(altkeys[1][0]) is None
+
+    with pytest.raises(ValueError):
+        _altkey_identify_illegal_symbols(altkeys[2])
+
+
+def test_altkey_encoding(altkeys):
+    assert _altkey_encoding(altkeys[0][0]) == f"'{altkeys[0][1]}'"
+    assert _altkey_encoding(altkeys[1][0]) == f"'{altkeys[1][1]}'"
+
+
+def test_encode_altkey():
+    url = "http://stuff(a='a')"
+    assert encode_altkeys(url) == url
+
+    url = "http://stuff(a='æ')"
+    assert encode_altkeys(url) == url.replace("æ", "%C3%A6")
+
+    url = "http://stuff(a='æ')/moo(b='å')"
+    assert encode_altkeys(url) == url.replace("æ", "%C3%A6").replace("å", "%C3%A5")
