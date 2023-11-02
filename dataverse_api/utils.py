@@ -248,7 +248,7 @@ def convert_data(data: Union[dict, list[dict], pd.DataFrame]) -> list[dict]:
 
 
 def extract_key(
-    data: dict[str, Any], key_columns: Union[str, set[str]]
+    data: dict[str, Any], key_columns: Union[str, set[str]], is_id: bool
 ) -> tuple[dict[str, Any], str]:
     """
     Extracts key from the given dictionary. The key identifies a
@@ -277,8 +277,12 @@ def extract_key(
     if isinstance(key_columns, str):
         key_columns = {key_columns}
     for col in key_columns:
-        key_value = data.pop(col).__repr__()  # Need repr to capture strings properly
-        key_elements.append(f"{col}={key_value}")
+        key_value = data.pop(col)
+        if is_id:  # To handle if key is primary ID col
+            return (data, key_value)
+        else:
+            # Need repr to capture strings properly for altkeys (ticks)
+            key_elements.append(f"{col}={key_value.__repr__()}")
     return (data, ",".join(key_elements))
 
 
