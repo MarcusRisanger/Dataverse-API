@@ -11,6 +11,8 @@ msal = "^1.22.0"
 msal-requests-auth = "^0.7.0"
 pandas = "^2.0.1"
 python-box = ">=7.0,<8.0"
+sqlalchemy = "^2.0.23"
+pyodbc = "^5.0.1"
 
 
 [tool.poetry.group.dev.dependencies]
