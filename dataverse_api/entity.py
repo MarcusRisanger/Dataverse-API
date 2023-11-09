@@ -63,7 +63,10 @@ class DataverseEntity(DataverseAPI):
         ).fetch()
 
     def update_single_value(
-        self, data: dict[str, Any], key_columns: Optional[Union[str, set[str]]] = None
+        self,
+        data: dict[str, Any],
+        key_columns: Optional[Union[str, set[str]]] = None,
+        is_id: bool = False,
     ) -> None:
         """
         Updates singular column value for a specific row in Entity.
@@ -72,6 +75,7 @@ class DataverseEntity(DataverseAPI):
           - data: Data that forms the basis for update into Dataverse.
           - key_columns: If validation is not enabled, provide primary column or
             columns that form an alternate key
+          - is_id: Whether the supplied key column is the Dataverse GUID column.
 
         >>> data={"col1":"abc", "col2":"dac", "col3":69}
         >>> table.update_single_value(data, key_columns={"col1","col2"})
@@ -81,7 +85,10 @@ class DataverseEntity(DataverseAPI):
         if key_columns is None and not self._validate:
             raise DataverseError("Key column(s) must be specified.")
 
-        data, row_key = extract_key(data=data, key_columns=key_columns)
+        if self._validate and key_columns:
+            is_id = self.schema.entity.primary_attr == key_columns
+
+        data, row_key = extract_key(data=data, key_columns=key_columns, is_id=is_id)
 
         if len(data) > 1:
             raise DataverseError("Can only update a single column using this function.")
@@ -100,6 +107,7 @@ class DataverseEntity(DataverseAPI):
         self,
         data: Union[dict, list[dict], pd.DataFrame],
         key_columns: Optional[Union[str, set[str]]] = None,
+        is_id: bool = False,
         **kwargs,
     ) -> None:
         """
@@ -132,6 +140,9 @@ class DataverseEntity(DataverseAPI):
         data = convert_data(data)
         key_columns = key_columns or self._validate_payload(data, mode="update")
 
+        if self._validate and key_columns:
+            is_id = self.schema.entity.primary_attr == key_columns
+
         liberal: bool = kwargs.get("liberal", False)
 
         if key_columns is None and not self._validate:
@@ -151,9 +162,7 @@ class DataverseEntity(DataverseAPI):
                     )
 
         batch_data = self._prepare_batch_data(
-            data=data,
-            mode="PUT",
-            key_columns=key_columns,
+            data=data, mode="PUT", key_columns=key_columns, is_id=is_id
         )
 
         if self._batch_operation(batch_data):
@@ -212,6 +221,7 @@ class DataverseEntity(DataverseAPI):
     def upsert(
         self,
         data: Union[dict, list[dict], pd.DataFrame],
+        is_id: bool = False,
         key_columns: Optional[Union[str, set[str]]] = None,
     ) -> None:
         """
@@ -221,12 +231,16 @@ class DataverseEntity(DataverseAPI):
           - data: Data that forms the basis for upsert into Dataverse.
           - key_columns: If validation is not enabled, provide primary column or
             columns that form an alternate key for identifying rows uniquely.
+          - is_id: Whether the supplied key column is the Dataverse GUID column.
 
         >>> data={"col1":"abc", "col2":"dac", "col3":69, "col4":"Foo"}
         >>> table.upsert(data, key_columns={"col1","col2"})
         """
         data = convert_data(data)
         key_columns = key_columns or self._validate_payload(data, mode="upsert")
+
+        if self._validate and key_columns:
+            is_id = self.schema.entity.primary_attr == key_columns
 
         log.debug(
             f"Performing upsert of {len(data)} elements into {self.schema.entity.name}."
@@ -236,9 +250,7 @@ class DataverseEntity(DataverseAPI):
             raise DataverseError("Key column(s) must be specified.")
 
         batch_data = self._prepare_batch_data(
-            data=data,
-            mode="PATCH",
-            key_columns=key_columns,
+            data=data, mode="PATCH", key_columns=key_columns, is_id=is_id
         )
 
         self._batch_operation(batch_data)
@@ -251,6 +263,7 @@ class DataverseEntity(DataverseAPI):
         data: list[dict],
         mode: Literal["PATCH", "POST", "PUT", "DELETE"],
         key_columns: Optional[Union[str, set[str]]] = None,
+        is_id: bool = False,
     ) -> list[DataverseBatchCommand]:
         """
         Transforms submitted data to Batch Operations commands.
@@ -262,6 +275,7 @@ class DataverseEntity(DataverseAPI):
           - data: The data to be prepared into batch commands
           - mode: The request mode to be carried out for each command
           - key_columns: Optional set of key columns
+          - is_id: Whether the supplied key column is the Dataverse GUID column.
 
         Returns:
           - List of `DataverseBatchCommand` objects for passing into the
@@ -277,7 +291,9 @@ class DataverseEntity(DataverseAPI):
 
         for row in data:
             if mode in ["PATCH", "PUT", "DELETE"]:
-                row_data, row_key = extract_key(data=row, key_columns=key_columns)
+                row_data, row_key = extract_key(
+                    data=row, key_columns=key_columns, is_id=is_id
+                )
                 uri = f"{self.schema.entity.name}({row_key})"
                 output.append(DataverseBatchCommand(uri=uri, mode=mode, data=row_data))
             else:
@@ -436,6 +452,7 @@ class DataverseEntity(DataverseAPI):
         file_column: str,
         row: dict[str, Any],
         key_columns: Optional[Union[str, set[str]]] = None,
+        is_id: bool = False,
     ) -> None:
         """
         Uploads image to the Dataverse entity.
@@ -447,11 +464,15 @@ class DataverseEntity(DataverseAPI):
             a non-primary file column
           - row: Dict containing row key information
           - key_columns: Optional set of key columns found in data
+          - is_id: Whether the supplied key column is the Dataverse GUID column.
         """
         file = DataverseFile(file_name=file_name, payload=file_content)
 
+        if self._validate and key_columns:
+            is_id = self.schema.entity.primary_attr == key_columns
+
         key_columns = key_columns or self._validate_payload([row], mode="insert")
-        _, row_key = extract_key(data=row, key_columns=key_columns)
+        _, row_key = extract_key(data=row, key_columns=key_columns, is_id=is_id)
 
         if len(file.payload) > 134217728:
             log.debug("File too large for single API request. Chunking.")
