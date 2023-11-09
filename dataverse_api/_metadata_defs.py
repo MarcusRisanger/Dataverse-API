@@ -2,7 +2,7 @@
 This contains some dataclasses for metadata handling.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Literal, Optional, Type, Union
 
 from box import Box as RawMetadata  # noqa
@@ -28,7 +28,7 @@ class ManagedProperty:
         }
 
 
-@dataclass(frozen=True)
+@dataclass
 class RequiredLevel:
     value: Literal["None", "ApplicationRequired", "Recommended"] = "None"
     can_be_changed: bool = True
@@ -41,7 +41,7 @@ class RequiredLevel:
         }
 
 
-@dataclass(frozen=True)
+@dataclass
 class LocalizedLabel:
     """
     Create metadata for LocalizedLabel, with default
@@ -59,7 +59,7 @@ class LocalizedLabel:
         }
 
 
-@dataclass(frozen=True)
+@dataclass
 class Label(LocalizedLabel):
     """
     Create metadata for Label.
@@ -113,7 +113,7 @@ class AutoNumberMetadata(AttributeMetadata):
     auto_number_format: str
     is_primary: bool = False
     max_length: int = 100
-    required_level: RequiredLevel = RequiredLevel()
+    required_level: RequiredLevel = field(default_factory=RequiredLevel)
 
     def __call__(self) -> dict[str, Any]:
         base = {
@@ -151,7 +151,7 @@ class StringAttributeMetadata(AttributeMetadata):
     ] = "Text"
     max_length: int = 100
     is_primary: bool = False
-    required_level: RequiredLevel = RequiredLevel()
+    required_level: RequiredLevel = field(default_factory=RequiredLevel)
 
     def __call__(self) -> dict[str, Any]:
         base = {
@@ -174,7 +174,7 @@ class LookupAttributeMetadata(AttributeMetadata):
     Includes metadata from `AttributeMetadata` and `BaseMetadata`.
     """
 
-    required_level: RequiredLevel = RequiredLevel()
+    required_level: RequiredLevel = field(default_factory=RequiredLevel)
 
     def __call__(self) -> dict[str, Any]:
         base = {
@@ -197,7 +197,7 @@ class DecimalAttributeMetadata(AttributeMetadata):
     min_value: float
     max_value: float
     precision: int = 2
-    required_level: RequiredLevel = RequiredLevel()
+    required_level: RequiredLevel = field(default_factory=RequiredLevel)
 
     def __call__(self) -> dict[str, Any]:
         base = {
@@ -223,7 +223,7 @@ class IntegerAttributeMetadata(AttributeMetadata):
     min_value: int
     max_value: int
     format: Literal["None", "Duration", "TimeZone", "Language", "Locale"] = "None"
-    required_level: RequiredLevel = RequiredLevel()
+    required_level: RequiredLevel = field(default_factory=RequiredLevel)
 
     def __call__(self) -> dict[str, Any]:
         base = {
@@ -247,7 +247,7 @@ class DateTimeAttributeMetadata(AttributeMetadata):
     """
 
     format: Literal["DateOnly", "DateAndTime"] = "DateAndTime"
-    required_level: RequiredLevel = RequiredLevel()
+    required_level: RequiredLevel = field(default_factory=RequiredLevel)
 
     def __call__(self) -> dict[str, Any]:
         base = {
@@ -269,7 +269,7 @@ class MemoAttributeMetadata(AttributeMetadata):
     """
 
     max_length: int
-    required_level: RequiredLevel = RequiredLevel()
+    required_level: RequiredLevel = field(default_factory=RequiredLevel)
 
     def __call__(self) -> dict[str, Any]:
         base = {
