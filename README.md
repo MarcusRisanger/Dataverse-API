@@ -8,7 +8,7 @@ The `dataverse-api` package is an abstraction layer developed for allowing simpl
 
 # Overview
 
-The main goal of this project was to allow for simple upserts and inserts of data into Dataverse tables using simple and ubiquitous data structures, with use of batch requests to avoid frequent hits on the REST API. It is based on Python 3.9 to be compatible with current Python runtimes in Azure Functions.
+The main goal of this project was to allow for simple upserts and inserts of data into Dataverse tables using simple and ubiquitous data structures, with use of batch requests to avoid frequent hits on the REST API. It is based on Python 3.11 to be compatible with current Python runtimes in Azure Functions.
 
 ### Getting started
 

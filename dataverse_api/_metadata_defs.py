@@ -329,7 +329,7 @@ class AssociatedMenuConfiguration:
     ] = "UseCollectionName"
     group: Literal["Details", "Sales", "Service", "Marketing"] = "Details"
     order: int = 10000
-    label: Optional[Label] = Label("")
+    label: Optional[Label] = field(default_factory=Label(""))
 
     def __call__(self) -> dict[str, Any]:
         return {
@@ -365,7 +365,7 @@ class OneToManyRelationshipMetadata(_RelationshipMetadataBase):
     referenced_entity: str
     referencing_entity: str
     lookup: LookupAttributeMetadata
-    associated_menu_config: AssociatedMenuConfiguration
+    associated_menu_config: field(default_factory=AssociatedMenuConfiguration)
 
     def __call__(self) -> dict[str, Any]:
         relationship_metadata = {
