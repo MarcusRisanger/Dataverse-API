@@ -247,6 +247,7 @@ class DataverseAPI:
     def _batch_operation(
         self,
         data: list[DataverseBatchCommand],
+        single_col: bool = False,
         batch_id_generator: Callable[..., str] = batch_id_generator,
     ) -> requests.Response:
         """
@@ -263,6 +264,7 @@ class DataverseAPI:
 
         Args:
           - data: A list of `DataverseBatchCommand` to be executed
+          - single_col: Whether the batch operation handles single-column operations
           - batch_id_generator: An optional function call for overriding
             default unique batch ID generation.
         """
@@ -274,7 +276,12 @@ class DataverseAPI:
             batch_data = []
             for row in chunk:
                 batch_data.append(
-                    batch_command(batch_id=batch_id, api_url=self.api_url, row=row)
+                    batch_command(
+                        batch_id=batch_id,
+                        api_url=self.api_url,
+                        row=row,
+                        single_col=single_col,
+                    )
                 )
 
             # Note: Trailing space in final line is crucial
