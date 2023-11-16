@@ -82,7 +82,7 @@ class DataverseSchema(DataverseAPI):
                     DataverseBatchCommand(url + "/ManyToOneRelationships"),
                 ]
             )
-        response = self._batch_operation(data)
+        response = self._batch_operation(data, single_col=False)
         response_data = extract_batch_response_data(response)
         return DataverseRawSchema(*response_data)
 

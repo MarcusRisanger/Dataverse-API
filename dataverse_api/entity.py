@@ -65,7 +65,7 @@ class DataverseEntity(DataverseAPI):
     def update_single_value(
         self,
         data: dict[str, Any],
-        key_columns: Optional[Union[str, set[str]]] = None,
+        key_columns: set[str] | None = None,
         is_id: bool = False,
     ) -> None:
         """
@@ -86,7 +86,7 @@ class DataverseEntity(DataverseAPI):
             raise DataverseError("Key column(s) must be specified.")
 
         if self._validate and key_columns:
-            is_id = self.schema.entity.primary_attr == key_columns
+            is_id = {self.schema.entity.primary_attr} == key_columns
 
         data, row_key = extract_key(data=data, key_columns=key_columns, is_id=is_id)
 
@@ -103,12 +103,13 @@ class DataverseEntity(DataverseAPI):
         if response:
             log.info(f"Successfully updated {row_key} in {self.schema.entity.name}.")
 
-    def update_single_column(
+    def _update_single_column(
         self,
-        data: Union[dict, list[dict], pd.DataFrame],
-        key_columns: Optional[Union[str, set[str]]] = None,
+        data: dict | list[dict] | pd.DataFrame,
+        key_columns: set[str] | None = None,
         is_id: bool = False,
-        **kwargs,
+        mode: Literal["PUT", "DELETE"] = "PUT",
+        single_col: bool = True,
     ) -> None:
         """
         Updates the values of a single column for multiple rows in Entity.
@@ -131,50 +132,98 @@ class DataverseEntity(DataverseAPI):
 
         >>> data=[{"col1":"foo", "col2":2}, {"col1":"bar", "col2":3}]
         >>> table.upsert_single_column(data, key_columns="col1")
-
-        Alternatively, updating different columns per data row:
-
-        >>> data=[{"col1":"foo", "col2":2}, {"col1":"bar", "col3":5}]
-        >>> table.upsert_single_column(data, key_columns="col1", liberal=True)
         """
         data = convert_data(data)
         key_columns = key_columns or self._validate_payload(data, mode="update")
 
         if self._validate and key_columns:
-            is_id = self.schema.entity.primary_attr == key_columns
-
-        liberal: bool = kwargs.get("liberal", False)
+            is_id = {self.schema.entity.primary_attr} == key_columns
 
         if key_columns is None and not self._validate:
             raise DataverseError("Key column(s) must be specified.")
 
-        if not all(len(row) == 1 for row in data) and not liberal:
+        if not all(len(row) == 2 for row in data):
             raise DataverseError(
                 "Only one data column can be passed. Use `upsert` instead."
             )
 
-        if kwargs.get("liberal", False) is False:
-            key = list(data[0].keys())[0]
-            for row in data[1:]:
-                if list(row.keys())[0] != key:
-                    raise DataverseError(
-                        "Only one data column may be passed. Use `liberal=True` instead."
-                    )
+        data_keys = set()
+        for row in data:
+            row_keys = [k for k in row.keys() if k not in key_columns]
+            data_keys.update(row_keys)
+        if len(data_keys) > 1:
+            raise DataverseError("Only one data column may be passed.")
 
         batch_data = self._prepare_batch_data(
-            data=data, mode="PUT", key_columns=key_columns, is_id=is_id
+            data=data, mode=mode, key_columns=key_columns, is_id=is_id
         )
 
-        if self._batch_operation(batch_data):
+        if self._batch_operation(data=batch_data, single_col=single_col):
             log.info(
                 f"Successfully updated {len(batch_data)} rows"
                 + f"in {self.schema.entity.name}."
             )
 
+    def update_single_property_values(
+        self,
+        data: dict | list[dict] | pd.DataFrame,
+        key_columns: set[str] = None,
+        is_id: bool = False,
+    ) -> None:
+        """
+        Updates a single column with values.
+
+        Parameters
+        ----------
+        data : dict or list of dict or pd.DataFrame
+            Data object containing the key columns and singular data
+            column for update.
+        key_columns : set of strings
+            To declare the alternate key combination to be used to identify
+            unique data.
+        is_id : boolean
+            To declare whether the key passed in the data is the Dataverse
+            Entity GUID column.
+        """
+        self._update_single_column(
+            mode="PUT",
+            data=data,
+            key_columns=key_columns,
+            is_id=is_id,
+        )
+
+    def delete_single_property_values(
+        self,
+        data: dict | list[dict] | pd.DataFrame,
+        key_columns: set[str] = None,
+        is_id: bool = False,
+    ) -> None:
+        """
+        Deletes values from a single column.
+
+        Parameters
+        ----------
+        data : dict or list of dict or pd.DataFrame
+            Data object containing the key columns and singular data
+            column for deletion.
+        key_columns : set of strings
+            To declare the alternate key combination to be used to identify
+            unique data.
+        is_id : boolean
+            To declare whether the key passed in the data is the Dataverse
+            Entity GUID column.
+        """
+        self._update_single_column(
+            mode="DELETE",
+            data=data,
+            key_columns=key_columns,
+            is_id=is_id,
+        )
+
     def insert_row(
         self,
-        data: Optional[str] = None,
-        json: Optional[dict[str, Any]] = None,
+        data: str | None = None,
+        json: dict[str, Any] | None = None,
     ) -> None:
         """
         Inserts one row of data into the selected Entity.
@@ -191,7 +240,7 @@ class DataverseEntity(DataverseAPI):
 
     def insert(
         self,
-        data: Union[dict, list[dict], pd.DataFrame],
+        data: dict | list[dict] | pd.DataFrame,
     ) -> None:
         """
         Inserts data into the selected Entity.
@@ -213,16 +262,16 @@ class DataverseEntity(DataverseAPI):
         # Converting to Batch Commands
         batch_data = self._prepare_batch_data(data=data, mode="POST")
 
-        self._batch_operation(batch_data)
+        self._batch_operation(data=batch_data, single_col=False)
         log.debug(
             f"Successfully inserted {len(batch_data)} rows to {self.schema.entity.name}."
         )
 
     def upsert(
         self,
-        data: Union[dict, list[dict], pd.DataFrame],
+        data: dict | list[dict] | pd.DataFrame,
         is_id: bool = False,
-        key_columns: Optional[Union[str, set[str]]] = None,
+        key_columns: set[str] | None = None,
     ) -> None:
         """
         Upserts data into the selected Entity.
@@ -237,10 +286,11 @@ class DataverseEntity(DataverseAPI):
         >>> table.upsert(data, key_columns={"col1","col2"})
         """
         data = convert_data(data)
+
         key_columns = key_columns or self._validate_payload(data, mode="upsert")
 
         if self._validate and key_columns:
-            is_id = self.schema.entity.primary_attr == key_columns
+            is_id = {self.schema.entity.primary_attr} == key_columns
 
         log.debug(
             f"Performing upsert of {len(data)} elements into {self.schema.entity.name}."
@@ -253,7 +303,7 @@ class DataverseEntity(DataverseAPI):
             data=data, mode="PATCH", key_columns=key_columns, is_id=is_id
         )
 
-        self._batch_operation(batch_data)
+        self._batch_operation(data=batch_data, single_col=False)
         log.debug(
             f"Successfully upserted {len(batch_data)} rows to {self.schema.entity.name}."
         )
@@ -262,7 +312,7 @@ class DataverseEntity(DataverseAPI):
         self,
         data: list[dict],
         mode: Literal["PATCH", "POST", "PUT", "DELETE"],
-        key_columns: Optional[Union[str, set[str]]] = None,
+        key_columns: set[str] | None = None,
         is_id: bool = False,
     ) -> list[DataverseBatchCommand]:
         """
@@ -596,4 +646,19 @@ class DataverseEntity(DataverseAPI):
                 f"EntityDefinitions(LogicalName='{self.logical_name}')"
                 + f"/Keys(LogicalName='{logical_name}')"
             )
+        )
+
+    def delete_all(self) -> None:
+        """
+        Deletes all records in Entity. Use at own risk!
+        """
+        primary = self.schema.entity.primary_attr
+        records = self.read(select=[primary])
+
+        self._update_single_column(
+            data=records,
+            key_columns={primary},
+            is_id=True,
+            mode="DELETE",
+            single_col=False,
         )

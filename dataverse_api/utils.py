@@ -248,7 +248,7 @@ def convert_data(data: Union[dict, list[dict], pd.DataFrame]) -> list[dict]:
 
 
 def extract_key(
-    data: dict[str, Any], key_columns: Union[str, set[str]], is_id: bool
+    data: dict[str, Any], key_columns: set[str], is_id: bool
 ) -> tuple[dict[str, Any], str]:
     """
     Extracts key from the given dictionary. The key identifies a
@@ -274,8 +274,7 @@ def extract_key(
     """
     data = data.copy()
     key_elements = []
-    if isinstance(key_columns, str):
-        key_columns = {key_columns}
+
     for col in key_columns:
         key_value = data.pop(col)
         if is_id:  # To handle if key is primary ID col
@@ -298,7 +297,9 @@ def batch_id_generator() -> str:
     return str(uuid4())
 
 
-def batch_command(batch_id: str, api_url: str, row: DataverseBatchCommand) -> str:
+def batch_command(
+    batch_id: str, api_url: str, row: DataverseBatchCommand, single_col: bool
+) -> str:
     """
     Translates a batch command to the actual request string payload.
 
@@ -320,7 +321,7 @@ def batch_command(batch_id: str, api_url: str, row: DataverseBatchCommand) -> st
     uri = api_url + row.uri
     data = row.data
 
-    if row.mode == "PUT":
+    if single_col:
         col, value = list(row.data.items())[0]
         uri += f"/{col}"
         data = {"value": value}
