@@ -1,2 +1,8 @@
 [run]
-source = dataverse_api
+source = dataverse
+
+
+[report]
+exclude_lines =
+    pragma: not covered
+    @overload
