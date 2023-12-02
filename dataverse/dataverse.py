@@ -3,7 +3,7 @@ Trying out new things..
 
 """
 
-from typing import Any, Callable
+from typing import Any
 from urllib.parse import urljoin
 
 import requests
@@ -104,7 +104,7 @@ class Dataverse:
 
     def create_entity(
         self,
-        entity_definition: Callable | EntityMetadata,
+        entity_definition: EntityMetadata,
         solution_name: str | None = None,
     ) -> requests.Response:
         """
@@ -131,7 +131,10 @@ class Dataverse:
             json=entity_definition(),
         )
 
-    def delete_entity(self, logical_name: str) -> requests.Response:
+    def delete_entity(
+        self,
+        logical_name: str,
+    ) -> requests.Response:
         """
         Delete Entity.
         """
@@ -140,7 +143,10 @@ class Dataverse:
             url=f"EntityDefinitions(LogicalName='{logical_name}')",
         )
 
-    def create_relationship(self, relationship_definition: Callable | RelationshipMetadata) -> requests.Response:
+    def create_relationship(
+        self,
+        relationship_definition: RelationshipMetadata,
+    ) -> requests.Response:
         """
         Relate Entities.
         """
@@ -151,7 +157,10 @@ class Dataverse:
             json=relationship_definition(),
         )
 
-    def delete_relationship(self, logical_name: str) -> None:
+    def delete_relationship(
+        self,
+        logical_name: str,
+    ) -> None:
         """
         Delete relationship between Entities.
         """
