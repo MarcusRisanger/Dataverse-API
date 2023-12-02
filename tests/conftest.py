@@ -4,7 +4,8 @@ import responses
 
 from dataverse.dataverse import Dataverse
 from dataverse.metadata.entity import define_entity
-from dataverse.metadata.attributes import StringAttributeMetadata
+from dataverse.metadata.attributes import StringAttributeMetadata, LookupAttributeMetadata
+from dataverse.metadata.relationships import OneToManyRelationshipMetadata
 from dataverse.metadata.complex_properties import Label, LocalizedLabel
 from dataverse.utils.labels import define_label
 
@@ -68,3 +69,30 @@ def client(session, endpoint):
 def mocked_responses():
     with responses.RequestsMock() as rsps:
         yield rsps
+
+
+@pytest.fixture
+def schema_name() -> str:
+    return "TestSchema"
+
+
+@pytest.fixture
+def lookup(display_name_label, description_label) -> LookupAttributeMetadata:
+    return LookupAttributeMetadata(
+        schema_name="Lookup",
+        description=description_label,
+        display_name=display_name_label,
+    )
+
+
+@pytest.fixture
+def one_many_relationship(schema_name, description_label, display_name_label, lookup) -> OneToManyRelationshipMetadata:
+    return OneToManyRelationshipMetadata(
+        schema_name=schema_name,
+        description=description_label,
+        display_name=display_name_label,
+        referenced_entity="RefdEntity",
+        referenced_attribute="RefdAttr",
+        referencing_entity="ReffingEntity",
+        lookup=lookup,
+    )

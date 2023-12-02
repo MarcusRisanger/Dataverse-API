@@ -11,6 +11,8 @@ from dataverse.metadata.entity import EntityMetadata
 
 from responses.matchers import json_params_matcher
 
+from dataverse.metadata.relationships import OneToManyRelationshipMetadata
+
 
 def test_api_call(client: Dataverse, mocked_responses: responses.RequestsMock):
     # Mocking an errored request
@@ -93,5 +95,23 @@ def test_create_solution(
     )
 
     resp = client.create_solution(solution_definition=sol)
+
+    assert resp.status_code == 204
+
+
+def test_(
+    client: Dataverse,
+    mocked_responses: responses.RequestsMock,
+    one_many_relationship,
+):
+    one_many_relationship: OneToManyRelationshipMetadata
+
+    mocked_responses.post(
+        url=f"{client._endpoint}RelationshipDefinitions",
+        status=204,
+        match=[json_params_matcher(one_many_relationship())],
+    )
+
+    resp = client.create_relationship(relationship_definition=one_many_relationship)
 
     assert resp.status_code == 204
