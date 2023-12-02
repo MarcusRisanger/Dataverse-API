@@ -10,6 +10,7 @@ import requests
 
 from dataverse.errors import DataverseError
 from dataverse.metadata.entity import EntityMetadata
+from dataverse.metadata.helpers import Publisher, Solution
 from dataverse.metadata.relationships import RelationshipMetadata
 
 
@@ -139,10 +140,16 @@ class Dataverse:
             url=f"EntityDefinitions(LogicalName='{logical_name}')",
         )
 
-    def create_relationship(self, relationship: Callable | RelationshipMetadata) -> None:
+    def create_relationship(self, relationship_definition: Callable | RelationshipMetadata) -> requests.Response:
         """
         Relate Entities.
         """
+
+        return self.__api_call(
+            method="post",
+            url="RelationshipDefinitions",
+            json=relationship_definition(),
+        )
 
     def delete_relationship(self, logical_name: str) -> None:
         """
@@ -151,71 +158,35 @@ class Dataverse:
 
     def create_publisher(
         self,
-        publisher_name: str,
-        unique_name: str,
-        description: str,
-        prefix: str,
-        option_prefix: int = 90210,
+        publisher_definition: Publisher,
     ) -> requests.Response:
         """
         Create a new publisher in Dataverse.
 
         Parameters
         ----------
-        publisher_name : str
-            The `Publisher Name` of the Publisher.
-        unique_name: str
-            The `uniquename` of the Publisher.
-        description: str
-            A description of the Publisher.
-        prefix : str
-            The customization prefix for the Publisher. Entities and Attributes
-            created in Dataverse will have this prefix, e.g. `prefix_accounts`.
-        option_prefix:int
-            The customization option prefix for the Publisher. Option sets created
-            in Dataverse will have this prefix.
+        publisher_definition :
         """
         return self.__api_call(
             method="post",
             url="publishers",
-            json={
-                "friendlyname": publisher_name,
-                "uniquename": unique_name,
-                "description": description,
-                "customizationprefix": prefix,
-                "customizationoptionvalueprefix": option_prefix,
-            },
+            json=publisher_definition(),
         )
 
     def create_solution(
         self,
-        solution_name: str,
-        unique_name: str,
-        description: str,
-        publisher_guid: str,
+        solution_definition: Solution,
     ) -> requests.Response:
         """
         Create a solution related to a publisher.
 
         Parameters
         ----------
-        solution_name : str
-            The `Solution Name` of the Solution.
-        unique_name: str
-            The `uniquename` of the Solution.
-        description: str
-            A description of the Solution.
-        publisher_guid:str
-            The GUID for the Publisher the Solution belongs to.
+        solution_definition : Solution
+            Describing the new solution to be added.
         """
         return self.__api_call(
             method="post",
             url="solutions",
-            json={
-                "friendlyname": solution_name,
-                "uniquename": unique_name,
-                "description": description,
-                "version": "1.0.0.0",
-                "publisher@odata.bind": f"publishers({publisher_guid})",
-            },
+            json=solution_definition(),
         )

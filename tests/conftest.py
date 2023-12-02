@@ -18,6 +18,16 @@ def label(localized_label):
 
 
 @pytest.fixture
+def description_label() -> Label:
+    return Label([LocalizedLabel("Description")])
+
+
+@pytest.fixture
+def display_name_label() -> Label:
+    return Label([LocalizedLabel("Display Name")])
+
+
+@pytest.fixture
 def session() -> requests.Session:
     s = requests.Session()
     return s

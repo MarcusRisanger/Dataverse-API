@@ -6,6 +6,7 @@ import responses
 
 from dataverse.dataverse import Dataverse
 from dataverse.errors import DataverseError
+from dataverse.metadata.helpers import Publisher, Solution
 
 from responses.matchers import json_params_matcher
 
@@ -71,31 +72,15 @@ def test_create_publisher(
     client: Dataverse,
     mocked_responses: responses.RequestsMock,
 ):
-    name, unique_name, description, prefix, option_prefix = "A", "B", "C", "D", 69
+    pub = Publisher("A", "B", "C", "D", 123)
 
     mocked_responses.post(
         url=f"{client._endpoint}publishers",
         status=204,
-        match=[
-            json_params_matcher(
-                {
-                    "friendlyname": name,
-                    "uniquename": unique_name,
-                    "description": description,
-                    "customizationprefix": prefix,
-                    "customizationoptionvalueprefix": option_prefix,
-                }
-            )
-        ],
+        match=[json_params_matcher(pub())],
     )
 
-    resp = client.create_publisher(
-        publisher_name=name,
-        unique_name=unique_name,
-        description=description,
-        prefix=prefix,
-        option_prefix=option_prefix,
-    )
+    resp = client.create_publisher(publisher_definition=pub)
 
     assert resp.status_code == 204
 
@@ -104,29 +89,14 @@ def test_create_solution(
     client: Dataverse,
     mocked_responses: responses.RequestsMock,
 ):
-    name, unique_name, description, guid = "A", "B", "C", "D"
+    sol = Solution("A", "B", "C", "D")
 
     mocked_responses.post(
         url=f"{client._endpoint}solutions",
         status=204,
-        match=[
-            json_params_matcher(
-                {
-                    "friendlyname": name,
-                    "uniquename": unique_name,
-                    "description": description,
-                    "version": "1.0.0.0",
-                    "publisher@odata.bind": f"publishers({guid})",
-                }
-            )
-        ],
+        match=[json_params_matcher(sol())],
     )
 
-    resp = client.create_solution(
-        solution_name=name,
-        unique_name=unique_name,
-        description=description,
-        publisher_guid=guid,
-    )
+    resp = client.create_solution(solution_definition=sol)
 
     assert resp.status_code == 204
