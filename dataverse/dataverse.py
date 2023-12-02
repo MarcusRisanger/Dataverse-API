@@ -1,6 +1,5 @@
 """
 Trying out new things..
-
 """
 
 from typing import Any
