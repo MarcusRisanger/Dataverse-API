@@ -14,3 +14,12 @@ def test_conversion_to_snake(localized_label, label):
     assert all([k in lab.keys() for k in expected_keys])
     assert "Label" in lab["@odata.type"]
     assert len(lab["LocalizedLabels"]) == 2
+
+    decoded = label()
+    assert decoded == {
+        "@odata.type": "Microsoft.Dynamics.CRM.Label",
+        "LocalizedLabels": [
+            {"@odata.type": "Microsoft.Dynamics.CRM.LocalizedLabel", "Label": "Test", "LanguageCode": 69},
+            {"@odata.type": "Microsoft.Dynamics.CRM.LocalizedLabel", "Label": "Other Label", "LanguageCode": 420},
+        ],
+    }

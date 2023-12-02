@@ -48,7 +48,7 @@ class StringAttributeMetadata(AttributeMetadata):
     is_primary_name: bool = False
     max_length: int = 100
     # format: StringFormat = field(default_factory=StringFormat.Text)
-    format_name: StringFormat = field(default_factory=lambda: StringFormat.TEXT)
+    format_name: StringFormat = field(default=StringFormat.TEXT)
     _attribute_type: str = field(init=False, default="String")
     _attribute_type_name: dict[str, str] = field(init=False, default_factory=lambda: {"Value": "StringType"})
     _odata_type: str = field(init=False, default=BASE_TYPE + "StringAttributeMetadata")
@@ -61,3 +61,7 @@ class AutoNumberMetadata(StringAttributeMetadata):
     """
 
     auto_number_format: str
+    format_name: StringFormat = field(init=False, default=StringFormat.TEXT)
+    required_level: RequiredLevel = field(
+        init=False, default_factory=lambda: RequiredLevel(AttributeRequiredLevel.APPLICATION_REQUIRED)
+    )
