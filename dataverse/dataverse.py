@@ -2,18 +2,17 @@
 Trying out new things..
 """
 
-from typing import Any
-from urllib.parse import urljoin
 
 import requests
 
-from dataverse.errors import DataverseError
+from dataverse._api import Dataverse
+from dataverse.entity import DataverseEntity
 from dataverse.metadata.entity import EntityMetadata
 from dataverse.metadata.helpers import Publisher, Solution
 from dataverse.metadata.relationships import RelationshipMetadata
 
 
-class Dataverse:
+class DataverseClient(Dataverse):
     """
     The main entrypoint for communicating with a given Dataverse Environment.
 
@@ -26,80 +25,28 @@ class Dataverse:
     """
 
     def __init__(self, session: requests.Session, environment_url: str):
-        self.__api = session
-        self._endpoint = urljoin(environment_url, "api/data/v9.2/")
+        super().__init__(session=session, environment_url=environment_url)
 
-    def __api_call(
-        self,
-        method: str,
-        url: str,
-        headers: dict[str, str] | None = None,
-        data: dict[str, Any] | None = None,
-        json: dict[str, Any] | None = None,
-    ) -> requests.Response:
+    def entity(self, logical_name: str) -> DataverseEntity:
         """
-        Send API call to Dataverse.
+        Create interface for Entity.
 
         Parameters
         ----------
-        method : str
-            Request method.
-        url : str
-            URL added to endpoint.
-        headers : dict
-            Optional request headers. Will replace defaults.
-        data : dict
-            String payload.
-        json : str
-            Serializable JSON payload.
+        logical_name : str
+            The logical name of the Entity.
 
         Returns
         -------
-        requests.Response
-            Response from API call.
-
-        Raises
-        ------
-        requests.exceptions.HTTPError
+        DataverseEntity
+            A class with methods for working with a specific
+            Entity in Dataverse.
         """
-        request_url = urljoin(self._endpoint, url)
-
-        default_headers = {
-            "Accept": "application/json",
-            "Content-Type": "application/json; charset=utf-8",
-            "OData-Version": "4.0",
-            "OData-MaxVersion": "4.0",
-        }
-
-        if headers:
-            for k, v in headers.items():
-                default_headers[k] = v
-
-        try:
-            resp = self.__api.request(
-                method=method,
-                url=request_url,
-                headers=default_headers,
-                data=data,
-                json=json,
-                timeout=120,
-            )
-            resp.raise_for_status()
-        except requests.exceptions.HTTPError as e:
-            raise DataverseError(
-                message=(
-                    f"Error with GET request: {e.args[0]}"
-                    + f"{'// Response body: '+ e.response.text if e.response else ''}"
-                ),
-                response=e.response,
-            ) from e
-
-        return resp
-
-    def entity(self) -> None:
-        """
-        Create interface for Entity.
-        """
+        return DataverseEntity(
+            session=self._session,
+            environment_url=self._environment_url,
+            logical_name=logical_name,
+        )
 
     def create_entity(
         self,
@@ -116,6 +63,11 @@ class Dataverse:
         solution_name : str
             The unique solution name, if the Entity is to be
             created within such a scope.
+
+        Returns
+        -------
+        requests.Response
+            The response from the server.
         """
 
         if solution_name:
@@ -123,7 +75,7 @@ class Dataverse:
         else:
             headers = None
 
-        return self.__api_call(
+        return self._api_call(
             method="post",
             url="EntityDefinitions",
             headers=headers,
@@ -136,8 +88,18 @@ class Dataverse:
     ) -> requests.Response:
         """
         Delete Entity.
+
+        Parameters
+        ----------
+        logical_name : str
+            The logical name of the Entity to delete.
+
+        Returns
+        -------
+        requests.Response
+            The response from the server.
         """
-        return self.__api_call(
+        return self._api_call(
             method="delete",
             url=f"EntityDefinitions(LogicalName='{logical_name}')",
         )
@@ -148,9 +110,19 @@ class Dataverse:
     ) -> requests.Response:
         """
         Relate Entities.
+
+        Parameters
+        ----------
+        relationship_definition : RelationshipMetadata
+            The relationship definition to establish in Dataverse.
+
+        Returns
+        -------
+        requests.Response
+            The response from the server.
         """
 
-        return self.__api_call(
+        return self._api_call(
             method="post",
             url="RelationshipDefinitions",
             json=relationship_definition(),
@@ -173,9 +145,15 @@ class Dataverse:
 
         Parameters
         ----------
-        publisher_definition :
+        publisher_definition : Publisher
+            The Publisher to establish in Dataverse.
+
+        Returns
+        -------
+        requests.Response
+            The response from the server.
         """
-        return self.__api_call(
+        return self._api_call(
             method="post",
             url="publishers",
             json=publisher_definition(),
@@ -192,8 +170,13 @@ class Dataverse:
         ----------
         solution_definition : Solution
             Describing the new solution to be added.
+
+        Returns
+        -------
+        requests.Response
+            The response from the server.
         """
-        return self.__api_call(
+        return self._api_call(
             method="post",
             url="solutions",
             json=solution_definition(),

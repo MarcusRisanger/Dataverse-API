@@ -3,7 +3,7 @@ import json
 import pytest
 import responses
 
-from dataverse.dataverse import Dataverse
+from dataverse.dataverse import DataverseClient
 from dataverse.errors import DataverseError
 from dataverse.metadata.helpers import Publisher, Solution
 from dataverse.metadata.entity import EntityMetadata
@@ -13,7 +13,7 @@ from responses.matchers import json_params_matcher
 from dataverse.metadata.relationships import OneToManyRelationshipMetadata
 
 
-def test_api_call(client: Dataverse, mocked_responses: responses.RequestsMock):
+def test_api_call(client: DataverseClient, mocked_responses: responses.RequestsMock):
     # Mocking an errored request
 
     mocked_responses.get(url=f"{client._endpoint}Foo", status=500)
@@ -21,10 +21,12 @@ def test_api_call(client: Dataverse, mocked_responses: responses.RequestsMock):
     expected = "Error with GET request:"
 
     with pytest.raises(DataverseError, match=expected):
-        client._Dataverse__api_call(method="get", url="Foo")
+        client._api_call(method="get", url="Foo")
 
 
-def test_create_entity(client: Dataverse, mocked_responses: responses.RequestsMock, sample_entity: EntityMetadata):
+def test_create_entity(
+    client: DataverseClient, mocked_responses: responses.RequestsMock, sample_entity: EntityMetadata
+):
     # Mocking the request sent by endpoint
     response = {
         "url": f"{client._endpoint}EntityDefinitions",
@@ -50,7 +52,7 @@ def test_create_entity(client: Dataverse, mocked_responses: responses.RequestsMo
 
 
 def test_delete_entity(
-    client: Dataverse,
+    client: DataverseClient,
     mocked_responses: responses.RequestsMock,
 ):
     name = "Foo"
@@ -65,7 +67,7 @@ def test_delete_entity(
 
 
 def test_create_publisher(
-    client: Dataverse,
+    client: DataverseClient,
     mocked_responses: responses.RequestsMock,
 ):
     pub = Publisher("A", "B", "C", "D", 123)
@@ -82,7 +84,7 @@ def test_create_publisher(
 
 
 def test_create_solution(
-    client: Dataverse,
+    client: DataverseClient,
     mocked_responses: responses.RequestsMock,
 ):
     sol = Solution("A", "B", "C", "D")
@@ -99,7 +101,7 @@ def test_create_solution(
 
 
 def test_(
-    client: Dataverse,
+    client: DataverseClient,
     mocked_responses: responses.RequestsMock,
     one_many_relationship,
 ):

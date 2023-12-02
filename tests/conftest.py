@@ -2,7 +2,7 @@ import pytest
 import requests
 import responses
 
-from dataverse.dataverse import Dataverse
+from dataverse.dataverse import DataverseClient
 from dataverse.metadata.entity import define_entity
 from dataverse.metadata.attributes import StringAttributeMetadata, LookupAttributeMetadata
 from dataverse.metadata.relationships import OneToManyRelationshipMetadata
@@ -62,7 +62,7 @@ def endpoint() -> str:
 
 @pytest.fixture
 def client(session, endpoint):
-    return Dataverse(session=session, environment_url=endpoint)
+    return DataverseClient(session=session, environment_url=endpoint)
 
 
 @pytest.fixture
