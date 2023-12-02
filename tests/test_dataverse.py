@@ -7,6 +7,7 @@ import responses
 from dataverse.dataverse import Dataverse
 from dataverse.errors import DataverseError
 from dataverse.metadata.helpers import Publisher, Solution
+from dataverse.metadata.entity import EntityMetadata
 
 from responses.matchers import json_params_matcher
 
@@ -22,32 +23,26 @@ def test_api_call(client: Dataverse, mocked_responses: responses.RequestsMock):
         client._Dataverse__api_call(method="get", url="Foo")
 
 
-def test_create_entity(
-    client: Dataverse,
-    mocked_responses: responses.RequestsMock,
-):
-    # Expects a callable metadata entity
-    entity_metadata: Callable[[], dict[str, str]] = lambda: {"Test": "Data"}
-
+def test_create_entity(client: Dataverse, mocked_responses: responses.RequestsMock, sample_entity: EntityMetadata):
     # Mocking the request sent by endpoint
     response = {
         "url": f"{client._endpoint}EntityDefinitions",
         "status": 204,
         "content_type": "application/json",
-        "match": [json_params_matcher({"Test": "Data"})],
+        "match": [json_params_matcher(sample_entity())],
     }
     mocked_responses.post(**response)
 
     # Running function - this errors if the endpoint URL
     # does not match with the mocked response URL
-    resp = client.create_entity(entity_metadata)
+    resp = client.create_entity(sample_entity)
 
     # Run some assertions that payload contains critical attributes
-    assert json.loads(resp.request.body) == {"Test": "Data"}
+    assert json.loads(resp.request.body) == sample_entity()
 
     # Again for invoking with `solution_name`
     mocked_responses.post(**response)
-    resp = client.create_entity(entity_metadata, solution_name="Foo")
+    resp = client.create_entity(sample_entity, solution_name="Foo")
 
     # Run assertions again!
     assert resp.request.headers["MSCRM.SolutionName"] == "Foo"

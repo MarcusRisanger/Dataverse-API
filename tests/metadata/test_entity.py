@@ -61,25 +61,3 @@ def test_create_entity_metadata():
     assert encoded["IsActivity"] is False
     assert "@odata.type" in encoded.keys()
     assert ".EntityMetadata" in encoded["@odata.type"]
-
-
-def test_entity_metadata():
-    base = define_entity(
-        schema_name="test_entity",
-        description=define_label("Entity Description"),
-        display_name=define_label("Entity Display Name"),
-        display_collection_name=define_label("Entity Display Collection Name"),
-        attributes=[
-            StringAttributeMetadata(
-                "test_attr",
-                description=define_label("Attr Desc"),
-                display_name=define_label("Test Attr"),
-                is_primary_name=True,
-            )
-        ],
-    )
-
-    encoded = base()
-
-    assert encoded["SchemaName"] == base.schema_name
-    assert encoded["Attributes"][0]["SchemaName"] == base.attributes[0].schema_name
