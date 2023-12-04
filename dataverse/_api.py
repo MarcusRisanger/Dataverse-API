@@ -1,9 +1,10 @@
-from typing import Any
+from typing import Any, Callable, Sequence
 from urllib.parse import urljoin
 
 import requests
 
 from dataverse.errors import DataverseError
+from dataverse.utils.batching import BatchCommand, chunk_data
 
 
 class Dataverse:
@@ -28,7 +29,7 @@ class Dataverse:
         method: str,
         url: str,
         headers: dict[str, str] | None = None,
-        data: dict[str, Any] | None = None,
+        data: str | None = None,
         json: dict[str, Any] | None = None,
     ) -> requests.Response:
         """
@@ -89,3 +90,21 @@ class Dataverse:
             ) from e
 
         return resp
+
+    def _batch_api_call(
+        self,
+        batch_commands: Sequence[BatchCommand],
+        id_generator: Callable[[], str],
+    ) -> None:
+        for batch in chunk_data(batch_commands):
+            # Generate a unique ID for the batch
+            id = f"batch_{id_generator()}"
+
+            # Preparing batch data
+            batch_data = [comm.encode(id, self._endpoint) for comm in batch]
+            batch_data.append(f"\n\n--{id}--\n\n")
+
+            data = "\n".join(batch_data)
+            headers = {"Content-Type": f'multipart/mixed; boundary="{id}"', "If-None-Match": "null"}
+
+            self._api_call(method="post", url="$batch", headers=headers, data=data)

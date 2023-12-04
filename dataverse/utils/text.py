@@ -1,8 +1,10 @@
+import re
 from functools import lru_cache
 from typing import Any
+from urllib.parse import quote
 
 
-@lru_cache(maxsize=128)
+@lru_cache
 def snake_to_title(snek: str) -> str:
     """
     Convert a string from snake_case to TitleCase.
@@ -38,3 +40,25 @@ def convert_meta_keys_to_title_case(arg: dict[str, Any]) -> dict[str, Any]:
             out[snake_to_title(k)] = v
 
     return dict(sorted(out.items()))  # Needs sort to ensure @odata tag first!
+
+
+def encode_altkeys(url: str) -> str:
+    """
+    Function used to encode altkeys in Dataverse API calls.
+
+    Parameters
+    ----------
+    url : str
+        The API call URL that is to be encoded.
+
+    Returns
+    -------
+    str
+        The encoded URL.
+    """
+
+    def parse(part: re.Match) -> str:
+        return "'" + quote(part.group(1)) + "'"
+
+    pat = re.compile(r"\'([^\']*)\'")
+    return re.sub(pat, parse, url)
