@@ -2,13 +2,15 @@ import json
 
 import pytest
 import responses
+import re
 
 from dataverse.dataverse import DataverseClient
 from dataverse.errors import DataverseError
+from dataverse.utils.batching import BatchCommand
 from dataverse.metadata.helpers import Publisher, Solution
 from dataverse.metadata.entity import EntityMetadata
 
-from responses.matchers import json_params_matcher
+from responses.matchers import json_params_matcher, header_matcher
 
 from dataverse.metadata.relationships import OneToManyRelationshipMetadata
 
@@ -22,6 +24,37 @@ def test_api_call(client: DataverseClient, mocked_responses: responses.RequestsM
 
     with pytest.raises(DataverseError, match=expected):
         client._api_call(method="get", url="Foo")
+
+
+def test_api_batch(client: DataverseClient, mocked_responses: responses.RequestsMock):
+    batch = "funky"
+    batch_data = [
+        BatchCommand(url="foo", mode="GET"),
+        BatchCommand(url="bar", mode="PUT", data={"foo": "bar"}, single_col=True),
+        BatchCommand(url="moo", mode="POST", data={"foo": "bar"}),
+    ]
+
+    mocked_responses.post(
+        url=f"{client._endpoint}$batch",
+        match=[header_matcher({"Content-Type": f'multipart/mixed; boundary="batch_{batch}"', "If-None-Match": "null"})],
+    )
+
+    req = client._batch_api_call(batch_data, id_generator=lambda: batch)[0].request.body
+
+    # Each batch command should be constructed like this:
+    full_pattern = (
+        rf"--batch_{batch}\nContent-Type: application/http\nContent.Transfer.Encoding: binary\n\n"
+        + rf"(?:PUT|GET|DELETE|POST|PATCH) {client._endpoint}.+ (?:HTTP\/1.1)"
+        + "\nContent-Type: application/json(?:; type=entry)?\n\n"
+    )
+    pat = re.compile(full_pattern, re.M)
+    assert len(re.findall(pat, req)) == len(batch_data)
+    assert len(re.findall(rf"--batch_{batch}--$", req, re.M)) == 1, "Should have only one end of batch line."
+    assert req[-2:] == "\n\n", "Should end with 2 clrfs"
+
+    # POST batches have an additional line in Content-Type element header:
+    pat = re.compile(r"Content-Type: application\/json; type=entry")
+    assert len(re.findall(pat, req)) == len(list(filter(lambda x: x.mode == "POST", batch_data)))
 
 
 def test_create_entity(
@@ -103,10 +136,8 @@ def test_create_solution(
 def test_(
     client: DataverseClient,
     mocked_responses: responses.RequestsMock,
-    one_many_relationship,
+    one_many_relationship: OneToManyRelationshipMetadata,
 ):
-    one_many_relationship: OneToManyRelationshipMetadata
-
     mocked_responses.post(
         url=f"{client._endpoint}RelationshipDefinitions",
         status=204,

@@ -1,5 +1,6 @@
 from typing import Any, Callable, Sequence
 from urllib.parse import urljoin
+from uuid import uuid4
 
 import requests
 
@@ -66,7 +67,7 @@ class Dataverse:
             "OData-MaxVersion": "4.0",
         }
 
-        if headers:
+        if headers is not None:
             for k, v in headers.items():
                 default_headers[k] = v
 
@@ -94,17 +95,23 @@ class Dataverse:
     def _batch_api_call(
         self,
         batch_commands: Sequence[BatchCommand],
-        id_generator: Callable[[], str],
-    ) -> None:
+        id_generator: Callable[[], str] = lambda: str(uuid4),
+    ) -> list[requests.Response]:
+        responses: list[requests.Response] = []
         for batch in chunk_data(batch_commands):
             # Generate a unique ID for the batch
             id = f"batch_{id_generator()}"
 
             # Preparing batch data
             batch_data = [comm.encode(id, self._endpoint) for comm in batch]
-            batch_data.append(f"\n\n--{id}--\n\n")
+            batch_data.append(f"\n--{id}--\n\n")
 
             data = "\n".join(batch_data)
             headers = {"Content-Type": f'multipart/mixed; boundary="{id}"', "If-None-Match": "null"}
 
-            self._api_call(method="post", url="$batch", headers=headers, data=data)
+            with open("test.txt", "w+") as f:
+                f.write(data)
+
+            rsp = self._api_call(method="post", url="$batch", headers=headers, data=data)
+            responses.append(rsp)
+        return responses
