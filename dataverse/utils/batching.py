@@ -9,7 +9,7 @@ from dataverse.utils.text import encode_altkeys
 T = TypeVar("T")
 
 
-@dataclass
+@dataclass(slots=True)
 class BatchCommand:
     """
     For encapsulating a singular Dataverse batch command.
