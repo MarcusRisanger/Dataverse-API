@@ -45,7 +45,7 @@ class BatchCommand:
     content_type: str = field(init=False, default="Content-Type: application/json")
 
     def __post_init__(self) -> None:
-        if self.single_col and self.mode != BatchMode.GET:
+        if self.single_col:
             assert self.data
             assert len(self.data) == 1
             col, value = list(self.data.items())[0]
