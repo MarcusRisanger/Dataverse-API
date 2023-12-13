@@ -6,7 +6,7 @@ import re
 
 from dataverse.dataverse import DataverseClient
 from dataverse.errors import DataverseError
-from dataverse.utils.batching import BatchCommand
+from dataverse.utils.batching import BatchCommand, BatchMode
 from dataverse.metadata.helpers import Publisher, Solution
 from dataverse.metadata.entity import EntityMetadata
 
@@ -29,9 +29,9 @@ def test_api_call(client: DataverseClient, mocked_responses: responses.RequestsM
 def test_api_batch(client: DataverseClient, mocked_responses: responses.RequestsMock):
     batch = "funky"
     batch_data = [
-        BatchCommand(url="foo", mode="GET"),
-        BatchCommand(url="bar", mode="PUT", data={"foo": "bar"}, single_col=True),
-        BatchCommand(url="moo", mode="POST", data={"foo": "bar"}),
+        BatchCommand(url="foo", mode=BatchMode.GET),
+        BatchCommand(url="bar", mode=BatchMode.PUT, data={"foo": "bar"}, single_col=True),
+        BatchCommand(url="moo", mode=BatchMode.POST, data={"foo": "bar"}),
     ]
 
     mocked_responses.post(
@@ -54,7 +54,7 @@ def test_api_batch(client: DataverseClient, mocked_responses: responses.Requests
 
     # POST batches have an additional line in Content-Type element header:
     pat = re.compile(r"Content-Type: application\/json; type=entry")
-    assert len(re.findall(pat, req)) == len(list(filter(lambda x: x.mode == "POST", batch_data)))
+    assert len(re.findall(pat, req)) == len(list(filter(lambda x: x.mode == BatchMode.POST, batch_data)))
 
 
 def test_create_entity(

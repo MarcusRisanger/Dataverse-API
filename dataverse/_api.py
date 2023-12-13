@@ -109,9 +109,6 @@ class Dataverse:
             data = "\n".join(batch_data)
             headers = {"Content-Type": f'multipart/mixed; boundary="{id}"', "If-None-Match": "null"}
 
-            with open("test.txt", "w+") as f:
-                f.write(data)
-
             rsp = self._api_call(method="post", url="$batch", headers=headers, data=data)
             responses.append(rsp)
         return responses

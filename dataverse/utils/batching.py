@@ -1,5 +1,6 @@
 import json
 from dataclasses import dataclass, field
+from enum import Enum, auto
 from textwrap import dedent
 from typing import Any, Generator, Sequence, TypeVar
 from urllib.parse import urljoin
@@ -7,6 +8,14 @@ from urllib.parse import urljoin
 from dataverse.utils.text import encode_altkeys
 
 T = TypeVar("T")
+
+
+class BatchMode(Enum):
+    GET = auto()
+    POST = auto()
+    PATCH = auto()
+    PUT = auto()
+    DELETE = auto()
 
 
 @dataclass(slots=True)
@@ -30,20 +39,20 @@ class BatchCommand:
     """
 
     url: str
-    mode: str = field(default="GET")
+    mode: BatchMode = field(default=BatchMode.GET)
     data: dict[str, Any] | None = field(default=None)
     single_col: bool = field(default=False)
     content_type: str = field(init=False, default="Content-Type: application/json")
 
     def __post_init__(self) -> None:
-        if self.single_col and self.mode != "GET":
+        if self.single_col and self.mode != BatchMode.GET:
             assert self.data
             assert len(self.data) == 1
             col, value = list(self.data.items())[0]
             self.url += f"/{col}"
             self.data = {"value": value}
 
-        if self.mode == "POST":
+        if self.mode == BatchMode.POST:
             self.content_type += "; type=entry"
 
         self.url = encode_altkeys(self.url)
@@ -72,7 +81,7 @@ class BatchCommand:
         Content-Type: application/http
         Content-Transfer-Encoding: binary
 
-        {self.mode} {url} HTTP/1.1
+        {self.mode.name} {url} HTTP/1.1
         {self.content_type}
 
         {json.dumps(self.data)}
