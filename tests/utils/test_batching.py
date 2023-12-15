@@ -68,7 +68,17 @@ def test_batch_command_put():
     {{{'"value"'}: {data['test']}}}
     """
 
-    command = BatchCommand(url=url, mode=mode, data=data, single_col=True)
+    command = BatchCommand(url=url, mode=mode, data=data)
     assert command.single_col is True
     assert command.content_type == "Content-Type: application/json"
     assert command.encode(batch_id=batch_id, api_url=api_url) == dedent(expected_output)
+
+
+def test_batch_altkey_encoding():
+    url = "hello(altkey='æøå')"
+    batch = BatchCommand(url=url)
+    assert batch.url == "hello(altkey='%C3%A6%C3%B8%C3%A5')"
+
+    url = "kenobi(altkey='hello there')"
+    batch = BatchCommand(url=url)
+    assert batch.url == "kenobi(altkey='hello%20there')"

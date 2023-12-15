@@ -30,7 +30,7 @@ def test_api_batch(client: DataverseClient, mocked_responses: responses.Requests
     batch = "funky"
     batch_data = [
         BatchCommand(url="foo", mode=BatchMode.GET),
-        BatchCommand(url="bar", mode=BatchMode.PUT, data={"foo": "bar"}, single_col=True),
+        BatchCommand(url="bar", mode=BatchMode.PUT, data={"foo": "bar"}),
         BatchCommand(url="moo", mode=BatchMode.POST, data={"foo": "bar"}),
     ]
 
