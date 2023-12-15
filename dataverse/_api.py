@@ -30,6 +30,7 @@ class Dataverse:
         method: str,
         url: str,
         headers: dict[str, str] | None = None,
+        params: dict[str, Any] | None = None,
         data: str | None = None,
         json: dict[str, Any] | None = None,
     ) -> requests.Response:
@@ -76,6 +77,7 @@ class Dataverse:
                 method=method,
                 url=request_url,
                 headers=default_headers,
+                params=params,
                 data=data,
                 json=json,
                 timeout=120,
