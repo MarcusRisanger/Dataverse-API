@@ -94,3 +94,24 @@ To produce Coverage tests, run the following commands
 $ poetry run coverage run -m pytest
 $ poetry run coverage xml
 ```
+
+## To Do:
+
+* Schema implementation
+    - Basic attributes for Entity
+    - Illegal file extensions
+* Entity implementation
+    - Insert/Update/Delete/Read
+    - Upsert
+    - Update single column
+    - Update single value
+    - Upload file
+    - Upload image
+    - Upload large file
+    - Add column
+    - Remove column
+    - Add alternate key
+    - Remove alternate key
+* Implement `CreateMultiple` request if creating more than 100 elements?
+    - https://learn.microsoft.com/en-us/power-apps/developer/data-platform/bulk-operations?tabs=webapi#createmultiple
+* Implement better parallelization using `ThreadPoolExecutor`?
