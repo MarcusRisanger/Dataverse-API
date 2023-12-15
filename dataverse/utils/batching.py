@@ -41,12 +41,13 @@ class BatchCommand:
     url: str
     mode: BatchMode = field(default=BatchMode.GET)
     data: dict[str, Any] | None = field(default=None)
-    single_col: bool = field(default=False)
+    single_col: bool = field(init=False, default=False)
     content_type: str = field(init=False, default="Content-Type: application/json")
 
     def __post_init__(self) -> None:
-        if self.single_col:
-            assert self.data
+        if self.mode == BatchMode.PUT:
+            self.single_col = True
+            assert self.data is not None
             assert len(self.data) == 1
             col, value = list(self.data.items())[0]
             self.url += f"/{col}"
