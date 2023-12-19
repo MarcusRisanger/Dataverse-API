@@ -147,3 +147,17 @@ def test_create_relationship(
     resp = client.create_relationship(relationship_definition=one_many_relationship)
 
     assert resp.status_code == 204
+
+
+def test_get_language_codes(
+    client: DataverseClient,
+    mocked_responses: responses.RequestsMock,
+):
+    mocked_responses.get(
+        url=f"{client._endpoint}RetrieveAvailableLanguages",
+        status=200,
+        json={"LocaleIds": [123, 456], "Foo": "Bar"},
+    )
+    resp = client.get_language_codes()
+
+    assert resp == [123, 456]
