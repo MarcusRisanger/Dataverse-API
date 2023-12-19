@@ -12,30 +12,64 @@ def snake_to_title(snek: str) -> str:
     Parameters
     ----------
     snek : str
-        Snake case string for conversion.
+        snake_case string for conversion to TitleCase.
     """
     components = snek.split("_")
     return "".join([x.title() for x in components])
 
 
-def convert_meta_keys_to_title_case(arg: dict[str, Any]) -> dict[str, Any]:
+@lru_cache
+def title_to_snake(title: str) -> str:
+    """
+    Convert a string from snake_case to TitleCase.
+
+    Parameters
+    ----------
+    title : str
+        TitleCase string for conversion to snake_case
+    """
+    return re.sub(r"(?<!^)(?=[A-Z])", "_", title).lower()
+
+
+def convert_dict_keys_to_snake(arg: dict[str, Any]) -> dict[str, Any]:
+    """
+    Recursively converts dict keys from snake_case to TitleCase.
+
+    Parameters
+    ----------
+    arg : dict
+    """
+    out: dict[str, Any] = dict()
+    for k, v in arg.items():
+        key = title_to_snake(k)
+        if k == "@odata.type":
+            out["odata_type"] = v  # Corresponding value is always a string
+        elif isinstance(v, dict):
+            out[key] = convert_dict_keys_to_snake(v)
+        elif isinstance(v, list):
+            out[key] = [convert_dict_keys_to_snake(e) for e in v]
+        else:
+            out[key] = v
+    return out
+
+
+def convert_dict_keys_to_title(arg: dict[str, Any]) -> dict[str, Any]:
     """
     Converts dictionary keys from snake_case to TitleCase
     recursively.
 
     Parameters
     ----------
-    obj : string or dict
-
+    arg : dict
     """
     out: dict[str, Any] = dict()
     for k, v in arg.items():
-        if k == "_odata_type":
+        if k == "odata_type":
             out["@odata.type"] = v  # Corresponding value is always a string
         elif isinstance(v, list):
-            out[snake_to_title(k)] = [d() for d in v]  # type: ignore
-        elif callable(v):
-            out[snake_to_title(k)] = v()
+            out[snake_to_title(k)] = [convert_dict_keys_to_title(d) for d in v]  # type: ignore
+        elif isinstance(v, dict):
+            out[snake_to_title(k)] = convert_dict_keys_to_title(v)
         else:
             out[snake_to_title(k)] = v
 

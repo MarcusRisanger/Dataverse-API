@@ -12,23 +12,23 @@ from dataverse.utils.labels import define_label
 
 @pytest.fixture
 def localized_label():
-    return LocalizedLabel("Test", 69)
+    return LocalizedLabel(label="Test", language_code=69)
 
 
 @pytest.fixture
 def label(localized_label):
-    label2 = LocalizedLabel("Other Label", 420)
+    label2 = LocalizedLabel(label="Other Label", language_code=420)
     return Label(localized_labels=[localized_label, label2])
 
 
 @pytest.fixture
 def description_label() -> Label:
-    return Label([LocalizedLabel("Description")])
+    return Label(localized_labels=[LocalizedLabel(label="Description")])
 
 
 @pytest.fixture
 def display_name_label() -> Label:
-    return Label([LocalizedLabel("Display Name")])
+    return Label(localized_labels=[LocalizedLabel(label="Display Name")])
 
 
 @pytest.fixture
@@ -40,7 +40,7 @@ def sample_entity():
         display_collection_name=define_label("Entity Display Collection Name"),
         attributes=[
             StringAttributeMetadata(
-                "test_attr",
+                schema_name="test_attr",
                 description=define_label("Attr Desc"),
                 display_name=define_label("Test Attr"),
                 is_primary_name=True,

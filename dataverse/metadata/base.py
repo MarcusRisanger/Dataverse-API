@@ -1,32 +1,52 @@
 """
 The base Metadata class for Dataverse.
 """
-from dataclasses import dataclass, fields
-from typing import Any
+from typing import Any, Self
 
-from dataverse.utils.text import convert_meta_keys_to_title_case
+from pydantic import BaseModel, ConfigDict
+
+from dataverse.utils.text import convert_dict_keys_to_snake, convert_dict_keys_to_title
 
 BASE_TYPE = "Microsoft.Dynamics.CRM."
 
 
-@dataclass
-class MetadataBase:
+class MetadataBase(BaseModel):
     """
-    Defines the base of all Metadata dataclasses.
+    Defines the base of all Metadata dataclasses, and a few key
+    methods used to serialize an API response and prepare an API request.
     """
 
-    def __call__(self) -> dict[str, Any]:
+    model_config = ConfigDict(extra="allow", validate_assignment=True)
+
+    @classmethod
+    def model_validate_dataverse(self, arg: dict[str, Any]) -> Self:
+        """
+        Converts and validates a received deserialized JSON payload
+        into the appropriate Metadata object.
+
+        Parameters
+        ----------
+        arg : dict
+            To be converted into a validated object.
+        """
+
+        converted = convert_dict_keys_to_snake(arg)
+        return self.model_validate(converted)
+
+    def dump_to_dataverse(self, dropna: bool = True) -> dict[str, Any]:
         """
         When called, dumps the vars dictionary as TitleCase,
         needed to pass payloads to  Dataverse Web API.
-        """
-        return convert_meta_keys_to_title_case(self.__dict__)
 
-    def __post_init__(self) -> None:
+        Returns
+        -------
+        dict
+            A dictionary using Dataverse-friendly Keys,
+            appropriately sorted.
         """
-        Ensure that all dataclass fields show up in vars, so that
-        any non-initialized defaults show up in e.g. .__dict__
-        """
-        for field in fields(self):
-            if field.name not in vars(self):
-                setattr(self, field.name, getattr(self, field.name))
+        if dropna:
+            dump = self.model_dump(mode="json", exclude_none=True)
+        else:
+            dump = self.model_dump(mode="json")
+
+        return convert_dict_keys_to_title(dump)

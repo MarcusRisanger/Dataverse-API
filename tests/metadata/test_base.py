@@ -1,25 +1,28 @@
-from dataclasses import dataclass, field
-
 from dataverse.metadata.base import MetadataBase
+from pydantic import BaseModel, Field
 
 
 def test_base():
     test_str = "Hello"
     test_int = 123
-    test_type = "Moo"
+    test_type = "Schmoo"
 
-    @dataclass
     class Bar(MetadataBase):
         aa_bb_cc: str = "Hello"
 
-    @dataclass
     class Foo(MetadataBase):
-        bar: Bar = field(default_factory=Bar)
-        _odata_type: str = test_type
-        my_str: str = test_str
-        my_int: int = test_int
+        bar: Bar = Field(default_factory=Bar)
+        odata_type: str = Field(default=test_type, alias="@odata.type")
+        my_str: str
+        my_int: int
 
-    a = Foo().__call__()
+    inst = Foo.model_validate_dataverse({"MyStr": test_str, "MyInt": test_int, "@odata.type": test_type})
+
+    assert inst.my_int == test_int
+    assert inst.my_str == test_str
+    assert inst.odata_type == test_type
+
+    a = inst.dump_to_dataverse()
 
     # Check camel-casing and special case @odata.type
     assert all([i in a.keys() for i in ["MyStr", "MyInt", "@odata.type", "Bar"]])

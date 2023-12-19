@@ -2,14 +2,14 @@
 A collection of Dataverse Complex Property metadata classes.
 """
 
-from dataclasses import dataclass, field
-from typing import overload
+from typing import Any, overload
+
+from pydantic import Field
 
 from dataverse.metadata.base import BASE_TYPE, MetadataBase
 from dataverse.metadata.enums import AssociatedMenuBehavior, AssociatedMenuGroup, AttributeRequiredLevel, CascadeType
 
 
-@dataclass
 class RequiredLevel(MetadataBase):
     """
     Complex Property describing the Required Level of an Attribute.
@@ -24,10 +24,15 @@ class RequiredLevel(MetadataBase):
 
     value: AttributeRequiredLevel = AttributeRequiredLevel.NONE
     can_be_changed: bool = True
-    managed_property_logical_name: str = field(init=False, default="canmodifyrequirementlevelsettings")
+
+    def model_post_init(self, _: Any) -> None:
+        self.managed_property_logical_name: str = "canmodifyrequirementlevelsettings"
 
 
-@dataclass
+def required_level_default() -> RequiredLevel:
+    return RequiredLevel()
+
+
 class LocalizedLabel(MetadataBase):
     """
     Complex property describing a Localized Label in Dataverse.
@@ -41,12 +46,13 @@ class LocalizedLabel(MetadataBase):
         The associated language code for the specific localized label.
     """
 
-    _odata_type: str = field(init=False, default=BASE_TYPE + "LocalizedLabel")
     label: str
     language_code: int = 1033
 
+    def model_post_init(self, _: Any) -> None:
+        self.odata_type: str = BASE_TYPE + "LocalizedLabel"
 
-@dataclass
+
 class Label(MetadataBase):
     """
     Complex property describing a Label in Dataverse.
@@ -58,8 +64,10 @@ class Label(MetadataBase):
         `LocalizedLabel` defines the label for an associated language code.
     """
 
-    _odata_type: str = field(init=False, default=BASE_TYPE + "Label")
-    localized_labels: list[LocalizedLabel] = field(default_factory=list)
+    localized_labels: list[LocalizedLabel] = Field(default_factory=list)
+
+    def model_post_init(self, _: Any) -> None:
+        self.odata_type: str = BASE_TYPE + "Label"
 
 
 @overload
@@ -110,24 +118,28 @@ def create_label(
     ------
     ValueError: If input types are incorrect.
     AssertionError: If tuples are incorrectly typed.
+
+    Notes
+    -----
+    The language codes recognized by the Dataverse organization can be retrieved
+    using the `DataverseClient.get_language_codes` method. Language codes specified
+    outside of the values returned by this method will be silently ignored by the API.
     """
 
     if language_code is None:
         language_code = 1033
 
     if isinstance(label, tuple):
-        return Label([LocalizedLabel(label=label[0], language_code=label[1])])
+        localized_labels = [LocalizedLabel(label=label[0], language_code=label[1])]
     elif isinstance(label, str):
-        return Label([LocalizedLabel(label, language_code)])
+        localized_labels = [LocalizedLabel(label=label, language_code=language_code)]
     elif isinstance(labels, list):
-        assert all([isinstance(x[0], str) for x in labels]), "Labels should be strings!"
-        assert all([isinstance(x[1], int) for x in labels]), "Language codes should be ints!"
-        return Label([LocalizedLabel(*label) for label in labels])
+        localized_labels = [LocalizedLabel(label=label[0], language_code=label[1]) for label in labels]
     else:
         raise ValueError("Correct input was not provided.")
+    return Label(localized_labels=localized_labels)
 
 
-@dataclass
 class AssociatedMenuConfiguration(MetadataBase):
     """
     Complex Property for Associated Menu Config.
@@ -147,10 +159,9 @@ class AssociatedMenuConfiguration(MetadataBase):
     behavior: AssociatedMenuBehavior = AssociatedMenuBehavior.USE_COLLECTION_NAME
     group: AssociatedMenuGroup = AssociatedMenuGroup.DETAILS
     order: int = 10000
-    label: Label = field(default_factory=lambda: create_label(label=""))
+    label: Label = Field(default_factory=lambda: create_label(label=""))
 
 
-@dataclass
 class CascadeConfiguration(MetadataBase):
     """
     Complex Property for Cascade Configuration.

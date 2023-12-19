@@ -84,12 +84,19 @@ class Dataverse:
             )
             resp.raise_for_status()
         except requests.exceptions.HTTPError as e:
+            message = ""
+            if e.response:
+                try:
+                    message = e.response.json()["error"]["message"]
+                except Exception:
+                    pass
+            messages: list[str] = [f"Error with GET request: {e.args[0]}"]
+            if message:
+                messages.append(f"Response: {message}")
             raise DataverseError(
-                message=(
-                    f"Error with GET request: {e.args[0]}"
-                    + f"{'// Response body: '+ e.response.text if e.response else ''}"
-                ),
+                message="\n".join(messages),
                 response=e.response,
+                # details=e.response.args if e.response.args else None,
             ) from e
 
         return resp

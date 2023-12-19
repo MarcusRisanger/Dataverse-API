@@ -51,6 +51,7 @@ class DataverseClient(Dataverse):
     def create_entity(
         self,
         entity_definition: EntityMetadata,
+        *,
         solution_name: str | None = None,
     ) -> requests.Response:
         """
@@ -79,7 +80,65 @@ class DataverseClient(Dataverse):
             method="post",
             url="EntityDefinitions",
             headers=headers,
-            json=entity_definition(),
+            json=entity_definition.dump_to_dataverse(),
+        )
+
+    def get_language_codes(self) -> list[int]:
+        """
+        Retrieves the language codes that are enabled for the Dataverse organization.
+        Dataverse will only recognize `LocalizedLabels` with the LCID codes returned
+        by this function.
+
+        Returns
+        -------
+        list of int
+            The language code IDs enabled for the Dataverse Organization.
+        """
+        resp = self._api_call(
+            method="GET",
+            url="RetrieveAvailableLanguages",
+        )
+        return resp.json()["LocaleIds"]
+
+    def get_entity_definition(self, logical_name: str) -> EntityMetadata:
+        """
+        Retrieves the Entity metadata definition from Dataverse.
+
+        Parameters
+        ----------
+        logical_name : str
+            The logical name of the Entity to fetch Metadata for.
+
+        Returns
+        -------
+        EntityMetadata
+            Required as basis for updating Entity metadata for an
+            existing Entity in Dataverse.
+        """
+        resp = self._api_call(
+            method="GET",
+            url=f"EntityDefinitions(LogicalName='{logical_name}')",
+        )
+        return EntityMetadata.model_validate_dataverse(resp.json())
+
+    def update_entity(
+        self,
+        entity: EntityMetadata,
+        *,
+        solution_name: str | None = None,
+        preserve_localized_labels: bool = False,
+    ) -> requests.Response:
+        """ """
+        headers = dict()
+        if solution_name:
+            headers["MSCRM.SolutionUniqueName"] = solution_name
+        if preserve_localized_labels:
+            headers["MSCRM.Mergelabels"] = "true"
+        return self._api_call(
+            method="PUT",
+            url=f"EntityDefinitions(LogicalName='{entity.schema_name.lower()}')",
+            headers=headers,
+            json=entity.dump_to_dataverse(),
         )
 
     def delete_entity(
@@ -125,7 +184,7 @@ class DataverseClient(Dataverse):
         return self._api_call(
             method="post",
             url="RelationshipDefinitions",
-            json=relationship_definition(),
+            json=relationship_definition.dump_to_dataverse(),
         )
 
     def delete_relationship(

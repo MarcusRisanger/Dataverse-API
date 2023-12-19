@@ -9,7 +9,7 @@ def test_create_entity_metadata():
     schema_name = "test_schema"
     attributes = [
         StringAttributeMetadata(
-            "test_attr",
+            schema_name="test_attr",
             description=define_label("Attr desc"),
             display_name=define_label("Attr"),
         )
@@ -34,7 +34,7 @@ def test_create_entity_metadata():
     assert base.is_activity is False
     assert base.has_activities is False
     assert base.has_notes is False
-    assert ".EntityMetadata" in base._odata_type
+    assert ".EntityMetadata" in base.odata_type
 
     base: EntityMetadata = define_entity(
         schema_name=schema_name,
@@ -52,9 +52,9 @@ def test_create_entity_metadata():
     assert base.is_activity is False
     assert base.has_activities is False
     assert base.has_notes is False
-    assert ".EntityMetadata" in base._odata_type
+    assert ".EntityMetadata" in base.odata_type
 
-    encoded = base()
+    encoded = base.dump_to_dataverse()
 
     assert encoded["SchemaName"] == schema_name
     assert encoded["Attributes"][0]["SchemaName"] == attributes[0].schema_name

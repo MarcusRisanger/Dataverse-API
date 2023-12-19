@@ -1,25 +1,26 @@
-from dataverse.utils.text import convert_meta_keys_to_title_case
+from dataverse.utils.text import convert_dict_keys_to_title, convert_dict_keys_to_snake, encode_altkeys
 
 
-def test_conversion_to_snake(localized_label, label):
-    loc = convert_meta_keys_to_title_case(localized_label.__dict__)
-    expected_keys = ["Label", "LanguageCode", "@odata.type"]
-    assert all([k in loc.keys() for k in expected_keys])
-    assert loc["Label"] == "Test"
-    assert loc["LanguageCode"] == 69  # Preserve type!
-    assert "LocalizedLabel" in loc["@odata.type"]
+def test_conversion_to_title():
+    test_dict = {"hello_there": [{"data": 1, "foo": 2}], "test_string_yeah": {"target": "Kenobi"}, "single": False}
+    out = convert_dict_keys_to_title(test_dict)
 
-    lab = convert_meta_keys_to_title_case(label.__dict__)
-    expected_keys = ["LocalizedLabels", "@odata.type"]
-    assert all([k in lab.keys() for k in expected_keys])
-    assert "Label" in lab["@odata.type"]
-    assert len(lab["LocalizedLabels"]) == 2
+    assert out["HelloThere"] == [{"Data": 1, "Foo": 2}]
+    assert out["TestStringYeah"] == {"Target": "Kenobi"}
+    assert out["Single"] == test_dict["single"]
 
-    decoded = label()
-    assert decoded == {
-        "@odata.type": "Microsoft.Dynamics.CRM.Label",
-        "LocalizedLabels": [
-            {"@odata.type": "Microsoft.Dynamics.CRM.LocalizedLabel", "Label": "Test", "LanguageCode": 69},
-            {"@odata.type": "Microsoft.Dynamics.CRM.LocalizedLabel", "Label": "Other Label", "LanguageCode": 420},
-        ],
-    }
+
+def test_conversion_to_snake():
+    test_dict = {"HelloThere": [{"Data": 1, "foo": 2}], "TestStringYeah": {"Target": "Kenobi"}, "Single": False}
+    out = convert_dict_keys_to_snake(test_dict)
+
+    assert out["hello_there"] == [{"data": 1, "foo": 2}]
+    assert out["test_string_yeah"] == {"target": "Kenobi"}
+    assert out["single"] == test_dict["Single"]
+
+
+def test_altkeys_encode():
+    assert encode_altkeys("øøå('æø')") == "øøå('%C3%A6%C3%B8')"
+    assert encode_altkeys("abc('x x')") == "abc('x%20x')"
+    assert encode_altkeys("abc(stuff='æ',more='abc')") == "abc(stuff='%C3%A6',more='abc')"
+    assert encode_altkeys("abc(stuff='abc',more='æ')") == "abc(stuff='abc',more='%C3%A6')"

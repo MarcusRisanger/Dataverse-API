@@ -18,10 +18,10 @@ class DataverseEntityAttribute:
     can_update: bool
     attr_type: str
     data_type: Any
-    max_height: Optional[int] = None
-    max_length: Optional[int] = None
-    max_size_kb: Optional[int] = None
-    max_width: Optional[int] = None
+    max_height: int | None = None
+    max_length: int | None = None
+    max_size_kb: int | None = None
+    max_width: int | None = None
     max_value: Optional[Union[dt, int, float]] = None
     min_value: Optional[Union[dt, int, float]] = None
     choices: Optional[dict[str, int]] = None
@@ -65,5 +65,5 @@ class DataverseEntitySchema(Dataverse):
         # self.relationships: DataverseRelationships
         # self.altkeys: list[set[str]]
 
-    def _get_entity(self) -> int:
+    def _get_basic_metadata(self) -> int:
         return 1

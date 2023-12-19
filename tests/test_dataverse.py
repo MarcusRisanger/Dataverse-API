@@ -65,7 +65,7 @@ def test_create_entity(
         "url": f"{client._endpoint}EntityDefinitions",
         "status": 204,
         "content_type": "application/json",
-        "match": [json_params_matcher(sample_entity())],
+        "match": [json_params_matcher(sample_entity.dump_to_dataverse())],
     }
     mocked_responses.post(**response)
 
@@ -74,7 +74,7 @@ def test_create_entity(
     resp = client.create_entity(sample_entity)
 
     # Run some assertions that payload contains critical attributes
-    assert json.loads(resp.request.body) == sample_entity()
+    assert json.loads(resp.request.body) == sample_entity.dump_to_dataverse()
 
     # Again for invoking with `solution_name`
     mocked_responses.post(**response)
@@ -133,7 +133,7 @@ def test_create_solution(
     assert resp.status_code == 204
 
 
-def test_(
+def test_create_relationship(
     client: DataverseClient,
     mocked_responses: responses.RequestsMock,
     one_many_relationship: OneToManyRelationshipMetadata,
@@ -141,7 +141,7 @@ def test_(
     mocked_responses.post(
         url=f"{client._endpoint}RelationshipDefinitions",
         status=204,
-        match=[json_params_matcher(one_many_relationship())],
+        match=[json_params_matcher(one_many_relationship.dump_to_dataverse())],
     )
 
     resp = client.create_relationship(relationship_definition=one_many_relationship)

@@ -4,7 +4,7 @@ data as possible for ease of use.
 """
 
 
-from dataclasses import dataclass, field
+from typing import Any
 
 from dataverse.metadata.attributes import AttributeMetadata
 from dataverse.metadata.base import BASE_TYPE, MetadataBase
@@ -13,22 +13,24 @@ from dataverse.metadata.enums import OwnershipType
 from dataverse.utils.labels import define_label
 
 
-@dataclass
 class EntityMetadata(MetadataBase):
     """
     Entity Metadata for Dataverse.
     """
 
-    _odata_type: str = field(init=False, default=BASE_TYPE + "EntityMetadata")
     schema_name: str
     description: Label
     display_name: Label
     display_collection_name: Label
-    attributes: list[AttributeMetadata]
+    attributes: list[AttributeMetadata] | None = None
     ownership_type: OwnershipType
     is_activity: bool
     has_activities: bool
     has_notes: bool
+
+    def model_post_init(self, __context: Any) -> None:
+        self.odata_type = BASE_TYPE + "EntityMetadata"
+        return super().model_post_init(__context)
 
 
 def define_entity(

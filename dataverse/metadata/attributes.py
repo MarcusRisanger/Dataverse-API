@@ -2,14 +2,16 @@
 A collection of Dataverse Attribute metadata classes.
 """
 
-from dataclasses import dataclass, field
+
+from typing import Any
+
+from pydantic import Field
 
 from dataverse.metadata.base import BASE_TYPE, MetadataBase
-from dataverse.metadata.complex_properties import Label, RequiredLevel
-from dataverse.metadata.enums import AttributeRequiredLevel, StringFormat
+from dataverse.metadata.complex_properties import Label, RequiredLevel, required_level_default
+from dataverse.metadata.enums import AttributeType, AttributeTypeName, StringFormat
 
 
-@dataclass
 class AttributeMetadata(MetadataBase):
     """
     Base Metadata class for Attributes.
@@ -18,21 +20,28 @@ class AttributeMetadata(MetadataBase):
     schema_name: str
     description: Label
     display_name: Label
-    required_level: RequiredLevel = field(default_factory=lambda: RequiredLevel(value=AttributeRequiredLevel.NONE))
+    required_level: RequiredLevel = Field(default_factory=required_level_default)
 
 
-@dataclass(kw_only=True)
 class LookupAttributeMetadata(AttributeMetadata):
     """
     Attribute Metadata for a Lookup column.
+
+    Parameters
+    ----------
+    schema_name : str
+    description : dataverse.Label
+    display_name : dataverse.Label
+    required_level : dataverse.RequiredLevel
     """
 
-    _attribute_type: str = field(init=False, default="Lookup")
-    _attribute_type_name: dict[str, str] = field(init=False, default_factory=lambda: {"Value": "LookupType"})
-    _odata_type: str = field(init=False, default=BASE_TYPE + "LookupAttributeMetadata")
+    def model_post_init(self, __context: Any) -> None:
+        self.attribute_type = AttributeType.LOOKUP
+        self.attribute_type_name = AttributeTypeName.LOOKUP
+        self.odata_type = BASE_TYPE + "LookupAttributeMetadata"
+        return super().model_post_init(__context)
 
 
-@dataclass(kw_only=True)
 class StringAttributeMetadata(AttributeMetadata):
     """
     Attribute Metadata for a String column.
@@ -40,27 +49,38 @@ class StringAttributeMetadata(AttributeMetadata):
     Parameters
     ----------
     schema_name : str
-    description : Label
-    display_name: Label
-    required
+    max_length : int
+    description : dataverse.Label
+    display_name : dataverse.Label
+    required_level : dataverse.RequiredLevel
     """
 
     is_primary_name: bool = False
     max_length: int = 100
-    format_name: StringFormat = field(default=StringFormat.TEXT)
-    _attribute_type: str = field(init=False, default="String")
-    _attribute_type_name: dict[str, str] = field(init=False, default_factory=lambda: {"Value": "StringType"})
-    _odata_type: str = field(init=False, default=BASE_TYPE + "StringAttributeMetadata")
+    format_name: StringFormat = Field(default=StringFormat.TEXT)
+
+    def model_post_init(self, __context: Any) -> None:
+        self.odata_type = BASE_TYPE + "StringAttributeMetadata"
+        self.attribute_type = AttributeType.STRING
+        self.attribute_type_name = AttributeTypeName.STRING_TYPE
+        return super().model_post_init(__context)
 
 
-@dataclass(kw_only=True)
 class AutoNumberMetadata(StringAttributeMetadata):
     """
     Attribute Metadata for an Auto-number column.
+
+    Parameters
+    ----------
+    schema_name : str
+    autonumber_format: str
+    description : dataverse.Label
+    display_name : dataverse.Label
+    required_level : dataverse.RequiredLevel
     """
 
     auto_number_format: str
-    format_name: StringFormat = field(init=False, default=StringFormat.TEXT)
-    required_level: RequiredLevel = field(
-        init=False, default_factory=lambda: RequiredLevel(AttributeRequiredLevel.APPLICATION_REQUIRED)
-    )
+
+    def model_post_init(self, __context: Any) -> None:
+        self.format_name = StringFormat.TEXT
+        return super().model_post_init(__context)

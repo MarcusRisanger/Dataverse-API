@@ -1,9 +1,7 @@
 """
 A collection of Dataverse Enum metadata classes.
 """
-from enum import Enum, auto
-
-from dataverse.utils.text import snake_to_title
+from enum import Enum
 
 
 class BaseEnum(Enum):
@@ -13,28 +11,35 @@ class BaseEnum(Enum):
     integer counterparts listed in Microsofts resource pages.
     """
 
-    def __call__(self) -> str:
-        return snake_to_title(self.name)
+    def _get_value(self) -> str | dict[str, str]:
+        return self.value
 
 
-class StringFormat(Enum):
+class StringFormat(BaseEnum):
     """
     Enum for String Format options.
     """
 
-    EMAIL = auto()
-    TEXT = auto()
-    TEXT_AREA = auto()
-    URL = auto()
-    TICKER_SYMBOL = auto()
-    PHONETIC_GUIDE = auto()
-    VERSION_NUMBER = auto()
-    PHONE = auto()
-    JSON = auto()
-    RICH_TEXT = auto()
+    EMAIL = {"value": "Email"}
+    TEXT = {"value": "Text"}
+    TEXT_AREA = {"value": "TextArea"}
+    URL = {"value": "Url"}
+    TICKER_SYMBOL = {"value": "TickerSymbol"}
+    PHONETIC_GUIDE = {"value": "PhoneticGuide"}
+    VERSION_NUMBER = {"value": "VersionNumber"}
+    # PHONE = {"value":"Phone"} Internal use only.
+    JSON = {"value": "Json"}
+    RICH_TEXT = {"value": "RichText"}
 
-    def __call__(self) -> dict[str, str]:
-        return {"Value": snake_to_title(self.name)}
+
+class AttributeType(BaseEnum):
+    STRING = "String"
+    LOOKUP = "Lookup"
+
+
+class AttributeTypeName(BaseEnum):
+    STRING_TYPE = {"value": "StringType"}
+    LOOKUP = {"value": "Lookup"}
 
 
 class AssociatedMenuBehavior(BaseEnum):
@@ -42,9 +47,9 @@ class AssociatedMenuBehavior(BaseEnum):
     Enum for Associated Menu Behavior for Relationships.
     """
 
-    USE_COLLECTION_NAME = auto()
-    USE_LABEL = auto()
-    DO_NOT_DISPLAY = auto()
+    USE_COLLECTION_NAME = "UseCollectionName"
+    USE_LABEL = "UseLabel"
+    DO_NOT_DISPLAY = "DoNotDisplay"
 
 
 class AssociatedMenuGroup(BaseEnum):
@@ -52,10 +57,10 @@ class AssociatedMenuGroup(BaseEnum):
     Enum for Associated Menu Group for Relationships.
     """
 
-    DETAILS = auto()
-    SALES = auto()
-    SERVICE = auto()
-    MARKETING = auto()
+    DETAILS = "Details"
+    SALES = "Sales"
+    SERVICE = "Service"
+    MARKETING = "Marketing"
 
 
 class CascadeType(BaseEnum):
@@ -63,12 +68,12 @@ class CascadeType(BaseEnum):
     Enum for Cascade Types.
     """
 
-    NO_CASCADE = auto()
-    CASCADE = auto()
-    ACTIVE = auto()
-    USER_OWNED = auto()
-    REMOVE_LINK = auto()
-    RESTRICT = auto()
+    NO_CASCADE = "NoCascade"
+    CASCADE = "Cascade"
+    ACTIVE = "Active"
+    USER_OWNED = "UserOwned"
+    REMOVE_LINK = "RemoveLink"
+    RESTRICT = "Restrict"
 
 
 class OwnershipType(BaseEnum):
@@ -76,9 +81,9 @@ class OwnershipType(BaseEnum):
     Enum for Ownership Types for Entities.
     """
 
-    NONE = auto()
-    USER_OWNED = auto()
-    ORGANIZATION_OWNED = auto()
+    NONE = "None"
+    USER_OWNED = "UserOwned"
+    ORGANIZATION_OWNED = "OrganizationOwned"
 
 
 class AttributeRequiredLevel(BaseEnum):
@@ -86,6 +91,6 @@ class AttributeRequiredLevel(BaseEnum):
     Enum for Required Level of Attribute.
     """
 
-    NONE = auto()
-    APPLICATION_REQUIRED = auto()
-    RECOMMENDED = auto()
+    NONE = "None"
+    APPLICATION_REQUIRED = "ApplicationRequired"
+    RECOMMENDED = "Recommended"

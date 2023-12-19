@@ -2,7 +2,10 @@
 A collection of Dataverse Relationship metadata classes.
 """
 
-from dataclasses import dataclass, field
+
+from typing import Any
+
+from pydantic import Field
 
 from dataverse.metadata.attributes import LookupAttributeMetadata
 from dataverse.metadata.base import BASE_TYPE, MetadataBase
@@ -10,7 +13,6 @@ from dataverse.metadata.complex_properties import AssociatedMenuConfiguration, C
 from dataverse.utils.labels import define_label
 
 
-@dataclass
 class RelationshipMetadata(MetadataBase):
     """
     Base Metadata class for Relationships.
@@ -22,7 +24,6 @@ class RelationshipMetadata(MetadataBase):
     is_valid_for_advanced_find: bool = True
 
 
-@dataclass(kw_only=True)
 class OneToManyRelationshipMetadata(RelationshipMetadata):
     """
     Metadata for a One-to-Many relationship between Entities.
@@ -31,10 +32,13 @@ class OneToManyRelationshipMetadata(RelationshipMetadata):
     referenced_entity: str
     referencing_entity: str
     lookup: LookupAttributeMetadata
-    referenced_attribute: str | None = field(default=None)
-    cascade_configuration: CascadeConfiguration = field(default_factory=CascadeConfiguration)
-    associated_menu_configuration: AssociatedMenuConfiguration = field(default_factory=AssociatedMenuConfiguration)
-    _odata_type: str = field(init=False, default=BASE_TYPE + "OneToManyRelationshipMetadata")
+    referenced_attribute: str | None = Field(default=None)
+    cascade_configuration: CascadeConfiguration = Field(default_factory=CascadeConfiguration)
+    associated_menu_configuration: AssociatedMenuConfiguration = Field(default_factory=AssociatedMenuConfiguration)
+
+    def model_post_init(self, __context: Any) -> None:
+        self.odata_type = BASE_TYPE + "OneToManyRelationshipMetadata"
+        return super().model_post_init(__context)
 
 
 def define_relationship(

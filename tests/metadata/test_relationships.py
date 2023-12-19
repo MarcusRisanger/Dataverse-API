@@ -6,9 +6,7 @@ from dataverse.utils.labels import define_label, Label
 
 
 def test_one_many_relationship(one_many_relationship: OneToManyRelationshipMetadata):
-    assert callable(one_many_relationship)
-
-    a = one_many_relationship()
+    a = one_many_relationship.dump_to_dataverse()
 
     assert a["SchemaName"] == one_many_relationship.schema_name
     assert (
