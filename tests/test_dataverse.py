@@ -3,12 +3,14 @@ import json
 import pytest
 import responses
 import re
+from typing import Any
 
 from dataverse.dataverse import DataverseClient
 from dataverse.errors import DataverseError
 from dataverse.utils.batching import BatchCommand, BatchMode
 from dataverse.metadata.helpers import Publisher, Solution
 from dataverse.metadata.entity import EntityMetadata
+from dataverse.metadata.enums import OwnershipType
 
 from responses.matchers import json_params_matcher, header_matcher
 
@@ -175,3 +177,68 @@ def test_get_language_codes(
     resp = client.get_language_codes()
 
     assert resp == [123, 456]
+
+
+@pytest.fixture
+def test_get_entity_definition(
+    client: DataverseClient,
+    mocked_responses: responses.RequestsMock,
+    sample_entity_definition: dict[str, Any],
+    schema_name: str,
+) -> EntityMetadata:
+    mocked_responses.get(
+        url=f"{client._endpoint}EntityDefinitions(LogicalName='foo')", status=200, json=sample_entity_definition
+    )
+
+    resp = client.get_entity_definition(logical_name="foo")
+
+    assert resp.display_name.localized_labels[0].label == "Display Name Test"
+    assert resp.description.localized_labels[0].label == "Description Test"
+    assert resp.ownership_type == OwnershipType.NONE
+    assert resp.schema_name == schema_name
+
+    return resp
+
+
+def test_update_entity(
+    client: DataverseClient,
+    mocked_responses: responses.RequestsMock,
+    test_get_entity_definition: EntityMetadata,
+    schema_name: str,
+):
+    mocked_responses.put(
+        url=f"{client._endpoint}EntityDefinitions(LogicalName='{schema_name.lower()}')",
+        status=204,
+        match=[
+            json_params_matcher(test_get_entity_definition.dump_to_dataverse()),
+            header_matcher({"Content-Type": "application/json; charset=utf-8"}),
+        ],
+    )
+
+    resp = client.update_entity(test_get_entity_definition)
+    assert resp.status_code == 204
+
+
+def test_update_entity_with_kwargs(
+    client: DataverseClient,
+    mocked_responses: responses.RequestsMock,
+    test_get_entity_definition: EntityMetadata,
+    schema_name: str,
+):
+    mocked_responses.put(
+        url=f"{client._endpoint}EntityDefinitions(LogicalName='{schema_name.lower()}')",
+        status=204,
+        match=[
+            json_params_matcher(test_get_entity_definition.dump_to_dataverse()),
+            header_matcher(
+                {
+                    "Content-Type": "application/json; charset=utf-8",
+                    "MSCRM.UniqueSolutionName": "foo",
+                    "MSCRM.PreserveLabels": "true",
+                }
+            ),
+        ],
+    )
+
+    resp = client.update_entity(test_get_entity_definition, solution_name="foo", preserve_localized_labels=True)
+    assert resp.status_code == 204

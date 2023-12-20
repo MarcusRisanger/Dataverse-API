@@ -1,9 +1,11 @@
 import pytest
 import requests
 import responses
+from typing import Any
 
 from dataverse.dataverse import DataverseClient
 from dataverse.metadata.entity import define_entity
+from dataverse.metadata.enums import OwnershipType
 from dataverse.metadata.attributes import StringAttributeMetadata, LookupAttributeMetadata
 from dataverse.metadata.relationships import OneToManyRelationshipMetadata
 from dataverse.metadata.complex_properties import Label, LocalizedLabel
@@ -32,9 +34,14 @@ def display_name_label() -> Label:
 
 
 @pytest.fixture
-def sample_entity():
+def schema_name() -> str:
+    return "TestSchema"
+
+
+@pytest.fixture
+def sample_entity(schema_name: str):
     return define_entity(
-        schema_name="test_entity",
+        schema_name=schema_name,
         description=define_label("Entity Description"),
         display_name=define_label("Entity Display Name"),
         display_collection_name=define_label("Entity Display Collection Name"),
@@ -72,11 +79,6 @@ def mocked_responses():
 
 
 @pytest.fixture
-def schema_name() -> str:
-    return "TestSchema"
-
-
-@pytest.fixture
 def lookup(display_name_label, description_label) -> LookupAttributeMetadata:
     return LookupAttributeMetadata(
         schema_name="Lookup",
@@ -96,3 +98,18 @@ def one_many_relationship(schema_name, description_label, display_name_label, lo
         referencing_entity="ReffingEntity",
         lookup=lookup,
     )
+
+
+@pytest.fixture
+def sample_entity_definition(schema_name: str) -> dict[str, Any]:
+    return {
+        "@odata.type": "Microsoft.CRM.EntityMetadata",
+        "SchemaName": schema_name,
+        "DisplayName": {"LocalizedLabels": [{"Label": "Display Name Test", "LanguageCode": 1033}]},
+        "Description": {"LocalizedLabels": [{"Label": "Description Test", "LanguageCode": 1033}]},
+        "DisplayCollectionName": {"LocalizedLabels": [{"Label": "Display Collection Name Test", "LanguageCode": 1033}]},
+        "HasNotes": False,
+        "HasActivities": False,
+        "IsActivity": False,
+        "OwnershipType": "None",
+    }
