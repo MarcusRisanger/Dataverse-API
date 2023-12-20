@@ -13,8 +13,23 @@ import logging
 
 
 @pytest.fixture
-def localized_label() -> LocalizedLabel:
-    return LocalizedLabel(label="Test", language_code=123)
+def label_string() -> str:
+    return "Test"
+
+
+@pytest.fixture
+def lang_code() -> int:
+    return 69
+
+
+@pytest.fixture
+def localized_label(label_string: str) -> LocalizedLabel:
+    return LocalizedLabel(label=label_string, language_code=123)
+
+
+@pytest.fixture
+def single_label(localized_label) -> Label:
+    return Label(localized_labels=[localized_label])
 
 
 def test_localized_label(localized_label: LocalizedLabel):
@@ -24,11 +39,6 @@ def test_localized_label(localized_label: LocalizedLabel):
     assert a["Label"] == localized_label.label
     assert a["@odata.type"] == localized_label.odata_type
     assert a["LanguageCode"] == localized_label.language_code
-
-
-@pytest.fixture
-def single_label(localized_label) -> Label:
-    return Label(localized_labels=[localized_label])
 
 
 def test_single_label(single_label: Label):
@@ -71,48 +81,54 @@ def test_required_level(required_level: RequiredLevel):
     assert len(a) == 3
 
 
-def test_create_label():
+def test_create_label_with_string(label_string: str):
     # Testing when only supplying a label argument
-    label = "Hello"
-    a = create_label(label=label)
+    a = create_label(label=label_string)
     assert isinstance(a, Label)
     assert len(a.localized_labels) == 1
-    assert a.localized_labels[0].label == label
+    assert a.localized_labels[0].label == label_string
     assert a.localized_labels[0].language_code == 1033
 
+
+def test_create_label_with_string_with_lang_code_none(label_string: str):
     # Explicitly passing `language_code` as None
-    a = create_label(label=label, language_code=None)
+    a = create_label(label=label_string, language_code=None)
     assert isinstance(a, Label)
     assert len(a.localized_labels) == 1
-    assert a.localized_labels[0].label == label
+    assert a.localized_labels[0].label == label_string
     assert a.localized_labels[0].language_code == 1033
 
+
+def test_create_label_with_string_and_lang_cdode(label_string: str, lang_code: int):
     # Testing for supplied `language_code`
-    language_code = 69
-    a = create_label(label=label, language_code=language_code)
+    a = create_label(label=label_string, language_code=lang_code)
     assert isinstance(a, Label)
     assert len(a.localized_labels) == 1
-    assert a.localized_labels[0].label == label
-    assert a.localized_labels[0].language_code == language_code
+    assert a.localized_labels[0].label == label_string
+    assert a.localized_labels[0].language_code == lang_code
 
+
+def test_create_label_with_tuple(label_string: str, lang_code: int):
     # Testing for supplying a tuple in `label`
-    a = create_label(label=(label, language_code))
+    a = create_label(label=(label_string, lang_code))
     assert isinstance(a, Label)
     assert len(a.localized_labels) == 1
-    assert a.localized_labels[0].label == label
-    assert a.localized_labels[0].language_code == language_code
+    assert a.localized_labels[0].label == label_string
+    assert a.localized_labels[0].language_code == lang_code
 
+
+def test_create_label_with_list_of_tuples(label_string: str, lang_code: int):
     # Testing for supplying a list of tuples in `labels`
-    label_2 = "Bye"
-    language_code_2 = 123
-    labels = [(label, language_code), (label_2, language_code_2)]
+    label_string_2 = "Bye"
+    lang_code_2 = 123
+    labels = [(label_string, lang_code), (label_string_2, lang_code_2)]
     a = create_label(labels=labels)
     assert isinstance(a, Label)
     assert len(a.localized_labels) == 2
-    for localized_label, language_code in labels:
+    for localized_label, lang_code in labels:
         for l in a.localized_labels:
             if l.label == localized_label:
-                assert l.language_code == language_code
+                assert l.language_code == lang_code
 
 
 def test_create_label_failure_1():
