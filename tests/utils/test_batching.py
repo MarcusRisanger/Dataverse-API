@@ -74,11 +74,13 @@ def test_batch_command_put():
     assert command.encode(batch_id=batch_id, api_url=api_url) == dedent(expected_output)
 
 
-def test_batch_altkey_encoding():
+def test_batch_altkey_encoding_letters():
     url = "hello(altkey='æøå')"
     batch = BatchCommand(url=url)
     assert batch.url == "hello(altkey='%C3%A6%C3%B8%C3%A5')"
 
+
+def test_batch_altkey_encoding_space():
     url = "kenobi(altkey='hello there')"
     batch = BatchCommand(url=url)
     assert batch.url == "kenobi(altkey='hello%20there')"

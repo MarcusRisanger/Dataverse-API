@@ -57,17 +57,24 @@ def test_api_batch(client: DataverseClient, mocked_responses: responses.Requests
     assert len(re.findall(pat, req)) == len(list(filter(lambda x: x.mode == BatchMode.POST, batch_data)))
 
 
-def test_create_entity(
-    client: DataverseClient, mocked_responses: responses.RequestsMock, sample_entity: EntityMetadata
-):
-    # Mocking the request sent by endpoint
-    response = {
+@pytest.fixture
+def create_entity_response(client: DataverseClient, sample_entity: EntityMetadata):
+    return {
         "url": f"{client._endpoint}EntityDefinitions",
         "status": 204,
         "content_type": "application/json",
         "match": [json_params_matcher(sample_entity.dump_to_dataverse())],
     }
-    mocked_responses.post(**response)
+
+
+def test_create_entity(
+    client: DataverseClient,
+    mocked_responses: responses.RequestsMock,
+    sample_entity: EntityMetadata,
+    create_entity_response,
+):
+    # Mocking the request sent by endpoint
+    mocked_responses.post(**create_entity_response)
 
     # Running function - this errors if the endpoint URL
     # does not match with the mocked response URL
@@ -76,8 +83,15 @@ def test_create_entity(
     # Run some assertions that payload contains critical attributes
     assert json.loads(resp.request.body) == sample_entity.dump_to_dataverse()
 
+
+def test_create_entity_with_solution_name(
+    client: DataverseClient,
+    mocked_responses: responses.RequestsMock,
+    sample_entity: EntityMetadata,
+    create_entity_response,
+):
     # Again for invoking with `solution_name`
-    mocked_responses.post(**response)
+    mocked_responses.post(**create_entity_response)
     resp = client.create_entity(sample_entity, solution_name="Foo")
 
     # Run assertions again!
