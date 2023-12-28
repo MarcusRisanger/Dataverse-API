@@ -1,6 +1,7 @@
 [run]
-source = dataverse
-
+concurrency = multiprocessing
+parallel = true
+sigterm = true
 
 [report]
 exclude_lines =

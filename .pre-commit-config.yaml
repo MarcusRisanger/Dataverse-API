@@ -1,8 +1,6 @@
 default_language_version:
   python: python3.11
 
-exclude: "(dataverse_api|tests)/.*"
-
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.5.0
@@ -62,7 +60,7 @@ repos:
           - types-toml
           - attrs
           - pydantic
-        args: [--allow-redefinition, --ignore-missing-imports, --exclude=tests/*]
+        args: [--allow-redefinition, --ignore-missing-imports, --exclude=tests.*]
   - repo: https://github.com/pycqa/flake8
     rev: 6.1.0
     hooks:

@@ -10,6 +10,7 @@ from dataverse.entity import DataverseEntity
 from dataverse.metadata.entity import EntityMetadata
 from dataverse.metadata.helpers import Publisher, Solution
 from dataverse.metadata.relationships import RelationshipMetadata
+from dataverse.utils.batching import RequestMethod
 
 
 class DataverseClient(Dataverse):
@@ -77,7 +78,7 @@ class DataverseClient(Dataverse):
             headers = None
 
         return self._api_call(
-            method="post",
+            method=RequestMethod.POST,
             url="EntityDefinitions",
             headers=headers,
             json=entity_definition.dump_to_dataverse(),
@@ -95,7 +96,7 @@ class DataverseClient(Dataverse):
             The language code IDs enabled for the Dataverse Organization.
         """
         resp = self._api_call(
-            method="GET",
+            method=RequestMethod.GET,
             url="RetrieveAvailableLanguages",
         )
         return resp.json()["LocaleIds"]
@@ -116,7 +117,7 @@ class DataverseClient(Dataverse):
             existing Entity in Dataverse.
         """
         resp = self._api_call(
-            method="GET",
+            method=RequestMethod.GET,
             url=f"EntityDefinitions(LogicalName='{logical_name}')",
         )
         return EntityMetadata.model_validate_dataverse(resp.json())
@@ -129,13 +130,13 @@ class DataverseClient(Dataverse):
         preserve_localized_labels: bool = False,
     ) -> requests.Response:
         """ """
-        headers = dict()
+        headers: dict[str, str] = dict()
         if solution_name:
             headers["MSCRM.SolutionUniqueName"] = solution_name
         if preserve_localized_labels:
             headers["MSCRM.Mergelabels"] = "true"
         return self._api_call(
-            method="PUT",
+            method=RequestMethod.PUT,
             url=f"EntityDefinitions(LogicalName='{entity.schema_name.lower()}')",
             headers=headers,
             json=entity.dump_to_dataverse(),
@@ -159,7 +160,7 @@ class DataverseClient(Dataverse):
             The response from the server.
         """
         return self._api_call(
-            method="delete",
+            method=RequestMethod.DELETE,
             url=f"EntityDefinitions(LogicalName='{logical_name}')",
         )
 
@@ -182,7 +183,7 @@ class DataverseClient(Dataverse):
         """
 
         return self._api_call(
-            method="post",
+            method=RequestMethod.POST,
             url="RelationshipDefinitions",
             json=relationship_definition.dump_to_dataverse(),
         )
@@ -213,7 +214,7 @@ class DataverseClient(Dataverse):
             The response from the server.
         """
         return self._api_call(
-            method="post",
+            method=RequestMethod.POST,
             url="publishers",
             json=publisher_definition(),
         )
@@ -236,7 +237,7 @@ class DataverseClient(Dataverse):
             The response from the server.
         """
         return self._api_call(
-            method="post",
+            method=RequestMethod.POST,
             url="solutions",
             json=solution_definition(),
         )

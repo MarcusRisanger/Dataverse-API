@@ -2,7 +2,7 @@ import json
 from dataclasses import dataclass, field
 from enum import Enum, auto
 from textwrap import dedent
-from typing import Any, Collection, Generator, Mapping, Sequence, TypeVar
+from typing import Any, Collection, Generator, Mapping, MutableMapping, Sequence, TypeVar
 from urllib.parse import urljoin
 
 from dataverse.utils.text import encode_altkeys
@@ -10,12 +10,31 @@ from dataverse.utils.text import encode_altkeys
 T = TypeVar("T")
 
 
-class BatchMode(Enum):
+class RequestMethod(Enum):
     GET = auto()
     POST = auto()
     PATCH = auto()
     PUT = auto()
     DELETE = auto()
+
+
+@dataclass(slots=True)
+class ThreadCommand:
+    """
+    For encapsulating a single request for Threaded execution.
+
+    Parameters
+    ----------
+    url : str
+    method : str
+    """
+
+    url: str
+    method: RequestMethod
+    headers: Mapping[str, str] | None = None
+    params: Mapping[str, str] | None = None
+    data: str | None = None
+    json: MutableMapping[str, Any] | None = None
 
 
 @dataclass(slots=True)
@@ -25,10 +44,10 @@ class BatchCommand:
 
     Parameters
     ----------
-    url : st
+    url : str
         The url that will be appended to the endpoint url.
-    mode : str
-        The request mode for the batch command.
+    method : str
+        The request method for the batch command.
     data : dict
         JSON serializable payload
     single_col : bool
@@ -39,13 +58,15 @@ class BatchCommand:
     """
 
     url: str
-    mode: BatchMode = field(default=BatchMode.GET)
+    method: RequestMethod = field(default=RequestMethod.GET)
     data: Mapping[str, Any] | None = field(default=None)
+    headers: Mapping[str, str] | None = field(default=None)
+    extra_header: str = field(init=False, default="")
     single_col: bool = field(init=False, default=False)
     content_type: str = field(init=False, default="Content-Type: application/json")
 
     def __post_init__(self) -> None:
-        if self.mode == BatchMode.PUT:
+        if self.method == RequestMethod.PUT:
             self.single_col = True
             assert self.data is not None
             assert len(self.data) == 1
@@ -53,8 +74,12 @@ class BatchCommand:
             self.url += f"/{col}"
             self.data = {"value": value}
 
-        if self.mode == BatchMode.POST:
+        if self.method == RequestMethod.POST:
             self.content_type += "; type=entry"
+
+        if self.headers:
+            print("Extra!")
+            self.extra_header = "\n".join([f"{k}: {v}" for k, v in self.headers.items()])
 
         self.url = encode_altkeys(self.url)
 
@@ -82,9 +107,9 @@ class BatchCommand:
         Content-Type: application/http
         Content-Transfer-Encoding: binary
 
-        {self.mode.name} {url} HTTP/1.1
+        {self.method.name} {url} HTTP/1.1
         {self.content_type}
-
+        {self.extra_header}\n
         {json.dumps(self.data)}
         """
         return dedent(row_command)
@@ -113,6 +138,6 @@ def chunk_data(data: Sequence[T], size: int = 500) -> Generator[Sequence[T], Non
 def transform_to_batch_data(
     url: str,
     data: Collection[Mapping[str, Any]],
-    mode: BatchMode = BatchMode.GET,
+    method: RequestMethod = RequestMethod.GET,
 ) -> list[BatchCommand]:
-    return [BatchCommand(url, mode=mode, data=row) for row in data]
+    return [BatchCommand(url, method=method, data=row) for row in data]

@@ -1,39 +1,37 @@
 import json
-
-import pytest
-import responses
 import re
 from typing import Any
 
+import pytest
+import responses
+from responses.matchers import header_matcher, json_params_matcher
+
 from dataverse.dataverse import DataverseClient
-from dataverse.errors import DataverseError
-from dataverse.utils.batching import BatchCommand, BatchMode
-from dataverse.metadata.helpers import Publisher, Solution
 from dataverse.metadata.entity import EntityMetadata
 from dataverse.metadata.enums import OwnershipType
-
-from responses.matchers import json_params_matcher, header_matcher
-
+from dataverse.metadata.helpers import Publisher, Solution
 from dataverse.metadata.relationships import OneToManyRelationshipMetadata
+from dataverse.utils.batching import BatchCommand, RequestMethod
 
 
-def test_api_call(client: DataverseClient, mocked_responses: responses.RequestsMock):
+def test_api_call(client: DataverseClient, mocked_responses: responses.RequestsMock, caplog):
     # Mocking an errored request
 
     mocked_responses.get(url=f"{client._endpoint}Foo", status=500)
 
-    expected = "Error with GET request:"
+    expected = f"Request failed for {RequestMethod.GET.name} to {client._endpoint}Foo."
 
-    with pytest.raises(DataverseError, match=expected):
-        client._api_call(method="get", url="Foo")
+    client._api_call(method=RequestMethod.GET, url="Foo")
+
+    assert expected in caplog.text
 
 
 def test_api_batch(client: DataverseClient, mocked_responses: responses.RequestsMock):
     batch = "funky"
     batch_data = [
-        BatchCommand(url="foo", mode=BatchMode.GET),
-        BatchCommand(url="bar", mode=BatchMode.PUT, data={"foo": "bar"}),
-        BatchCommand(url="moo", mode=BatchMode.POST, data={"foo": "bar"}),
+        BatchCommand(url="foo", method=RequestMethod.GET),
+        BatchCommand(url="bar", method=RequestMethod.PUT, data={"foo": "bar"}),
+        BatchCommand(url="moo", method=RequestMethod.POST, data={"foo": "bar"}),
     ]
 
     mocked_responses.post(
@@ -56,7 +54,7 @@ def test_api_batch(client: DataverseClient, mocked_responses: responses.Requests
 
     # POST batches have an additional line in Content-Type element header:
     pat = re.compile(r"Content-Type: application\/json; type=entry")
-    assert len(re.findall(pat, req)) == len(list(filter(lambda x: x.mode == BatchMode.POST, batch_data)))
+    assert len(re.findall(pat, req)) == len(list(filter(lambda x: x.method == RequestMethod.POST, batch_data)))
 
 
 @pytest.fixture
@@ -73,7 +71,7 @@ def test_create_entity(
     client: DataverseClient,
     mocked_responses: responses.RequestsMock,
     sample_entity: EntityMetadata,
-    create_entity_response,
+    create_entity_response: dict[str, Any],
 ):
     # Mocking the request sent by endpoint
     mocked_responses.post(**create_entity_response)
@@ -90,7 +88,7 @@ def test_create_entity_with_solution_name(
     client: DataverseClient,
     mocked_responses: responses.RequestsMock,
     sample_entity: EntityMetadata,
-    create_entity_response,
+    create_entity_response: dict[str, Any],
 ):
     # Again for invoking with `solution_name`
     mocked_responses.post(**create_entity_response)
