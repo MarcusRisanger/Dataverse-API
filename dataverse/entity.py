@@ -1,7 +1,7 @@
 import logging
-from collections.abc import Mapping, MutableMapping, Sequence
+from collections.abc import Collection, Iterable, Mapping, MutableMapping, Sequence
 from copy import copy
-from typing import Any
+from typing import Any, overload
 
 import pandas as pd
 import requests
@@ -12,7 +12,8 @@ from dataverse.utils.batching import (
     RequestMethod,
     ThreadCommand,
     chunk_data,
-    transform_to_batch_data,
+    transform_to_batch_data_for_create,
+    transform_to_batch_for_delete,
 )
 from dataverse.utils.dataframes import convert_dataframe_to_dict
 
@@ -178,20 +179,18 @@ class DataverseEntity(Dataverse):
 
         # Looping through pages
         logging.debug("Fetching data for read operation on %s.", self.logical_name)
-        while True:
-            response = self._api_call(
-                method=RequestMethod.GET,
-                url=url,
-                headers=additional_headers,
-                params=params,
-            ).json()
+        response = self._api_call(
+            method=RequestMethod.GET,
+            url=url,
+            headers=additional_headers,
+            params=params,
+        ).json()
+        output.extend(response["value"])
+        while response.get("@odata.nextLink"):
+            response = self._api_call(method=RequestMethod.GET, url=response["@odata.nextLink"]).json()
             output.extend(response["value"])
-            next_link = response.get("@odata.nextLink")
-            if next_link is None:
-                logging.debug("Fetched all data for read operation, %d elements.", len(output))
-                break
-            url = next_link
 
+        logging.debug("Fetched all data for read operation, %d elements.", len(output))
         return output
 
     def create(
@@ -286,5 +285,50 @@ class DataverseEntity(Dataverse):
         """
         Runs a batch insert operation on the given data.
         """
-        batch_data = transform_to_batch_data(url=self.entity_set_name, data=data, method=RequestMethod.POST)
+        batch_data = transform_to_batch_data_for_create(url=self.entity_set_name, data=data)
         return self._batch_api_call(batch_data)
+
+    def __delete_singles(self, data: Iterable[str]) -> list[requests.Response]:
+        calls = [
+            ThreadCommand(
+                method=RequestMethod.DELETE,
+                url=f"{self.entity_set_name}({id})",
+            )
+            for id in data
+        ]
+
+        return self._threaded_call(calls=calls)
+
+    @overload
+    def delete(self, *, ids: list[str]) -> list[requests.Response]:
+        ...
+
+    @overload
+    def delete(self, *, filter: str) -> list[requests.Response]:
+        ...
+
+    def delete(self, *, ids: Collection[str] | None = None, filter: str | None = None) -> list[requests.Response]:
+        """
+        Deletes rows in Entity.
+
+        Parameters
+        ----------
+        filter : str
+            Filter statement for targeting specific records in Entity for deletion.
+        ids : list[str]
+            List of primary IDs to delete. Takes precedence if passed.
+        """
+        if ids is None:
+            records = self.read(select=[self.primary_id_attr], filter=filter)
+            ids = {row[self.primary_id_attr] for row in records}
+
+        length = len(ids)
+        if length < 10:
+            logging.debug("%d rows to delete. Using single deletes.", length)
+            resp = self.__delete_singles(data=ids)
+        else:
+            logging.debug("%d rows to delete. Using batch deletes.", length)
+            batch_data = transform_to_batch_for_delete(url=self.entity_set_name, data=ids)
+            resp = self._batch_api_call(batch_data)
+
+        return resp

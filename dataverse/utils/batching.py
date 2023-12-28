@@ -1,4 +1,5 @@
 import json
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from enum import Enum, auto
 from textwrap import dedent
@@ -135,9 +136,23 @@ def chunk_data(data: Sequence[T], size: int = 500) -> Generator[Sequence[T], Non
         yield data[i : i + size]  # noqa E203
 
 
-def transform_to_batch_data(
+def transform_to_batch_data_for_create(
     url: str,
     data: Collection[Mapping[str, Any]],
-    method: RequestMethod = RequestMethod.GET,
 ) -> list[BatchCommand]:
-    return [BatchCommand(url, method=method, data=row) for row in data]
+    return [BatchCommand(url, method=RequestMethod.POST, data=row) for row in data]
+
+
+def transform_to_batch_for_delete(url: str, data: Iterable[str]) -> list[BatchCommand]:
+    """
+    Parameters
+    ----------
+    data : iterable of str
+        Primary IDs for deletion.
+
+    Returns
+    -------
+    list of BatchDataCommand
+        Payload for passing to _batch_call
+    """
+    return [BatchCommand(url=f"{url}({id})", method=RequestMethod.DELETE) for id in data]
