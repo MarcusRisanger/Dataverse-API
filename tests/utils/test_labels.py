@@ -1,16 +1,18 @@
-from dataverse.utils.labels import define_label
 import pytest
 
-
-def test_define_label_with_label(label):
-    lbl = define_label(label)
-
-    assert lbl == label
+from dataverse.metadata.complex_properties import Label
+from dataverse.utils.labels import define_label
 
 
 @pytest.fixture
 def label_name() -> str:
     return "test"
+
+
+def test_define_label_with_label(label: Label):
+    lbl = define_label(label)
+
+    assert lbl == label
 
 
 def test_define_label_with_str(label_name: str):

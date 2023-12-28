@@ -1,10 +1,11 @@
 import pytest
 
-from dataverse.metadata.attributes import LookupAttributeMetadata, AutoNumberMetadata
+from dataverse.metadata.attributes import AutoNumberMetadata, LookupAttributeMetadata
+from dataverse.metadata.complex_properties import Label
 
 
 @pytest.fixture
-def lookup_field(description_label, display_name_label) -> LookupAttributeMetadata:
+def lookup_field(description_label: Label, display_name_label: Label) -> LookupAttributeMetadata:
     return LookupAttributeMetadata(
         schema_name="Lookup",
         description=description_label,
@@ -22,7 +23,7 @@ def test_lookup(lookup_field: LookupAttributeMetadata):
     assert a["SchemaName"] == lookup_field.schema_name
 
 
-def test_autonumber(description_label, display_name_label):
+def test_autonumber(description_label: Label, display_name_label: Label):
     a = AutoNumberMetadata(
         schema_name="autonumber",
         description=description_label,

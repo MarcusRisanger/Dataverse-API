@@ -1,23 +1,17 @@
-import pytest
-
 from dataverse.metadata.attributes import LookupAttributeMetadata
 from dataverse.metadata.relationships import OneToManyRelationshipMetadata, define_relationship
-from dataverse.utils.labels import define_label, Label
+from dataverse.utils.labels import Label
 
 
 def test_one_many_relationship(one_many_relationship: OneToManyRelationshipMetadata):
     a = one_many_relationship.dump_to_dataverse()
-
+    one_many = one_many_relationship
     assert a["SchemaName"] == one_many_relationship.schema_name
-    assert (
-        a["Description"]["LocalizedLabels"][0]["Label"] == one_many_relationship.description.localized_labels[0].label
-    )
-    assert (
-        a["DisplayName"]["LocalizedLabels"][0]["Label"] == one_many_relationship.display_name.localized_labels[0].label
-    )
+    assert a["Description"]["LocalizedLabels"][0]["Label"] == one_many.description.localized_labels[0].label
+    assert a["DisplayName"]["LocalizedLabels"][0]["Label"] == one_many.display_name.localized_labels[0].label
 
 
-def test_define_relationship(schema_name, lookup):
+def test_define_relationship(schema_name: str, lookup: LookupAttributeMetadata):
     data = {
         "schema_name": schema_name,
         "referenced_entity": "ref'd entity",

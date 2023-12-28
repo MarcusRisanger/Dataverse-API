@@ -1,15 +1,14 @@
+import logging
+
 import pytest
 
 from dataverse.metadata.complex_properties import (
-    AssociatedMenuConfiguration,
     CascadeConfiguration,
     Label,
     LocalizedLabel,
     RequiredLevel,
     create_label,
 )
-
-import logging
 
 
 @pytest.fixture
@@ -28,7 +27,7 @@ def localized_label(label_string: str) -> LocalizedLabel:
 
 
 @pytest.fixture
-def single_label(localized_label) -> Label:
+def single_label(localized_label: LocalizedLabel) -> Label:
     return Label(localized_labels=[localized_label])
 
 
@@ -126,9 +125,9 @@ def test_create_label_with_list_of_tuples(label_string: str, lang_code: int):
     assert isinstance(a, Label)
     assert len(a.localized_labels) == 2
     for localized_label, lang_code in labels:
-        for l in a.localized_labels:
-            if l.label == localized_label:
-                assert l.language_code == lang_code
+        for label in a.localized_labels:
+            if label.label == localized_label:
+                assert label.language_code == lang_code
 
 
 def test_create_label_failure_1():

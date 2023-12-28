@@ -1,8 +1,8 @@
 # `dataverse-api`
 
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 [![Build Status](https://github.com/MarcusRisanger/dataverse-api/workflows/release/badge.svg)](https://github.com/MarcusRisanger/dataverse-api/actions)
 [![codecov](https://codecov.io/gh/MarcusRisanger/Dataverse-API/branch/main/graph/badge.svg)](https://codecov.io/gh/MarcusRisanger/Dataverse-API)
-[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/ambv/black)
 
 The `dataverse-api` package is an abstraction layer developed for allowing simple interaction with Microsoft Dataverse Web API.
 
@@ -76,15 +76,13 @@ We use [poetry](https://python-poetry.org) to manage dependencies and to adminis
 
 ### Code requirements
 
-All code must pass [black](https://github.com/ambv/black) and [isort](https://github.com/timothycrosley/isort) style
-checks to be merged, among others. It is recommended to install pre-commit hooks to ensure this locally before commiting code:
+All code must pass [ruff](https://github.com/astral-sh/ruff) style checks to be merged. It is recommended to install pre-commit hooks to ensure this locally before commiting code:
 
 ```
 $ poetry run pre-commit install
 ```
 
-Each public method, class and module should have docstrings. Docstrings are written in the [Google
-style](https://google.github.io/styleguide/pyguide.html#38-comments-and-docstrings).
+Each public method, class and module should have docstrings. Docstrings are written in the Numpy style.
 
 ### Testing
 

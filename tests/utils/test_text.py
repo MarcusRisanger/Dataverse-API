@@ -1,8 +1,12 @@
-from dataverse.utils.text import convert_dict_keys_to_title, convert_dict_keys_to_snake, encode_altkeys
+from dataverse.utils.text import convert_dict_keys_to_snake, convert_dict_keys_to_title, encode_altkeys
 
 
 def test_conversion_to_title():
-    test_dict = {"hello_there": [{"data": 1, "foo": 2}], "test_string_yeah": {"target": "Kenobi"}, "single": False}
+    test_dict = {
+        "hello_there": [{"data": 1, "foo": 2}],
+        "test_string_yeah": {"target": "Kenobi"},
+        "single": False,
+    }
     out = convert_dict_keys_to_title(test_dict)
 
     assert out["HelloThere"] == [{"Data": 1, "Foo": 2}]
@@ -11,7 +15,11 @@ def test_conversion_to_title():
 
 
 def test_conversion_to_snake():
-    test_dict = {"HelloThere": [{"Data": 1, "foo": 2}], "TestStringYeah": {"Target": "Kenobi"}, "Single": False}
+    test_dict = {
+        "HelloThere": [{"Data": 1, "foo": 2}],
+        "TestStringYeah": {"Target": "Kenobi"},
+        "Single": False,
+    }
     out = convert_dict_keys_to_snake(test_dict)
 
     assert out["hello_there"] == [{"data": 1, "foo": 2}]

@@ -14,7 +14,11 @@ from dataverse.metadata.relationships import OneToManyRelationshipMetadata
 from dataverse.utils.batching import BatchCommand, RequestMethod
 
 
-def test_api_call(client: DataverseClient, mocked_responses: responses.RequestsMock, caplog):
+def test_api_call(
+    client: DataverseClient,
+    mocked_responses: responses.RequestsMock,
+    caplog: pytest.LogCaptureFixture,
+):
     # Mocking an errored request
 
     mocked_responses.get(url=f"{client._endpoint}Foo", status=500)

@@ -1,14 +1,14 @@
+from typing import Any
+
 import pytest
 import requests
 import responses
-from typing import Any
 
 from dataverse.dataverse import DataverseClient
-from dataverse.metadata.entity import define_entity
-from dataverse.metadata.enums import OwnershipType
-from dataverse.metadata.attributes import StringAttributeMetadata, LookupAttributeMetadata
-from dataverse.metadata.relationships import OneToManyRelationshipMetadata
+from dataverse.metadata.attributes import LookupAttributeMetadata, StringAttributeMetadata
 from dataverse.metadata.complex_properties import Label, LocalizedLabel
+from dataverse.metadata.entity import define_entity
+from dataverse.metadata.relationships import OneToManyRelationshipMetadata
 from dataverse.utils.labels import define_label
 
 

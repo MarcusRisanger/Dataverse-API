@@ -1,5 +1,6 @@
+from pydantic import Field
+
 from dataverse.metadata.base import MetadataBase
-from pydantic import BaseModel, Field
 
 
 def test_base():

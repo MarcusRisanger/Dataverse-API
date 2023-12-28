@@ -8,12 +8,22 @@ import requests
 
 from dataverse._api import Dataverse
 from dataverse.metadata.base import BASE_TYPE
-from dataverse.utils.batching import RequestMethod, ThreadCommand, chunk_data, transform_to_batch_data
+from dataverse.utils.batching import (
+    RequestMethod,
+    ThreadCommand,
+    chunk_data,
+    transform_to_batch_data,
+)
 from dataverse.utils.dataframes import convert_dataframe_to_dict
 
 
 class DataverseEntity(Dataverse):
-    def __init__(self, session: requests.Session, environment_url: str, logical_name: str):
+    def __init__(
+        self,
+        session: requests.Session,
+        environment_url: str,
+        logical_name: str,
+    ):
         super().__init__(session=session, environment_url=environment_url)
 
         self.__logical_name = logical_name
@@ -109,12 +119,16 @@ class DataverseEntity(Dataverse):
         ] = f"""({' or '.join(f"{msg_col} eq '{x}'" for x in actions)}) and {col} eq '{self.logical_name}'"""
 
         logging.debug("Retrieving SDK messages for %s", self.logical_name)
-        resp = self._api_call(method=RequestMethod.GET, url="sdkmessagefilters", params=params).json()["value"]
-        actions = {row["sdkmessageid"]["name"] for row in resp}
+        resp = self._api_call(
+            method=RequestMethod.GET,
+            url="sdkmessagefilters",
+            params=params,
+        ).json()["value"]
+        returned_actions = {row["sdkmessageid"]["name"] for row in resp}
 
-        if create in actions:
+        if create in returned_actions:
             self.__supports_create_multiple = True
-        if update in actions:
+        if update in returned_actions:
             self.__supports_update_multiple = True
 
     def read(
@@ -155,7 +169,7 @@ class DataverseEntity(Dataverse):
         if top:
             params["$top"] = top
         if order_by:
-            params["$apply"] = order_by
+            params["$orderby"] = order_by
         if expand:
             params["$expand"] = expand
 
@@ -211,8 +225,11 @@ class DataverseEntity(Dataverse):
             logging.debug("%d rows to insert. Using CreateMultiple.", length)
             resp = self.__create_multiple(headers=headers, data=data)
         else:
-            logging.debug("%d rows to insert. CreateMultiple not supported. Inserting batch.", length)
-            resp = self.__create_batch(headers=headers, data=data)
+            logging.debug(
+                "%d rows to insert. CreateMultiple not supported. Inserting batch.",
+                length,
+            )
+            resp = self.__create_batch(data=data)
 
         return resp
 
@@ -265,11 +282,7 @@ class DataverseEntity(Dataverse):
         # Threading the write operation
         return self._threaded_call(calls)
 
-    def __create_batch(
-        self,
-        data: Sequence[MutableMapping[str, Any]],
-        headers: Mapping[str, str] | None = None,
-    ) -> list[requests.Response]:
+    def __create_batch(self, data: Sequence[MutableMapping[str, Any]]) -> list[requests.Response]:
         """
         Runs a batch insert operation on the given data.
         """

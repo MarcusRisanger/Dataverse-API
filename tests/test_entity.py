@@ -1,9 +1,15 @@
+import logging
+from copy import deepcopy
+from uuid import uuid4
+
+import pandas as pd
 import pytest
 import responses
-from responses.matchers import query_param_matcher
+from responses.matchers import header_matcher, json_params_matcher, query_param_matcher
 
 from dataverse.dataverse import DataverseClient
 from dataverse.entity import DataverseEntity
+from dataverse.metadata.base import BASE_TYPE
 
 
 @pytest.fixture
@@ -27,13 +33,33 @@ def primary_img() -> str:
 
 
 @pytest.fixture
-def altkey_1(primary_id) -> tuple[str, list[str]]:
+def altkey_1(primary_id: str) -> tuple[str, list[str]]:
     return "foo_key", [primary_id]
 
 
 @pytest.fixture
 def altkey_2(primary_id: str, primary_img: str) -> tuple[str, list[str]]:
     return "foo_key2", [primary_id, primary_img]
+
+
+@pytest.fixture
+def sample_data():
+    return {"value": [{"data": 1}, {"data": 2}]}
+
+
+@pytest.fixture
+def small_data_package():
+    return [{"test": str(uuid4())} for _ in range(5)]
+
+
+@pytest.fixture
+def medium_data_package():
+    return [{"test": str(uuid4())} for _ in range(100)]
+
+
+@pytest.fixture
+def large_data_package():
+    return [{"test": str(uuid4())} for _ in range(2000)]
 
 
 @pytest.fixture
@@ -119,12 +145,154 @@ def test_entity_instantiation(
     assert entity.supports_update_multiple is True
 
 
-def test_entity_read(entity: DataverseEntity, entity_set_name: str, mocked_responses: responses.RequestsMock):
+def test_entity_read(
+    entity: DataverseEntity,
+    entity_set_name: str,
+    mocked_responses: responses.RequestsMock,
+    sample_data: dict[str, list[dict[str, int]]],
+):
     # Reading without any args
-    mock_data = {"value": [{"data": 1}, {"data": 2}]}
+    url = entity._endpoint + entity_set_name
+    mocked_responses.get(url=url, json=sample_data)
+    resp = entity.read()
+    assert resp == sample_data["value"]
 
-    mocked_responses.get(url=entity._endpoint + entity_set_name, json=mock_data)
 
+def test_entity_read_with_args(
+    entity: DataverseEntity,
+    mocked_responses: responses.RequestsMock,
+    sample_data: dict[str, list[dict[str, int]]],
+):
+    # Reading with args
+    url = entity._endpoint + entity.entity_set_name
+    select = "moo"
+    filter = "foo"
+    expand = "schmoo"
+    order_by = "blergh"
+    top = 123
+    params = {"$select": select, "$filter": filter, "$expand": expand, "$orderby": order_by, "$top": top}
+
+    page_size = 69
+    headers = {"Prefer": f"odata.maxpagesize={page_size}"}
+
+    mocked_responses.get(url=url, json=sample_data, match=[query_param_matcher(params), header_matcher(headers)])
+
+    resp = entity.read(select=[select], filter=filter, top=top, order_by=order_by, expand=expand, page_size=page_size)
+    assert resp == sample_data["value"]
+
+
+def test_entity_read_with_paging(
+    entity: DataverseEntity,
+    mocked_responses: responses.RequestsMock,
+    sample_data: dict[str, list[dict[str, int]]],
+):
+    url = entity._endpoint + entity.entity_set_name
+    next_url = entity._endpoint + "foooooo"
+
+    # Mocking responses
+    mocked_responses.get(url=next_url, json=sample_data)
+    sample_data["@odata.nextLink"] = next_url
+    mocked_responses.get(url=url, json=sample_data)
+
+    # Performing action
     resp = entity.read()
 
-    assert resp == mock_data["value"]
+    assert len(resp) == 2 * len(sample_data["value"])
+    assert resp == sample_data["value"] * 2
+
+
+def test_entity_create_by_singles(
+    entity: DataverseEntity,
+    mocked_responses: responses.RequestsMock,
+    small_data_package: list[dict[str, str]],
+    caplog: pytest.LogCaptureFixture,
+):
+    # Data package
+    url = entity._endpoint + entity.entity_set_name
+
+    # Mock single requests
+    for row in small_data_package:
+        mocked_responses.post(url=url, match=[json_params_matcher(row)], status=204)
+
+    caplog.set_level(logging.DEBUG)
+    resp = entity.create(data=small_data_package)
+
+    assert all([x.status_code == 204 for x in resp])
+    assert "Using single inserts" in caplog.text
+
+
+def test_entity_create_by_createmultiple(
+    entity: DataverseEntity,
+    mocked_responses: responses.RequestsMock,
+    medium_data_package: list[dict[str, str]],
+    caplog: pytest.LogCaptureFixture,
+):
+    # Data package
+    out_data = deepcopy(medium_data_package)
+    for row in out_data:
+        row["@odata.type"] = BASE_TYPE + entity.logical_name
+    match_data = {"Targets": out_data}
+    url = f"{entity._endpoint}{entity.entity_set_name}/{BASE_TYPE + 'CreateMultiple'}"
+    # Mock request
+    mocked_responses.post(url=url, match=[json_params_matcher(match_data)], status=204)
+
+    caplog.set_level(logging.DEBUG)
+    resp = entity.create(medium_data_package)
+
+    assert all([x.status_code == 204 for x in resp])
+    assert "Using CreateMultiple" in caplog.text
+
+
+def test_entity_create_by_batch(
+    entity: DataverseEntity,
+    mocked_responses: responses.RequestsMock,
+    medium_data_package: list[dict[str, str]],
+    caplog: pytest.LogCaptureFixture,
+):
+    # Setup
+    entity._DataverseEntity__supports_create_multiple = False  # Ugh!
+
+    # Data package
+    url = f"{entity._endpoint}$batch"
+
+    # Mock request
+    mocked_responses.post(url=url, status=204)
+
+    caplog.set_level(logging.DEBUG)
+    resp = entity.create(medium_data_package)
+
+    assert all([x.status_code == 204 for x in resp])
+    assert "CreateMultiple not supported. Inserting batch." in caplog.text
+
+
+def test_entity_create_with_args(
+    entity: DataverseEntity,
+    mocked_responses: responses.RequestsMock,
+    small_data_package: list[dict[str, str]],
+):
+    # Data package
+    url = entity._endpoint + entity.entity_set_name
+    header = {"MSCRM.SuppressDuplicateDetection": "false"}
+
+    # Mock single requests
+    for _ in small_data_package:
+        mocked_responses.post(url=url, match=[header_matcher(header)], status=204)
+
+    resp = entity.create(data=small_data_package, detect_duplicates=True)
+    assert all([x.status_code == 204 for x in resp])
+
+
+def test_entity_create_with_df(
+    entity: DataverseEntity,
+    mocked_responses: responses.RequestsMock,
+):
+    data = pd.DataFrame([("abc"), ("def")], columns=["test"])
+    dict_data = data.to_dict(orient="records")
+    url = entity._endpoint + entity.entity_set_name
+
+    for row in dict_data:
+        mocked_responses.post(url=url, status=204, match=[json_params_matcher(row)])
+
+    resp = entity.create(data=data)
+
+    assert all([x.status_code == 204 for x in resp])
