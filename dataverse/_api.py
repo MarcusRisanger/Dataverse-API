@@ -1,4 +1,5 @@
-from typing import Any, Callable, Sequence
+from collections.abc import Callable, MutableMapping, Sequence
+from typing import Any
 from urllib.parse import urljoin
 from uuid import uuid4
 
@@ -29,10 +30,10 @@ class Dataverse:
         self,
         method: str,
         url: str,
-        headers: dict[str, str] | None = None,
-        params: dict[str, Any] | None = None,
+        headers: MutableMapping[str, str] | None = None,
+        params: MutableMapping[str, Any] | None = None,
         data: str | None = None,
-        json: dict[str, Any] | None = None,
+        json: MutableMapping[str, Any] | None = None,
     ) -> requests.Response:
         """
         Send API call to Dataverse.
@@ -84,19 +85,17 @@ class Dataverse:
             )
             resp.raise_for_status()
         except requests.exceptions.HTTPError as e:
-            message = ""
-            if e.response:
-                try:
-                    message = e.response.json()["error"]["message"]
-                except Exception:
-                    pass
+            message = None
+            try:
+                message = e.response.json()["error"]["message"]  # type:ignore
+            except Exception:
+                pass
             messages: list[str] = [f"Error with GET request: {e.args[0]}"]
-            if message:
+            if message is not None:
                 messages.append(f"Response: {message}")
             raise DataverseError(
                 message="\n".join(messages),
                 response=e.response,
-                # details=e.response.args if e.response.args else None,
             ) from e
 
         return resp

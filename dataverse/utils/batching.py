@@ -2,7 +2,7 @@ import json
 from dataclasses import dataclass, field
 from enum import Enum, auto
 from textwrap import dedent
-from typing import Any, Generator, Sequence, TypeVar
+from typing import Any, Collection, Generator, Mapping, Sequence, TypeVar
 from urllib.parse import urljoin
 
 from dataverse.utils.text import encode_altkeys
@@ -40,7 +40,7 @@ class BatchCommand:
 
     url: str
     mode: BatchMode = field(default=BatchMode.GET)
-    data: dict[str, Any] | None = field(default=None)
+    data: Mapping[str, Any] | None = field(default=None)
     single_col: bool = field(init=False, default=False)
     content_type: str = field(init=False, default="Content-Type: application/json")
 
@@ -108,3 +108,11 @@ def chunk_data(data: Sequence[T], size: int = 500) -> Generator[Sequence[T], Non
     """
     for i in range(0, len(data), size):
         yield data[i : i + size]  # noqa E203
+
+
+def transform_to_batch_data(
+    url: str,
+    data: Collection[Mapping[str, Any]],
+    mode: BatchMode = BatchMode.GET,
+) -> list[BatchCommand]:
+    return [BatchCommand(url, mode=mode, data=row) for row in data]

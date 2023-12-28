@@ -1,9 +1,17 @@
+import logging
+from collections.abc import MutableMapping, Sequence
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from copy import copy
 from dataclasses import dataclass, field
 from typing import Any
 
+import pandas as pd
 import requests
 
 from dataverse._api import Dataverse
+from dataverse.metadata.base import BASE_TYPE
+from dataverse.utils.batching import BatchMode, chunk_data, transform_to_batch_data
+from dataverse.utils.dataframes import convert_dataframe_to_dict
 
 
 @dataclass(slots=True)
@@ -50,9 +58,9 @@ class DataverseEntity(Dataverse):
         """
         To fetch the some key attributes of the Entity.
 
-          - EntitySetName, used as the API endpoint
-          - PrimaryIdAttribute, the primary ID column
-          - PrimaryImageAttribute, the primary image column (if any)
+          - `EntitySetName`, used as the API endpoint
+          - `PrimaryIdAttribute`, the primary ID column
+          - `PrimaryImageAttribute`, the primary image column (if any)
 
         Returns
         -------
@@ -83,7 +91,7 @@ class DataverseEntity(Dataverse):
             related key attributes per key.
         """
         columns = ["SchemaName", "KeyAttributes"]
-        resp: list[dict[str, Any]] = self._api_call(
+        resp = self._api_call(
             method="GET",
             url=f"EntityDefinitions(LogicalName='{self.logical_name}')/Keys",
             params={"$select": ",".join(columns)},
@@ -93,6 +101,7 @@ class DataverseEntity(Dataverse):
 
     def read(
         self,
+        *,
         select: list[str] | None = None,
         filter: str | None = None,
         top: int | None = None,
@@ -103,7 +112,7 @@ class DataverseEntity(Dataverse):
         """
         Reads data from Entity.
 
-        Optional querying args:
+        Optional querying keyword args:
           - select: A single column or list of columns to return from the
             current entity.
           - filter: A fully qualified filtering string.
@@ -114,7 +123,6 @@ class DataverseEntity(Dataverse):
             and grouping of returned records.
           - page_size: Limits the total number of records
             retrieved per API call.
-
         """
 
         additional_headers = dict()
@@ -138,7 +146,7 @@ class DataverseEntity(Dataverse):
 
         # Looping through pages
         while True:
-            response: dict[str, Any] = self._api_call(
+            response = self._api_call(
                 method="GET",
                 url=url,
                 headers=additional_headers,
@@ -151,3 +159,66 @@ class DataverseEntity(Dataverse):
             url = next_link
 
         return output
+
+    def insert(self, data: Sequence[MutableMapping[str, Any]] | pd.DataFrame) -> list[requests.Response]:
+        """
+        Inserts data to Dataverse Entity.
+
+        data : Serializable JSON dict or `pandas.DataFrame`.
+            The data to insert to Dataverse.
+        """
+        if isinstance(data, pd.DataFrame):
+            data = convert_dataframe_to_dict(data)
+
+        length = len(data)
+        if length < 10:
+            logging.debug("%d rows to insert. Using single inserts.", length)
+            resp = self.__create_singles(data=data)
+        else:
+            logging.debug("%d rows to insert. Using CreateMultiple.", length)
+            resp = self.__create_multiple(data=copy(data))
+
+        return resp
+
+    def __create_singles(self, data: Sequence[MutableMapping[str, Any]]) -> list[requests.Response]:
+        with ThreadPoolExecutor() as exec:
+            futures = [
+                exec.submit(
+                    self._api_call,
+                    method="POST",
+                    url=self.entity_set_name,
+                    json=payload,
+                )
+                for payload in data
+            ]
+            resp = [future.result() for future in as_completed(futures)]
+        return resp
+
+    def __create_multiple(self, data: Sequence[MutableMapping[str, Any]]) -> list[requests.Response]:
+        # Adding odata type to each record
+        for row in data:
+            row["@odata.type"] = BASE_TYPE + self.logical_name
+
+        # Chunking the payload to suggested size
+        payload_chunks = [{"Targets": rows} for rows in chunk_data(data=data, size=100)]
+        url = f"{self.entity_set_name}/{BASE_TYPE}CreateMultiple"
+
+        # Threading the write operation
+        with ThreadPoolExecutor() as exec:
+            futures = [
+                exec.submit(
+                    self._api_call,
+                    method="POST",
+                    url=url,
+                    json=payload,
+                )
+                for payload in payload_chunks
+            ]
+            resp = [future.result() for future in as_completed(futures)]
+
+        return resp
+
+    def __insert_batch(self, data: Sequence[MutableMapping[str, Any]]) -> list[requests.Response]:
+        batch_data = transform_to_batch_data(url=self.entity_set_name, data=data, mode=BatchMode.POST)
+
+        return self._batch_api_call(batch_data)
