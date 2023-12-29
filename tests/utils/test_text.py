@@ -19,12 +19,14 @@ def test_conversion_to_snake():
         "HelloThere": [{"Data": 1, "foo": 2}],
         "TestStringYeah": {"Target": "Kenobi"},
         "Single": False,
+        "@whatever": True,
     }
     out = convert_dict_keys_to_snake(test_dict)
 
     assert out["hello_there"] == [{"data": 1, "foo": 2}]
     assert out["test_string_yeah"] == {"target": "Kenobi"}
     assert out["single"] == test_dict["Single"]
+    assert out["@whatever"] == test_dict["@whatever"]
 
 
 def test_altkeys_encode():

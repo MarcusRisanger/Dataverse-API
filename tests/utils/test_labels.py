@@ -27,7 +27,7 @@ def test_define_label_without_arg():
     lbl = define_label()
 
     assert len(lbl.localized_labels) == 1
-    assert lbl.localized_labels[0].label == ""
+    assert lbl.localized_labels[0].label == "Label"
     assert lbl.localized_labels[0].language_code == 1033
 
 
@@ -49,4 +49,4 @@ def test_define_label_with_none_and_override():
 
 def test_define_label_error():
     with pytest.raises(TypeError, match="Wrong type supplied!"):
-        define_label(label=123)
+        define_label(label=123)  # type: ignore

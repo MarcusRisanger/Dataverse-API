@@ -2,6 +2,7 @@
 A collection of Dataverse Complex Property metadata classes.
 """
 
+from collections.abc import Sequence
 from typing import Any, overload
 
 from pydantic import Field
@@ -64,19 +65,19 @@ class Label(MetadataBase):
         `LocalizedLabel` defines the label for an associated language code.
     """
 
-    localized_labels: list[LocalizedLabel] = Field(default_factory=list)
+    localized_labels: Sequence[LocalizedLabel] = Field(default_factory=list)
 
     def model_post_init(self, _: Any) -> None:
         self.odata_type: str = BASE_TYPE + "Label"
 
 
 @overload
-def create_label(*, label: str) -> Label:
+def create_label() -> Label:
     ...
 
 
 @overload
-def create_label(*, label: tuple[str, int]) -> Label:
+def create_label(*, label: str) -> Label:
     ...
 
 
@@ -92,9 +93,9 @@ def create_label(*, labels: list[tuple[str, int]]) -> Label:
 
 def create_label(
     *,
-    label: str | tuple[str, int] | None = None,
+    label: str | None = None,
     language_code: int | None = None,
-    labels: list[tuple[str, int]] | None = None,
+    labels: Sequence[tuple[str, int]] | None = None,
 ) -> Label:
     """
     Creates a new `Label` instance.
@@ -129,14 +130,12 @@ def create_label(
     if language_code is None:
         language_code = 1033
 
-    if isinstance(label, tuple):
-        localized_labels = [LocalizedLabel(label=label[0], language_code=label[1])]
-    elif isinstance(label, str):
+    if label:
         localized_labels = [LocalizedLabel(label=label, language_code=language_code)]
-    elif isinstance(labels, list):
+    elif labels:
         localized_labels = [LocalizedLabel(label=label[0], language_code=label[1]) for label in labels]
     else:
-        raise ValueError("Correct input was not provided.")
+        localized_labels = [LocalizedLabel(label="Label")]
     return Label(localized_labels=localized_labels)
 
 

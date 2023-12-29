@@ -2,6 +2,7 @@
 Trying out new things..
 """
 
+from collections.abc import Callable
 
 import requests
 
@@ -10,7 +11,7 @@ from dataverse.entity import DataverseEntity
 from dataverse.metadata.entity import EntityMetadata
 from dataverse.metadata.helpers import Publisher, Solution
 from dataverse.metadata.relationships import RelationshipMetadata
-from dataverse.utils.batching import RequestMethod
+from dataverse.utils.batching import BatchCommand, RequestMethod
 
 
 class DataverseClient(Dataverse):
@@ -129,7 +130,24 @@ class DataverseClient(Dataverse):
         solution_name: str | None = None,
         preserve_localized_labels: bool = False,
     ) -> requests.Response:
-        """ """
+        """
+        Updates the Entity definition in Dataverse.
+
+        Parameters
+        ----------
+        entity : EntityMetadata
+            The updated EntityMetadata to be persisted in Dataverse.
+        solution_name : str
+            The Solution Name with which to associate the Entity.
+        preserve_localized_labels : bool
+            Whether to preserve localized labels that exist in Dataverse
+            but are not part of the submitted EntityMetadata.
+
+        Returns
+        -------
+        requests.Response
+            The response from the server.
+        """
         headers: dict[str, str] = dict()
         if solution_name:
             headers["MSCRM.SolutionUniqueName"] = solution_name
@@ -188,13 +206,80 @@ class DataverseClient(Dataverse):
             json=relationship_definition.dump_to_dataverse(),
         )
 
+    def get_relationship_definition(self, schema_name: str) -> RelationshipMetadata:
+        """
+        Retrieves the Relationship metadata definition from Dataverse.
+
+        Parameters
+        ----------
+        schema_name : str
+            The schema name of the Relationship to fetch Metadata for.
+
+        Returns
+        -------
+        EntityMetadata
+            Required as basis for updating Entity metadata for an
+            existing Entity in Dataverse.
+        """
+        resp = self._api_call(
+            method=RequestMethod.GET,
+            url=f"RelationshipDefinitions(SchemaName='{schema_name}')",
+        )
+        return RelationshipMetadata.model_validate_dataverse(resp.json())
+
+    def update_relationship(
+        self,
+        relationship: RelationshipMetadata,
+        *,
+        preserve_localized_labels: bool = False,
+    ) -> requests.Response:
+        """
+        Updates the Relationship definition in Dataverse.
+
+        Parameters
+        ----------
+        entity : RelationshipMetadata
+            The updated RelationshipMetadata to be persisted in Dataverse.
+        preserve_localized_labels : bool
+            Whether to preserve localized labels that exist in Dataverse
+            but are not part of the submitted RelationshipMetadata.
+
+        Returns
+        -------
+        requests.Response
+            The response from the server.
+        """
+        headers: dict[str, str] = dict()
+        if preserve_localized_labels:
+            headers["MSCRM.Mergelabels"] = "true"
+        return self._api_call(
+            method=RequestMethod.PUT,
+            url=f"RelationshipDefinitions(SchemaName='{relationship.schema_name}')",
+            headers=headers,
+            json=relationship.dump_to_dataverse(),
+        )
+
     def delete_relationship(
         self,
         logical_name: str,
-    ) -> None:
+    ) -> requests.Response:
         """
         Delete relationship between Entities.
+
+        Parameters
+        ----------
+        logial_name : str
+            The logical name of the relationship that is to be deleted.
+
+        Returns
+        -------
+        requests.Response
+            The response from the server.
         """
+        return self._api_call(
+            method=RequestMethod.DELETE,
+            url=f"RelationshipDefinitions(LogicalName='{logical_name}')",
+        )
 
     def create_publisher(
         self,
@@ -241,3 +326,25 @@ class DataverseClient(Dataverse):
             url="solutions",
             json=solution_definition(),
         )
+
+    def submit_batch(
+        self,
+        batch_data: list[BatchCommand],
+        batch_id_generator: Callable[[], str] | None = None,
+    ) -> list[requests.Response]:
+        """
+        Submits a custom batch for processing.
+
+        Parameters
+        ----------
+        batch_data : list of `dataverse.utils.batching.BatchCommand`
+            The individual batching commands to be submitted to the Dataverse Environment.
+        batch_id_generator : callable
+            An optional function for providing a unique batch ID.
+
+        Returns
+        -------
+        list of requests.Response
+            The response from the server.
+        """
+        return self._batch_api_call(batch_commands=batch_data, id_generator=batch_id_generator)

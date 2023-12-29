@@ -47,21 +47,18 @@ class BatchCommand:
     ----------
     url : str
         The url that will be appended to the endpoint url.
-    method : str
+    method : RequestMethod
         The request method for the batch command.
+    headers : dict
+        Any additional headers to pass for the specific batch command.
     data : dict
-        JSON serializable payload
-    single_col : bool
-        Whether the batch command targets a single column,
-        such as for instance in a PUT or DELETE. If this is
-        set to True, a data
-
+        Optional JSON serializable payload depending on request method.
     """
 
     url: str
-    method: RequestMethod = field(default=RequestMethod.GET)
-    data: Mapping[str, Any] | None = field(default=None)
+    method: RequestMethod
     headers: Mapping[str, str] | None = field(default=None)
+    data: Mapping[str, Any] | None = field(default=None)
     extra_header: str = field(init=False, default="")
     single_col: bool = field(init=False, default=False)
     content_type: str = field(init=False, default="Content-Type: application/json")
@@ -147,12 +144,14 @@ def transform_to_batch_for_delete(url: str, data: Iterable[str]) -> list[BatchCo
     """
     Parameters
     ----------
+    url : str
+        The EntitySetName of targeted Dataverse Entity.
     data : iterable of str
         Primary IDs for deletion.
 
     Returns
     -------
     list of BatchDataCommand
-        Payload for passing to _batch_call
+        Payload for passing to the API batch call endpoint.
     """
     return [BatchCommand(url=f"{url}({id})", method=RequestMethod.DELETE) for id in data]

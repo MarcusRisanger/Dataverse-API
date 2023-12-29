@@ -91,10 +91,13 @@ class Dataverse:
     def _batch_api_call(
         self,
         batch_commands: Sequence[BatchCommand],
-        id_generator: Callable[[], str] = lambda: str(uuid4),
+        id_generator: Callable[[], str] | None = None,
     ) -> list[requests.Response]:
+        if id_generator is None:
+            id_generator = lambda: str(uuid4)  # noqa: E731
+
         batches: list[ThreadCommand] = list()
-        for batch in chunk_data(batch_commands, 200):
+        for batch in chunk_data(batch_commands, 500):
             # Generate a unique ID for the batch
             id = f"batch_{id_generator()}"
 

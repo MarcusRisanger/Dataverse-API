@@ -19,7 +19,7 @@ class MetadataBase(BaseModel):
     model_config = ConfigDict(extra="allow", validate_assignment=True)
 
     @classmethod
-    def model_validate_dataverse(self, arg: dict[str, Any]) -> Self:
+    def model_validate_dataverse(cls, arg: dict[str, Any]) -> Self:
         """
         Converts and validates a received deserialized JSON payload
         into the appropriate Metadata object.
@@ -31,7 +31,7 @@ class MetadataBase(BaseModel):
         """
 
         converted = convert_dict_keys_to_snake(arg)
-        return self.model_validate(converted)
+        return cls.model_validate(converted)
 
     def dump_to_dataverse(self, dropna: bool = True) -> dict[str, Any]:
         """

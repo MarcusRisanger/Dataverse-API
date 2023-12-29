@@ -107,15 +107,6 @@ def test_create_label_with_string_and_lang_cdode(label_string: str, lang_code: i
     assert a.localized_labels[0].language_code == lang_code
 
 
-def test_create_label_with_tuple(label_string: str, lang_code: int):
-    # Testing for supplying a tuple in `label`
-    a = create_label(label=(label_string, lang_code))
-    assert isinstance(a, Label)
-    assert len(a.localized_labels) == 1
-    assert a.localized_labels[0].label == label_string
-    assert a.localized_labels[0].language_code == lang_code
-
-
 def test_create_label_with_list_of_tuples(label_string: str, lang_code: int):
     # Testing for supplying a list of tuples in `labels`
     label_string_2 = "Bye"
@@ -131,18 +122,11 @@ def test_create_label_with_list_of_tuples(label_string: str, lang_code: int):
 
 
 def test_create_label_failure_1():
-    error = "Correct input was not provided."
-
-    with pytest.raises(ValueError, match=error):
-        create_label(label=123)
-
-
-def test_create_label_failure_2():
     with pytest.raises(TypeError):
         create_label(labels=[123])
 
 
-def test_create_label_failure_3():
+def test_create_label_failure_2():
     with pytest.raises(ValueError, match=r"Input should be a valid integer") as e:
         logging.warning(e)
         create_label(label="Hello", language_code="foo")

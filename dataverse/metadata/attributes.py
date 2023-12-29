@@ -8,7 +8,7 @@ from typing import Any
 from pydantic import Field
 
 from dataverse.metadata.base import BASE_TYPE, MetadataBase
-from dataverse.metadata.complex_properties import Label, RequiredLevel, required_level_default
+from dataverse.metadata.complex_properties import Label, RequiredLevel, create_label, required_level_default
 from dataverse.metadata.enums import AttributeType, AttributeTypeName, StringFormat
 
 
@@ -18,8 +18,8 @@ class AttributeMetadata(MetadataBase):
     """
 
     schema_name: str
-    description: Label
-    display_name: Label
+    description: Label = Field(default_factory=create_label)
+    display_name: Label = Field(default_factory=create_label)
     required_level: RequiredLevel = Field(default_factory=required_level_default)
 
 

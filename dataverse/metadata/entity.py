@@ -4,13 +4,18 @@ data as possible for ease of use.
 """
 
 
-from typing import Any
+from collections.abc import Sequence
+from typing import Any, TypeVar
+
+from pydantic import field_validator
 
 from dataverse.metadata.attributes import AttributeMetadata
 from dataverse.metadata.base import BASE_TYPE, MetadataBase
 from dataverse.metadata.complex_properties import Label
 from dataverse.metadata.enums import OwnershipType
 from dataverse.utils.labels import define_label
+
+T = TypeVar("T")
 
 
 class EntityMetadata(MetadataBase):
@@ -22,7 +27,7 @@ class EntityMetadata(MetadataBase):
     description: Label
     display_name: Label
     display_collection_name: Label
-    attributes: list[AttributeMetadata] | None = None
+    attributes: Sequence[AttributeMetadata] | None = None
     ownership_type: OwnershipType
     is_activity: bool
     has_activities: bool
@@ -32,10 +37,20 @@ class EntityMetadata(MetadataBase):
         self.odata_type = BASE_TYPE + "EntityMetadata"
         return super().model_post_init(__context)
 
+    @field_validator("attributes")
+    def validate_attributes(cls, val: list[T]) -> list[T]:
+        """
+        To handle the `attributes` field - Pydantic does not allow for
+        a sequence of subclasses in this field by default.
+        """
+        if all([issubclass(type(x), AttributeMetadata) for x in val]):
+            return val
+        raise TypeError("Whopsie!")
+
 
 def define_entity(
     schema_name: str,
-    attributes: list[AttributeMetadata],
+    attributes: Sequence[AttributeMetadata],
     description: str | Label | None = None,
     display_name: str | Label | None = None,
     display_collection_name: str | Label | None = None,

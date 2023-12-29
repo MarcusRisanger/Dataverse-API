@@ -45,9 +45,9 @@ def convert_dict_keys_to_snake(arg: dict[str, Any]) -> dict[str, Any]:
         if k == "@odata.type":
             out["odata_type"] = v  # Corresponding value is always a string
         elif isinstance(v, dict):
-            out[key] = convert_dict_keys_to_snake(v)
+            out[key] = convert_dict_keys_to_snake(v)  # type: ignore
         elif isinstance(v, list):
-            out[key] = [convert_dict_keys_to_snake(e) for e in v]
+            out[key] = [convert_dict_keys_to_snake(e) for e in v]  # type: ignore
         else:
             out[key] = v
     return out
@@ -66,10 +66,12 @@ def convert_dict_keys_to_title(arg: dict[str, Any]) -> dict[str, Any]:
     for k, v in arg.items():
         if k == "odata_type":
             out["@odata.type"] = v  # Corresponding value is always a string
+        elif k[0] == "@":
+            out[k] = v
         elif isinstance(v, list):
             out[snake_to_title(k)] = [convert_dict_keys_to_title(d) for d in v]  # type: ignore
         elif isinstance(v, dict):
-            out[snake_to_title(k)] = convert_dict_keys_to_title(v)
+            out[snake_to_title(k)] = convert_dict_keys_to_title(v)  # type: ignore
         else:
             out[snake_to_title(k)] = v
 
@@ -91,8 +93,8 @@ def encode_altkeys(url: str) -> str:
         The encoded URL.
     """
 
-    def parse(part: re.Match) -> str:
-        return "'" + quote(part.group(1)) + "'"
+    def parse(part: re.Match) -> str:  # type: ignore
+        return "'" + quote(part.group(1)) + "'"  # type: ignore
 
     pat = re.compile(r"\'([^\']*)\'")
-    return re.sub(pat, parse, url)
+    return re.sub(pat, parse, url)  # type: ignore

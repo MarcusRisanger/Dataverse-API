@@ -1,6 +1,6 @@
 from dataverse.metadata.attributes import StringAttributeMetadata
 from dataverse.metadata.entity import EntityMetadata, define_entity
-from dataverse.utils.labels import define_label
+from dataverse.utils.labels import create_label
 
 
 def test_create_entity_metadata():
@@ -9,8 +9,8 @@ def test_create_entity_metadata():
     attributes = [
         StringAttributeMetadata(
             schema_name="test_attr",
-            description=define_label("Attr desc"),
-            display_name=define_label("Attr"),
+            description=create_label(label="Attr desc"),
+            display_name=create_label(label="Attr"),
         )
     ]
     description = "fooo"
@@ -27,7 +27,7 @@ def test_create_entity_metadata():
 
     assert base.schema_name == schema_name
     assert base.attributes == attributes
-    assert base.description.localized_labels[0].label == ""
+    assert base.description.localized_labels[0].label == "Label"
     assert base.display_name.localized_labels[0].label == _name
     assert base.display_collection_name.localized_labels[0].label == _name + "s"
     assert base.is_activity is False

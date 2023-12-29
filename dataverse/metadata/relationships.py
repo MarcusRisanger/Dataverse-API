@@ -19,9 +19,9 @@ class RelationshipMetadata(MetadataBase):
     """
 
     schema_name: str
-    description: Label
-    display_name: Label
     is_valid_for_advanced_find: bool = True
+    description: Label | None = Field(default=None)
+    display_name: Label | None = Field(default=None)
 
 
 class OneToManyRelationshipMetadata(RelationshipMetadata):
