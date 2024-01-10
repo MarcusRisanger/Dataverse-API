@@ -13,14 +13,12 @@ pandas = "^2.0.1"
 python-box = ">=7.0,<8.0"
 sqlalchemy = "^2.0.23"
 pyodbc = "^5.0.1"
+pydantic = "^2.5.3"
 
 
 [tool.poetry.group.dev.dependencies]
-black = "^23.11.0"
 ipykernel = "^6.26.0"
 python-dotenv = "^1.0.0"
-flake8 = "^6.1.0"
-isort = "^5.12.0"
 pre-commit = "^3.5.0"
 coverage = "^7.4.0"
 pytest = "^7.4.3"

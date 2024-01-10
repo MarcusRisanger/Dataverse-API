@@ -4,6 +4,7 @@ import pytest
 
 from dataverse.metadata.complex_properties import (
     CascadeConfiguration,
+    CascadeType,
     Label,
     LocalizedLabel,
     RequiredLevel,
@@ -55,13 +56,13 @@ def test_single_label(single_label: Label):
 
 
 def test_cascade_config():
-    merge = "NoCascade"
-    delete = "RemoveLink"
+    merge = CascadeType.NO_CASCADE
+    delete = CascadeType.REMOVE_LINK
 
     a = CascadeConfiguration(merge=merge, delete=delete).dump_to_dataverse()
 
-    assert a["Delete"] == delete
-    assert a["Merge"] == merge
+    assert a["Delete"] == delete.value
+    assert a["Merge"] == merge.value
 
     assert len(a) - 2 == sum(1 for i in a.values() if i == "Cascade")
 

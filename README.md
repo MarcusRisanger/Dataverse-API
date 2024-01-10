@@ -112,4 +112,3 @@ $ poetry run coverage xml
     - Remove alternate key
 * Implement `CreateMultiple` request if creating more than 100 elements?
     - https://learn.microsoft.com/en-us/power-apps/developer/data-platform/bulk-operations?tabs=webapi#createmultiple
-* Implement better parallelization using `ThreadPoolExecutor`?

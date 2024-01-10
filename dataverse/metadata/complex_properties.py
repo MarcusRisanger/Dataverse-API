@@ -166,9 +166,9 @@ class CascadeConfiguration(MetadataBase):
     Complex Property for Cascade Configuration.
     """
 
-    assign: CascadeType = CascadeType.CASCADE
-    delete: CascadeType = CascadeType.CASCADE
-    merge: CascadeType = CascadeType.CASCADE
-    reparent: CascadeType = CascadeType.CASCADE
-    share: CascadeType = CascadeType.CASCADE
-    unshare: CascadeType = CascadeType.CASCADE
+    assign: CascadeType = Field(default=CascadeType.CASCADE)
+    delete: CascadeType = Field(default=CascadeType.CASCADE)
+    merge: CascadeType = Field(default=CascadeType.CASCADE)
+    reparent: CascadeType = Field(default=CascadeType.CASCADE)
+    share: CascadeType = Field(default=CascadeType.CASCADE)
+    unshare: CascadeType = Field(default=CascadeType.CASCADE)
