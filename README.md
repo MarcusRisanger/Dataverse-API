@@ -95,14 +95,15 @@ $ poetry run coverage xml
 
 ## To Do:
 
-* Schema implementation
-    - Basic attributes for Entity
+* Lightweight schema implementation
     - Illegal file extensions
 * Entity implementation
-    - Insert/Update/Delete/Read
+    - Update
     - Upsert
-    - Update single column
     - Update single value
+    - Update single column
+    - Delete single value
+    - Delete single column
     - Upload file
     - Upload image
     - Upload large file
