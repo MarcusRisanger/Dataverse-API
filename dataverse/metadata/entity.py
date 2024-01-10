@@ -5,7 +5,7 @@ data as possible for ease of use.
 
 
 from collections.abc import Sequence
-from typing import Any, TypeVar
+from typing import Any, TypeVar  # noqa: F401
 
 from dataverse.metadata.attributes import AttributeMetadata
 from dataverse.metadata.base import BASE_TYPE, MetadataBase
@@ -13,7 +13,7 @@ from dataverse.metadata.complex_properties import Label
 from dataverse.metadata.enums import OwnershipType
 from dataverse.utils.labels import define_label
 
-T = TypeVar("T")
+# T = TypeVar("T")
 
 
 class EntityMetadata(MetadataBase):
