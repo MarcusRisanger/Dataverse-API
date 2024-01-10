@@ -7,6 +7,7 @@ import pandas as pd
 import requests
 
 from dataverse._api import Dataverse
+from dataverse.errors import DataverseError
 from dataverse.metadata.base import BASE_TYPE
 from dataverse.utils.batching import (
     RequestMethod,
@@ -66,7 +67,7 @@ class DataverseEntity(Dataverse):
 
     def __get_entity_set_properties(self) -> None:
         """
-        To fetch the some key attributes of the Entity.
+        Fetch key attributes of the Entity.
 
           - `EntitySetName`, used as the API endpoint
           - `PrimaryIdAttribute`, the primary ID column
@@ -91,7 +92,7 @@ class DataverseEntity(Dataverse):
 
     def __get_entity_alternate_keys(self) -> None:
         """
-        Fetches the alternate keys (if any) for the Entity.
+        Fetch the alternate keys (if any) for the Entity.
         """
         columns = ["SchemaName", "KeyAttributes"]
         logging.debug("Retrieving alternate keys for %s", self.logical_name)
@@ -105,7 +106,7 @@ class DataverseEntity(Dataverse):
 
     def __get_entity_sdk_messages(self) -> None:
         """
-        Fetches sdk messages to determine whether entity supports certain actions.
+        Fetch sdk messages to determine whether entity supports certain actions.
         """
         create, update = "CreateMultiple", "UpdateMultiple"
         actions = [create, update]
@@ -143,7 +144,7 @@ class DataverseEntity(Dataverse):
         order_by: str | None = None,
     ) -> list[dict[str, Any]]:
         """
-        Reads data from Entity.
+        Read data from Entity.
 
         Optional querying keyword args:
           - select: A single column or list of columns to return from the
@@ -199,7 +200,7 @@ class DataverseEntity(Dataverse):
         detect_duplicates: bool = False,
     ) -> list[requests.Response]:
         """
-        Creates rows in Dataverse Entity. Failures will occur if trying to insert
+        Create rows in Dataverse Entity. Failures will occur if trying to insert
         a record where alternate key already exists, partial success is possible.
 
         data : sequence of Serializable JSON dicts or `pandas.DataFrame`.
@@ -239,7 +240,7 @@ class DataverseEntity(Dataverse):
         params: Mapping[str, Any] | None = None,
     ) -> list[requests.Response]:
         """
-        Inserts rows one by one using threaded API call.
+        Insert rows one by one using threaded API call.
         """
         calls = [
             ThreadCommand(
@@ -258,7 +259,7 @@ class DataverseEntity(Dataverse):
         self, headers: Mapping[str, str], data: Sequence[MutableMapping[str, Any]]
     ) -> list[requests.Response]:
         """
-        Inserts rows by using the `CreateMultiple` Web API Action.
+        Insert rows by using the `CreateMultiple` Web API Action.
         """
         # Preserving input data
         data = copy(data)
@@ -283,7 +284,7 @@ class DataverseEntity(Dataverse):
 
     def __create_batch(self, data: Sequence[MutableMapping[str, Any]]) -> list[requests.Response]:
         """
-        Runs a batch insert operation on the given data.
+        Run a batch insert operation on the given data.
         """
         batch_data = transform_to_batch_data_for_create(url=self.entity_set_name, data=data)
         return self._batch_api_call(batch_data)
@@ -300,7 +301,7 @@ class DataverseEntity(Dataverse):
         return self._threaded_call(calls=calls)
 
     @overload
-    def delete(self, *, ids: list[str]) -> list[requests.Response]:
+    def delete(self, *, ids: Collection[str]) -> list[requests.Response]:
         ...
 
     @overload
@@ -309,15 +310,23 @@ class DataverseEntity(Dataverse):
 
     def delete(self, *, ids: Collection[str] | None = None, filter: str | None = None) -> list[requests.Response]:
         """
-        Deletes rows in Entity.
+        Delete rows in Entity.
+
+        Specify either a
 
         Parameters
         ----------
-        filter : str
-            Filter statement for targeting specific records in Entity for deletion.
         ids : list[str]
             List of primary IDs to delete. Takes precedence if passed.
+        filter : str
+            Filter statement for targeting specific records in Entity for deletion.
+            Use `filter="all"` to delete all records.
         """
+        if ids is None and filter is None:
+            raise DataverseError("Function requires either ids to delete or a string passed as filter.")
+
+        filter = None if filter == "all" else filter
+
         if ids is None:
             records = self.read(select=[self.primary_id_attr], filter=filter)
             ids = {row[self.primary_id_attr] for row in records}

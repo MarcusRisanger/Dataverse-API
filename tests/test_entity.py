@@ -9,6 +9,7 @@ from responses.matchers import header_matcher, json_params_matcher, query_param_
 
 from dataverse.dataverse import DataverseClient
 from dataverse.entity import DataverseEntity
+from dataverse.errors import DataverseError
 from dataverse.metadata.base import BASE_TYPE
 
 
@@ -288,6 +289,7 @@ def test_entity_create_with_df(
 ):
     data = pd.DataFrame([("abc"), ("def")], columns=["test"])
     dict_data = data.to_dict(orient="records")
+
     url = entity._endpoint + entity.entity_set_name
 
     for row in dict_data:
@@ -296,3 +298,94 @@ def test_entity_create_with_df(
     resp = entity.create(data=data)
 
     assert all([x.status_code == 204 for x in resp])
+
+
+def test_entity_delete_singles_all(entity: DataverseEntity, mocked_responses: responses.RequestsMock):
+    # Setup
+    id = entity.primary_id_attr
+    return_payload = [{id: str(i)} for i in range(5)]
+    params = {"$select": entity.primary_id_attr}
+
+    # Fetching ids
+    mocked_responses.get(
+        url=f"{entity._endpoint}{entity.entity_set_name}",
+        status=200,
+        json={"value": return_payload},
+        match=[query_param_matcher(params)],
+    )
+
+    # Deleting ids
+    for row in return_payload:
+        mocked_responses.delete(url=f"{entity._endpoint}{entity.entity_set_name}({row[id]})", status=204)
+
+    resp = entity.delete(filter="all")
+
+    assert all([x.status_code == 204 for x in resp])
+
+
+def test_entity_delete_batch_all(entity: DataverseEntity, mocked_responses: responses.RequestsMock):
+    # Setup
+    id = entity.primary_id_attr
+    return_payload = [{id: str(i)} for i in range(10)]
+    params = {"$select": entity.primary_id_attr}
+
+    # Fetching ids
+    mocked_responses.get(
+        url=f"{entity._endpoint}{entity.entity_set_name}",
+        status=200,
+        json={"value": return_payload},
+        match=[query_param_matcher(params)],
+    )
+
+    # Deleting
+    mocked_responses.post(url=f"{entity._endpoint}$batch")
+
+    resp = entity.delete(filter="all")
+
+    for item in return_payload:
+        assert f"{entity._endpoint}{entity.entity_set_name}({item[id]})" in resp[0].request.body
+
+
+def test_entity_delete_singles_ids(entity: DataverseEntity, mocked_responses: responses.RequestsMock):
+    # Setup
+    delete_ids = {"1", "2", "3"}
+
+    # Deleting ids
+    for item in delete_ids:
+        mocked_responses.delete(
+            url=f"{entity._endpoint}{entity.entity_set_name}({item})",
+            status=204,
+        )
+
+    resp = entity.delete(ids=delete_ids)
+
+    assert all([x.status_code == 204 for x in resp])
+
+
+def test_entity_delete_singles_filter(entity: DataverseEntity, mocked_responses: responses.RequestsMock):
+    # Setup
+    id = entity.primary_id_attr
+    filter_str = "foo"
+    params = {"$filter": filter_str, "$select": entity.primary_id_attr}
+    return_payload = [{id: str(i)} for i in range(5)]
+
+    # Fetching ids
+    mocked_responses.get(
+        url=f"{entity._endpoint}{entity.entity_set_name}",
+        status=200,
+        json={"value": return_payload},
+        match=[query_param_matcher(params)],
+    )
+
+    # Deleting ids
+    for row in return_payload:
+        mocked_responses.delete(url=f"{entity._endpoint}{entity.entity_set_name}({row[id]})", status=204)
+
+    resp = entity.delete(filter=filter_str)
+
+    assert all([x.status_code == 204 for x in resp])
+
+
+def test_entity_delete_bad_args(entity: DataverseEntity, mocked_responses: responses.RequestsMock):
+    with pytest.raises(DataverseError, match=r"Function requires either.*"):
+        entity.delete()

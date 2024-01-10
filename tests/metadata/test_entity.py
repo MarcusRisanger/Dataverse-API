@@ -1,5 +1,5 @@
 from dataverse.metadata.attributes import StringAttributeMetadata
-from dataverse.metadata.entity import EntityMetadata, define_entity
+from dataverse.metadata.entity import define_entity
 from dataverse.utils.labels import create_label
 
 
@@ -20,7 +20,7 @@ def test_create_entity_metadata():
     # Expected outputs
     _name = " ".join(schema_name.split("_")[1:])
 
-    base: EntityMetadata = define_entity(
+    base = define_entity(
         schema_name=schema_name,
         attributes=attributes,
     )
@@ -35,7 +35,7 @@ def test_create_entity_metadata():
     assert base.has_notes is False
     assert ".EntityMetadata" in base.odata_type
 
-    base: EntityMetadata = define_entity(
+    base = define_entity(
         schema_name=schema_name,
         attributes=attributes,
         description=description,

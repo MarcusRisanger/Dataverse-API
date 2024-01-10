@@ -34,3 +34,14 @@ def test_base():
     # Check length
     assert len(a) == 4
     assert a["Bar"].get("AaBbCc") == "Hello"
+
+
+def test_base_nan_dump():
+    class Foo(MetadataBase):
+        a: int
+        b: int | None = Field(default=None)
+
+    a = Foo(a=2)
+
+    assert a.dump_to_dataverse(dropna=False) == {"A": 2, "B": None}
+    assert a.dump_to_dataverse() == {"A": 2}

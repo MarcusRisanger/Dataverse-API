@@ -7,8 +7,6 @@ data as possible for ease of use.
 from collections.abc import Sequence
 from typing import Any, TypeVar
 
-from pydantic import field_validator
-
 from dataverse.metadata.attributes import AttributeMetadata
 from dataverse.metadata.base import BASE_TYPE, MetadataBase
 from dataverse.metadata.complex_properties import Label
@@ -37,15 +35,15 @@ class EntityMetadata(MetadataBase):
         self.odata_type = BASE_TYPE + "EntityMetadata"
         return super().model_post_init(__context)
 
-    @field_validator("attributes")
-    def validate_attributes(cls, val: list[T]) -> list[T]:
-        """
-        To handle the `attributes` field - Pydantic does not allow for
-        a sequence of subclasses in this field by default.
-        """
-        if all([issubclass(type(x), AttributeMetadata) for x in val]):
-            return val
-        raise TypeError("Whopsie!")
+    # @field_validator("attributes")
+    # def validate_attributes(cls, val: list[T]) -> list[T]:
+    #     """
+    #     To handle the `attributes` field - Pydantic does not allow for
+    #     a sequence of subclasses in this field by default.
+    #     """
+    #     if all([issubclass(type(x), AttributeMetadata) for x in val]):
+    #         return val
+    #     # raise TypeError("Attributes may only include subclasses of AttributeMetadata!")
 
 
 def define_entity(
