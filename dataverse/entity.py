@@ -400,7 +400,7 @@ class DataverseEntity(Dataverse):
             records = self.read(select=[self.primary_id_attr], filter=filter)
             ids = {row[self.primary_id_attr] for row in records}
 
-        length = len(ids) * len(columns)
+        length = len(ids) * len(columns)  # Total number of deletion requests
         output = []
         if length < 10:
             logging.debug("%d properties to delete. Using single deletes.", length)
