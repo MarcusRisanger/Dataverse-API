@@ -94,7 +94,7 @@ class Dataverse:
         id_generator: Callable[[], str] | None = None,
     ) -> list[requests.Response]:
         if id_generator is None:
-            id_generator = lambda: str(uuid4)  # noqa: E731
+            id_generator = lambda: str(uuid4())  # noqa: E731
 
         batches: list[ThreadCommand] = list()
         for batch in chunk_data(batch_commands, 500):

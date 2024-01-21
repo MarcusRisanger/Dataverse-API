@@ -102,8 +102,6 @@ $ poetry run coverage xml
     - Upsert
     - Update single value
     - Update single column
-    - Delete single value
-    - Delete single column
     - Upload file
     - Upload image
     - Upload large file
@@ -113,3 +111,5 @@ $ poetry run coverage xml
     - Remove alternate key
 * Implement `CreateMultiple` request if creating more than 100 elements?
     - https://learn.microsoft.com/en-us/power-apps/developer/data-platform/bulk-operations?tabs=webapi#createmultiple
+* Implement BulkDelete Action?
+    - https://learn.microsoft.com/en-us/power-apps/developer/data-platform/delete-data-bulk?tabs=sdk

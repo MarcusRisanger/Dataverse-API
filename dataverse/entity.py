@@ -198,6 +198,7 @@ class DataverseEntity(Dataverse):
         self,
         data: Sequence[MutableMapping[str, Any]] | pd.DataFrame,
         detect_duplicates: bool = False,
+        return_created: bool = False,
     ) -> list[requests.Response]:
         """
         Create rows in Dataverse Entity. Failures will occur if trying to insert
@@ -207,6 +208,9 @@ class DataverseEntity(Dataverse):
             The data to create in Dataverse.
         detect_duplicates : bool
             Whether Dataverse will run duplicate detection rules upon insertion.
+        return_created : bool
+            Whether the returned list of Responses will contain information on
+            created rows.
         """
         # TODO: Return data option?
 
@@ -216,6 +220,9 @@ class DataverseEntity(Dataverse):
         headers: dict[str, str] = dict()
         if detect_duplicates:
             headers["MSCRM.SuppressDuplicateDetection"] = "false"
+
+        if return_created:
+            headers["Prefer"] = "return=representation"
 
         length = len(data)
         if length < 10:
@@ -312,20 +319,22 @@ class DataverseEntity(Dataverse):
         """
         Delete rows in Entity.
 
-        Specify either a
+        Specify either a list of ID's for deletion or a filter
+        string for determining which records to delete.
 
         Parameters
         ----------
         ids : list[str]
             List of primary IDs to delete. Takes precedence if passed.
         filter : str
-            Filter statement for targeting specific records in Entity for deletion.
-            Use `filter="all"` to delete all records.
+            Filter statement for targeting specific records in Entity
+            for deletion. Use `filter="all"` to delete all records.
         """
         if ids is None and filter is None:
             raise DataverseError("Function requires either ids to delete or a string passed as filter.")
 
-        filter = None if filter == "all" else filter
+        if filter == "all":
+            filter = None
 
         if ids is None:
             records = self.read(select=[self.primary_id_attr], filter=filter)
@@ -334,10 +343,78 @@ class DataverseEntity(Dataverse):
         length = len(ids)
         if length < 10:
             logging.debug("%d rows to delete. Using single deletes.", length)
-            resp = self.__delete_singles(data=ids)
+            return self.__delete_singles(data=ids)
         else:
             logging.debug("%d rows to delete. Using batch deletes.", length)
             batch_data = transform_to_batch_for_delete(url=self.entity_set_name, data=ids)
-            resp = self._batch_api_call(batch_data)
+            return self._batch_api_call(batch_data)
 
-        return resp
+    def __delete_column_singles(self, data: Iterable[str], column: str) -> list[requests.Response]:
+        calls = [
+            ThreadCommand(
+                method=RequestMethod.DELETE,
+                url=f"{self.entity_set_name}({id})/{column}",
+            )
+            for id in data
+        ]
+        return self._threaded_call(calls=calls)
+
+    @overload
+    def delete_columns(self, columns: Collection[str], *, ids: Collection[str]) -> list[requests.Response]:
+        ...
+
+    @overload
+    def delete_columns(self, columns: Collection[str], *, filter: str) -> list[requests.Response]:
+        ...
+
+    def delete_columns(
+        self,
+        columns: Collection[str],
+        *,
+        ids: Collection[str] | None = None,
+        filter: str | None = None,
+    ) -> list[requests.Response]:
+        """
+        Delete values in specific column for rows in Entity.
+
+        Specify either a list of ID's for deletion or a filter
+        string for determining which records to delete.
+
+        Parameters
+        ----------
+        column : collection of str
+            The columns in Dataverse to target for deletion.
+        ids : collection of str
+            List of primary IDs to delete. Takes precedence if passed.
+        filter : str
+            Filter statement for targeting specific records in Entity for deletion.
+            Use `filter="all"` to delete all records.
+        """
+        if ids is None and filter is None:
+            raise DataverseError("Function requires either ids to delete or a string passed as filter.")
+
+        if filter == "all":
+            filter = None
+
+        if ids is None:
+            records = self.read(select=[self.primary_id_attr], filter=filter)
+            ids = {row[self.primary_id_attr] for row in records}
+
+        length = len(ids) * len(columns)
+        output = []
+        if length < 10:
+            logging.debug("%d properties to delete. Using single deletes.", length)
+            for col in columns:
+                output.extend(self.__delete_column_singles(data=ids, column=col))
+        else:
+            logging.debug("%d properties to delete. Using batch deletes.", length)
+            for col in columns:
+                batch_data = transform_to_batch_for_delete(url=self.entity_set_name, data=ids, column=col)
+                output.extend(self._batch_api_call(batch_data))
+
+        return output
+
+    def upsert(self, *, data: Mapping[str, Any] | pd.DataFrame, altkey_name: str) -> list[requests.Response]:  # type: ignore
+        key_cols = self.alternate_keys.get(altkey_name)
+        if key_cols is None:
+            raise DataverseError(f"Alternate key '{altkey_name}' does not exist.")

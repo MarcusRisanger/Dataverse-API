@@ -146,6 +146,11 @@ def test_entity_instantiation(
     assert entity.supports_update_multiple is True
 
 
+"""
+entity.read()
+"""
+
+
 def test_entity_read(
     entity: DataverseEntity,
     entity_set_name: str,
@@ -200,6 +205,11 @@ def test_entity_read_with_paging(
 
     assert len(resp) == 2 * len(sample_data["value"])
     assert resp == sample_data["value"] * 2
+
+
+"""
+entity.create()
+"""
 
 
 def test_entity_create_by_singles(
@@ -273,14 +283,14 @@ def test_entity_create_with_args(
 ):
     # Data package
     url = entity._endpoint + entity.entity_set_name
-    header = {"MSCRM.SuppressDuplicateDetection": "false"}
+    header = {"MSCRM.SuppressDuplicateDetection": "false", "Prefer": "return=representation"}
 
     # Mock single requests
     for _ in small_data_package:
-        mocked_responses.post(url=url, match=[header_matcher(header)], status=204)
+        mocked_responses.post(url=url, match=[header_matcher(header)], status=200)
 
-    resp = entity.create(data=small_data_package, detect_duplicates=True)
-    assert all([x.status_code == 204 for x in resp])
+    resp = entity.create(data=small_data_package, detect_duplicates=True, return_created=True)
+    assert all([x.status_code == 200 for x in resp])
 
 
 def test_entity_create_with_df(
@@ -298,6 +308,11 @@ def test_entity_create_with_df(
     resp = entity.create(data=data)
 
     assert all([x.status_code == 204 for x in resp])
+
+
+"""
+entity.delete()
+"""
 
 
 def test_entity_delete_singles_all(entity: DataverseEntity, mocked_responses: responses.RequestsMock):
@@ -386,6 +401,110 @@ def test_entity_delete_singles_filter(entity: DataverseEntity, mocked_responses:
     assert all([x.status_code == 204 for x in resp])
 
 
-def test_entity_delete_bad_args(entity: DataverseEntity, mocked_responses: responses.RequestsMock):
+def test_entity_delete_bad_args(entity: DataverseEntity):
     with pytest.raises(DataverseError, match=r"Function requires either.*"):
         entity.delete()
+
+
+"""
+entity.delete_column()
+"""
+
+
+def test_entity_delete_column_singles_all(entity: DataverseEntity, mocked_responses: responses.RequestsMock):
+    # Setup
+    id = entity.primary_id_attr
+    return_payload = [{id: str(i)} for i in range(3)]
+    params = {"$select": entity.primary_id_attr}
+    columns = ["Foo", "Bar"]
+
+    # Fetching ids
+    mocked_responses.get(
+        url=f"{entity._endpoint}{entity.entity_set_name}",
+        status=200,
+        json={"value": return_payload},
+        match=[query_param_matcher(params)],
+    )
+
+    # Deleting ids
+    for row in return_payload:
+        for col in columns:
+            mocked_responses.delete(url=f"{entity._endpoint}{entity.entity_set_name}({row[id]})/{col}", status=204)
+
+    resp = entity.delete_columns(columns=columns, filter="all")
+
+    assert all([x.status_code == 204 for x in resp])
+
+
+def test_entity_delete_column_batch_all(entity: DataverseEntity, mocked_responses: responses.RequestsMock):
+    # Setup
+    id = entity.primary_id_attr
+    return_payload = [{id: str(i)} for i in range(10)]
+    params = {"$select": entity.primary_id_attr}
+    columns = ["Foo", "Bar"]
+
+    # Fetching ids
+    mocked_responses.get(
+        url=f"{entity._endpoint}{entity.entity_set_name}",
+        status=200,
+        json={"value": return_payload},
+        match=[query_param_matcher(params)],
+    )
+
+    # Deleting
+    mocked_responses.post(url=f"{entity._endpoint}$batch")
+
+    resp = entity.delete_columns(columns=columns, filter="all")
+
+    for item in return_payload:
+        for i, col in enumerate(columns):
+            assert f"{entity._endpoint}{entity.entity_set_name}({item[id]})/{col}" in resp[i].request.body
+
+
+def test_entity_delete_column_singles_ids(entity: DataverseEntity, mocked_responses: responses.RequestsMock):
+    # Setup
+    delete_ids = {"1", "2", "3"}
+    columns = ["Foo", "Bar"]
+
+    # Deleting ids
+    for col in columns:
+        for item in delete_ids:
+            mocked_responses.delete(
+                url=f"{entity._endpoint}{entity.entity_set_name}({item})/{col}",
+                status=204,
+            )
+
+    resp = entity.delete_columns(columns=columns, ids=delete_ids)
+
+    assert all([x.status_code == 204 for x in resp])
+
+
+def test_entity_delete_column_singles_filter(entity: DataverseEntity, mocked_responses: responses.RequestsMock):
+    # Setup
+    id = entity.primary_id_attr
+    filter_str = "foo"
+    params = {"$filter": filter_str, "$select": entity.primary_id_attr}
+    return_payload = [{id: str(i)} for i in range(3)]
+    columns = ["Foooo", "Baaar"]
+
+    # Fetching ids
+    mocked_responses.get(
+        url=f"{entity._endpoint}{entity.entity_set_name}",
+        status=200,
+        json={"value": return_payload},
+        match=[query_param_matcher(params)],
+    )
+
+    # Deleting ids
+    for row in return_payload:
+        for col in columns:
+            mocked_responses.delete(url=f"{entity._endpoint}{entity.entity_set_name}({row[id]})/{col}", status=204)
+
+    resp = entity.delete_columns(columns=columns, filter=filter_str)
+
+    assert all([x.status_code == 204 for x in resp])
+
+
+def test_entity_delete_column_bad_args(entity: DataverseEntity):
+    with pytest.raises(DataverseError, match=r"Function requires either.*"):
+        entity.delete_columns(columns=["Foo", "Bar"])

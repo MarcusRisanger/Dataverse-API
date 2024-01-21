@@ -137,21 +137,34 @@ def transform_to_batch_data_for_create(
     url: str,
     data: Collection[Mapping[str, Any]],
 ) -> list[BatchCommand]:
+    """Transform data payload to creation batch data."""
     return [BatchCommand(url, method=RequestMethod.POST, data=row) for row in data]
 
 
-def transform_to_batch_for_delete(url: str, data: Iterable[str]) -> list[BatchCommand]:
+def transform_to_batch_for_delete(url: str, data: Iterable[str], column: str | None = None) -> list[BatchCommand]:
     """
+    Transform data payload to deletion batch data.
+
     Parameters
     ----------
     url : str
         The EntitySetName of targeted Dataverse Entity.
     data : iterable of str
         Primary IDs for deletion.
+    column : str
+        Optional column to target for deletion.
 
     Returns
     -------
     list of BatchDataCommand
         Payload for passing to the API batch call endpoint.
     """
-    return [BatchCommand(url=f"{url}({id})", method=RequestMethod.DELETE) for id in data]
+    column = "" if column is None else f"/{column}"
+    return [BatchCommand(url=f"{url}({id}){column}", method=RequestMethod.DELETE) for id in data]
+
+
+def transform_to_batch_data_for_upsert(
+    url: str, data: Collection[Mapping[str, Any]], altkeys: Iterable[str]
+) -> list[BatchCommand] | None:  # type: ignore
+    """Transform data payload to upsert batch data."""
+    return None
