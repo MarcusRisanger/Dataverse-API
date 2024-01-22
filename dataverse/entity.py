@@ -467,8 +467,6 @@ class DataverseEntity(Dataverse):
         ----------
         data : collection of mutablemappings or dataframe
             The data to upsert.
-        mode : Literal["individual", "batch"]
-            Whether to upsert using single requests or batch requests.
         altkey_name : str
             The alternate key to use as ID (if any).
             Will assume entity primary ID attribute if not given.
