@@ -1,4 +1,6 @@
+import json
 import logging
+import random
 from copy import deepcopy
 from uuid import uuid4
 
@@ -39,8 +41,18 @@ def altkey_1(primary_id: str) -> tuple[str, list[str]]:
 
 
 @pytest.fixture
-def altkey_2(primary_id: str, primary_img: str) -> tuple[str, list[str]]:
-    return "foo_key2", [primary_id, primary_img]
+def altkey_2_name() -> str:
+    return "blergh"
+
+
+@pytest.fixture
+def altkey_2_cols() -> list[str]:
+    return ["moo", "mee"]
+
+
+@pytest.fixture
+def altkey_2(altkey_2_name: str, altkey_2_cols: list[str]) -> tuple[str, list[str]]:
+    return altkey_2_name, altkey_2_cols
 
 
 @pytest.fixture
@@ -229,7 +241,7 @@ def test_entity_create_by_singles(
     resp = entity.create(data=small_data_package)
 
     assert all([x.status_code == 204 for x in resp])
-    assert "Using single inserts" in caplog.text
+    assert "using individual inserts" in caplog.text
 
 
 def test_entity_create_by_createmultiple(
@@ -248,10 +260,21 @@ def test_entity_create_by_createmultiple(
     mocked_responses.post(url=url, match=[json_params_matcher(match_data)], status=204)
 
     caplog.set_level(logging.DEBUG)
-    resp = entity.create(medium_data_package)
+    resp = entity.create(medium_data_package, mode="multiple")
 
     assert all([x.status_code == 204 for x in resp])
-    assert "Using CreateMultiple" in caplog.text
+    assert "using CreateMultiple" in caplog.text
+
+
+def test_entity_create_multiple_not_supported(
+    entity: DataverseEntity,
+    medium_data_package: list[dict[str, str]],
+):
+    # Setup
+    entity._DataverseEntity__supports_create_multiple = False  # Ugh!
+
+    with pytest.raises(DataverseError, match=r"CreateMultiple is not supported.*"):
+        entity.create(medium_data_package, mode="multiple")
 
 
 def test_entity_create_by_batch(
@@ -260,9 +283,6 @@ def test_entity_create_by_batch(
     medium_data_package: list[dict[str, str]],
     caplog: pytest.LogCaptureFixture,
 ):
-    # Setup
-    entity._DataverseEntity__supports_create_multiple = False  # Ugh!
-
     # Data package
     url = f"{entity._endpoint}$batch"
 
@@ -270,10 +290,10 @@ def test_entity_create_by_batch(
     mocked_responses.post(url=url, status=204)
 
     caplog.set_level(logging.DEBUG)
-    resp = entity.create(medium_data_package)
+    resp = entity.create(medium_data_package, mode="batch")
 
     assert all([x.status_code == 204 for x in resp])
-    assert "CreateMultiple not supported. Inserting batch." in caplog.text
+    assert "using batch" in caplog.text
 
 
 def test_entity_create_with_args(
@@ -310,6 +330,14 @@ def test_entity_create_with_df(
     assert all([x.status_code == 204 for x in resp])
 
 
+def test_entity_create_mode_not_supported(
+    entity: DataverseEntity,
+    medium_data_package: list[dict[str, str]],
+):
+    with pytest.raises(DataverseError, match=r"Mode .* is not supported.*"):
+        entity.create(medium_data_package, mode="foo")
+
+
 """
 entity.delete()
 """
@@ -331,7 +359,10 @@ def test_entity_delete_singles_all(entity: DataverseEntity, mocked_responses: re
 
     # Deleting ids
     for row in return_payload:
-        mocked_responses.delete(url=f"{entity._endpoint}{entity.entity_set_name}({row[id]})", status=204)
+        mocked_responses.delete(
+            url=f"{entity._endpoint}{entity.entity_set_name}({row[id]})",
+            status=204,
+        )
 
     resp = entity.delete(filter="all")
 
@@ -355,7 +386,7 @@ def test_entity_delete_batch_all(entity: DataverseEntity, mocked_responses: resp
     # Deleting
     mocked_responses.post(url=f"{entity._endpoint}$batch")
 
-    resp = entity.delete(filter="all")
+    resp = entity.delete(mode="batch", filter="all")
 
     for item in return_payload:
         assert f"{entity._endpoint}{entity.entity_set_name}({item[id]})" in resp[0].request.body
@@ -454,7 +485,7 @@ def test_entity_delete_column_batch_all(entity: DataverseEntity, mocked_response
     # Deleting
     mocked_responses.post(url=f"{entity._endpoint}$batch")
 
-    resp = entity.delete_columns(columns=columns, filter="all")
+    resp = entity.delete_columns(mode="batch", columns=columns, filter="all")
 
     for item in return_payload:
         for i, col in enumerate(columns):
@@ -508,3 +539,65 @@ def test_entity_delete_column_singles_filter(entity: DataverseEntity, mocked_res
 def test_entity_delete_column_bad_args(entity: DataverseEntity):
     with pytest.raises(DataverseError, match=r"Function requires either.*"):
         entity.delete_columns(columns=["Foo", "Bar"])
+
+
+def test_entity_delete_mode_not_supported(
+    entity: DataverseEntity,
+):
+    with pytest.raises(DataverseError, match=r"Mode .* is not supported.*"):
+        entity.delete(mode="foo", ids=["bar"])
+
+
+"""
+entity.upsert()
+"""
+
+
+def test_entity_upsert_primaryid(
+    entity: DataverseEntity,
+    primary_id: str,
+    mocked_responses: responses.RequestsMock,
+):
+    # Setup
+    data = [{primary_id: str(uuid4()), "test_val": random.randint(1, 10)} for _ in range(4)]
+
+    mocked_responses.post(url=f"{entity._endpoint}$batch")
+
+    resp = entity.upsert(data=data)
+
+    elements = resp[0].request.body.split("--batch")[1:-1]
+
+    for out, expected in zip(elements, data):
+        assert f"{entity.entity_set_name}({expected.pop(primary_id)})" in out
+        assert json.dumps(expected) in out
+
+
+def test_entity_upsert_altkey(
+    entity: DataverseEntity,
+    primary_id: str,
+    mocked_responses: responses.RequestsMock,
+    altkey_2_name: str,
+    altkey_2_cols: list[str],
+):
+    # Setup
+    a, b = altkey_2_cols
+    data = [
+        {
+            primary_id: str(uuid4()),
+            a: random.randint(1, 10),
+            b: random.randint(1, 20),
+            "data": random.randint(4, 30),
+        }
+        for _ in range(4)
+    ]
+
+    mocked_responses.post(url=f"{entity._endpoint}$batch")
+
+    resp = entity.upsert(data=data, altkey_name=altkey_2_name)
+
+    elements = resp[0].request.body.split("--batch")[1:-1]
+
+    for out, expected in zip(elements, data):
+        row = ",".join([f"{part}={expected.pop(part).__repr__()}" for part in altkey_2_cols])
+        assert f"{entity.entity_set_name}({row})" in out
+        assert json.dumps(expected) in out

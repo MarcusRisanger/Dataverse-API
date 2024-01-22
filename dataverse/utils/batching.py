@@ -1,5 +1,6 @@
 import json
 from collections.abc import Iterable
+from copy import deepcopy
 from dataclasses import dataclass, field
 from enum import Enum, auto
 from textwrap import dedent
@@ -133,7 +134,7 @@ def chunk_data(data: Sequence[T], size: int = 500) -> Generator[Sequence[T], Non
         yield data[i : i + size]  # noqa E203
 
 
-def transform_to_batch_data_for_create(
+def transform_to_batch_for_create(
     url: str,
     data: Collection[Mapping[str, Any]],
 ) -> list[BatchCommand]:
@@ -163,8 +164,43 @@ def transform_to_batch_for_delete(url: str, data: Iterable[str], column: str | N
     return [BatchCommand(url=f"{url}({id}){column}", method=RequestMethod.DELETE) for id in data]
 
 
-def transform_to_batch_data_for_upsert(
-    url: str, data: Collection[Mapping[str, Any]], altkeys: Iterable[str]
-) -> list[BatchCommand] | None:  # type: ignore
-    """Transform data payload to upsert batch data."""
-    return None
+def transform_to_batch_for_upsert(
+    url: str,
+    data: Collection[MutableMapping[str, Any]],
+    keys: Iterable[str],
+    is_primary_id: bool = False,
+) -> list[BatchCommand]:
+    """
+    Transform data payload to upsert batch data.
+
+    Parameters
+    ----------
+    url : str
+        The Entity endpoint for upsertion.
+    data : collection of data dictionaries
+        The data to be upserted into Dataverse.
+    keys : iterable of str
+        The keys used to identify unique rows in the dataset.
+    is_id : bool
+        Whether the supplied singular key is the Entity primary ID attribute.
+    """
+    commands = []
+
+    data = deepcopy(data)  # Make idempotent
+
+    for row in data:
+        if is_primary_id:
+            # No repr on string
+            row_key = [f"{row.pop(part)}" for part in keys]
+        else:
+            # Repr on string
+            row_key = [f"{part}={row.pop(part).__repr__()}" for part in keys]
+        commands.append(
+            BatchCommand(
+                url=f"{url}({','.join(row_key)})",
+                method=RequestMethod.PATCH,
+                data=row,
+            )
+        )
+
+    return commands

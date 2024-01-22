@@ -35,6 +35,7 @@ class Dataverse:
         params: Mapping[str, Any] | None = None,
         data: str | None = None,
         json: Mapping[str, Any] | None = None,
+        timeout: int | None = None,
     ) -> requests.Response:
         """
         Send API call to Dataverse. Fails silently, emits warnings
@@ -52,6 +53,8 @@ class Dataverse:
             String payload.
         json : str
             Serializable JSON payload.
+        timeout : int
+            The timeout limit in seconds per call.
 
         Returns
         -------
@@ -71,6 +74,9 @@ class Dataverse:
             for k, v in headers.items():
                 default_headers[k] = v
 
+        if timeout is None:
+            timeout = 120
+
         resp = self._session.request(
             method=method.name,
             url=request_url,
@@ -78,7 +84,7 @@ class Dataverse:
             params=params,
             data=data,
             json=json,
-            timeout=120,
+            timeout=timeout,
         )
         if not (200 <= resp.status_code <= 299):
             logging.error(
@@ -92,12 +98,14 @@ class Dataverse:
         self,
         batch_commands: Sequence[BatchCommand],
         id_generator: Callable[[], str] | None = None,
+        batch_size: int = 500,
+        timeout: int | None = None,
     ) -> list[requests.Response]:
         if id_generator is None:
             id_generator = lambda: str(uuid4())  # noqa: E731
 
         batches: list[ThreadCommand] = list()
-        for batch in chunk_data(batch_commands, 500):
+        for batch in chunk_data(batch_commands, batch_size):
             # Generate a unique ID for the batch
             id = f"batch_{id_generator()}"
 
@@ -110,9 +118,9 @@ class Dataverse:
 
             batches.append(ThreadCommand(method=RequestMethod.POST, url="$batch", headers=headers, data=payload))
 
-        return self._threaded_call(batches)
+        return self._threaded_call(batches, timeout=timeout)
 
-    def _threaded_call(self, calls: Sequence[ThreadCommand]) -> list[requests.Response]:
+    def _threaded_call(self, calls: Sequence[ThreadCommand], timeout: int | None = None) -> list[requests.Response]:
         """
         Performs a threaded API call using `concurrent.futures.ThreadPoolExecutor`
         """
@@ -126,6 +134,7 @@ class Dataverse:
                     params=call.params,
                     data=call.data,
                     json=call.json,
+                    timeout=timeout,
                 )
                 for call in calls
             ]

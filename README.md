@@ -99,7 +99,6 @@ $ poetry run coverage xml
     - Illegal file extensions
 * Entity implementation
     - Update
-    - Upsert
     - Update single value
     - Update single column
     - Upload file
