@@ -1,13 +1,22 @@
 """
 The base Metadata class for Dataverse.
 """
-from typing import Any, Self
+from typing import Any, Protocol, Self
 
 from pydantic import BaseModel, ConfigDict
 
 from dataverse.utils.text import convert_dict_keys_to_snake, convert_dict_keys_to_title
 
 BASE_TYPE = "Microsoft.Dynamics.CRM."
+
+
+class MetadataDumper(Protocol):
+    @property
+    def schema_name(self) -> str:
+        ...
+
+    def dump_to_dataverse(self) -> dict[str, Any]:
+        ...
 
 
 class MetadataBase(BaseModel):

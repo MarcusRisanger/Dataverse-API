@@ -53,34 +53,18 @@ class StringAttributeMetadata(AttributeMetadata):
     description : dataverse.Label
     display_name : dataverse.Label
     required_level : dataverse.RequiredLevel
+    is_primary_name : bool
     """
 
-    is_primary_name: bool = False
-    max_length: int = 100
+    is_primary_name: bool = Field(default=False)
+    max_length: int = Field(default=100)
     format_name: StringFormat = Field(default=StringFormat.TEXT)
+    auto_number_format: str | None = Field(default=None)
 
     def model_post_init(self, __context: Any) -> None:
         self.odata_type = BASE_TYPE + "StringAttributeMetadata"
         self.attribute_type = AttributeType.STRING
         self.attribute_type_name = AttributeTypeName.STRING_TYPE
-        return super().model_post_init(__context)
-
-
-class AutoNumberMetadata(StringAttributeMetadata):
-    """
-    Attribute Metadata for an Auto-number column.
-
-    Parameters
-    ----------
-    schema_name : str
-    autonumber_format: str
-    description : dataverse.Label
-    display_name : dataverse.Label
-    required_level : dataverse.RequiredLevel
-    """
-
-    auto_number_format: str
-
-    def model_post_init(self, __context: Any) -> None:
-        self.format_name = StringFormat.TEXT
+        if self.auto_number_format is not None:
+            self.format_name = StringFormat.TEXT
         return super().model_post_init(__context)

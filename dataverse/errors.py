@@ -15,6 +15,16 @@ class DataverseError(Exception):
         self.response = response
 
 
+class DataverseAPIError(Exception):
+    """
+    Error thrown for API communications.
+    """
+
+    def __init__(self, message: str, response: Response) -> None:
+        super().__init__(message)
+        self.response = response
+
+
 class DataverseModeError(DataverseError):
     """
     Error thrown if wrong Mode is specified.

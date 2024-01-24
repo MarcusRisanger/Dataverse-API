@@ -8,6 +8,7 @@ import requests
 
 from dataverse._api import Dataverse
 from dataverse.entity import DataverseEntity
+from dataverse.metadata.base import MetadataDumper
 from dataverse.metadata.entity import EntityMetadata
 from dataverse.metadata.helpers import Publisher, Solution
 from dataverse.metadata.relationships import RelationshipMetadata
@@ -52,9 +53,10 @@ class DataverseClient(Dataverse):
 
     def create_entity(
         self,
-        entity_definition: EntityMetadata,
+        entity_definition: MetadataDumper,
         *,
         solution_name: str | None = None,
+        return_representation: bool = False,
     ) -> requests.Response:
         """
         Create new Entity.
@@ -66,17 +68,20 @@ class DataverseClient(Dataverse):
         solution_name : str
             The unique solution name, if the Entity is to be
             created within such a scope.
+        return_representation : bool
+            Whether to include the metadata representation after update
+            in the response from server.
 
         Returns
         -------
         requests.Response
             The response from the server.
         """
-
+        headers = dict()
+        if return_representation:
+            headers["Prefer"] = "return=representation"
         if solution_name:
-            headers = {"MSCRM.SolutionName": solution_name}
-        else:
-            headers = None
+            headers["MSCRM.SolutionName"] = solution_name
 
         return self._api_call(
             method=RequestMethod.POST,
@@ -125,34 +130,41 @@ class DataverseClient(Dataverse):
 
     def update_entity(
         self,
-        entity: EntityMetadata,
+        entity: MetadataDumper,
         *,
         solution_name: str | None = None,
         preserve_localized_labels: bool = False,
+        return_representation: bool = False,
     ) -> requests.Response:
         """
         Updates the Entity definition in Dataverse.
 
         Parameters
         ----------
-        entity : EntityMetadata
-            The updated EntityMetadata to be persisted in Dataverse.
+        entity : MetadataDumper
+            The updated Entity metadata to be persisted in Dataverse.
         solution_name : str
             The Solution Name with which to associate the Entity.
         preserve_localized_labels : bool
             Whether to preserve localized labels that exist in Dataverse
             but are not part of the submitted EntityMetadata.
+        return_representation : bool
+            Whether to include the metadata representation after update
+            in the response from server.
 
         Returns
         -------
         requests.Response
             The response from the server.
         """
-        headers: dict[str, str] = dict()
+        headers = dict()
         if solution_name:
             headers["MSCRM.SolutionUniqueName"] = solution_name
         if preserve_localized_labels:
             headers["MSCRM.Mergelabels"] = "true"
+        if return_representation:
+            headers["Prefer"] = "return=representation"
+
         return self._api_call(
             method=RequestMethod.PUT,
             url=f"EntityDefinitions(LogicalName='{entity.schema_name.lower()}')",
@@ -183,15 +195,14 @@ class DataverseClient(Dataverse):
         )
 
     def create_relationship(
-        self,
-        relationship_definition: RelationshipMetadata,
+        self, relationship_definition: MetadataDumper, return_representation: bool = False
     ) -> requests.Response:
         """
         Relate Entities.
 
         Parameters
         ----------
-        relationship_definition : RelationshipMetadata
+        relationship_definition : MetadataDumper
             The relationship definition to establish in Dataverse.
 
         Returns
@@ -199,10 +210,15 @@ class DataverseClient(Dataverse):
         requests.Response
             The response from the server.
         """
+        headers = dict()
+
+        if return_representation:
+            headers["Prefer"] = "return=representation"
 
         return self._api_call(
             method=RequestMethod.POST,
             url="RelationshipDefinitions",
+            headers=headers,
             json=relationship_definition.dump_to_dataverse(),
         )
 
@@ -229,7 +245,7 @@ class DataverseClient(Dataverse):
 
     def update_relationship(
         self,
-        relationship: RelationshipMetadata,
+        relationship: MetadataDumper,
         *,
         preserve_localized_labels: bool = False,
     ) -> requests.Response:
@@ -238,11 +254,11 @@ class DataverseClient(Dataverse):
 
         Parameters
         ----------
-        entity : RelationshipMetadata
-            The updated RelationshipMetadata to be persisted in Dataverse.
+        entity : MetadataDumper
+            The updated metadata to be persisted in Dataverse.
         preserve_localized_labels : bool
             Whether to preserve localized labels that exist in Dataverse
-            but are not part of the submitted RelationshipMetadata.
+            but are not part of the submitted metadata.
 
         Returns
         -------

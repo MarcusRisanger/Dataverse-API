@@ -7,6 +7,7 @@ import responses
 from responses.matchers import header_matcher, json_params_matcher
 
 from dataverse.dataverse import DataverseClient
+from dataverse.errors import DataverseAPIError
 from dataverse.metadata.entity import EntityMetadata
 from dataverse.metadata.enums import OwnershipType
 from dataverse.metadata.helpers import Publisher, Solution
@@ -21,13 +22,10 @@ def test_api_call(
 ):
     # Mocking an errored request
 
-    mocked_responses.get(url=f"{client._endpoint}Foo", status=500)
+    mocked_responses.get(url=f"{client._endpoint}Foo", status=500, json={"error": {"message": "Whoopsie!"}})
 
-    expected = f"Request failed for {RequestMethod.GET.name} to {client._endpoint}Foo."
-
-    client._api_call(method=RequestMethod.GET, url="Foo")
-
-    assert expected in caplog.text
+    with pytest.raises(DataverseAPIError, match=r".*request failed.*"):
+        client._api_call(method=RequestMethod.GET, url="Foo")
 
 
 def test_api_batch(client: DataverseClient, mocked_responses: responses.RequestsMock):

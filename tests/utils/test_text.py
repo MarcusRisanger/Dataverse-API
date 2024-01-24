@@ -6,12 +6,14 @@ def test_conversion_to_title():
         "hello_there": [{"data": 1, "foo": 2}],
         "test_string_yeah": {"target": "Kenobi"},
         "single": False,
+        "@unconverted": "MooOoOoO",
     }
     out = convert_dict_keys_to_title(test_dict)
 
     assert out["HelloThere"] == [{"Data": 1, "Foo": 2}]
     assert out["TestStringYeah"] == {"Target": "Kenobi"}
     assert out["Single"] == test_dict["single"]
+    assert out["@unconverted"] == test_dict["@unconverted"]
 
 
 def test_conversion_to_snake():

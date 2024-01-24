@@ -1,4 +1,3 @@
-import logging
 from collections.abc import Callable, Mapping, Sequence
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any
@@ -7,6 +6,7 @@ from uuid import uuid4
 
 import requests
 
+from dataverse.errors import DataverseAPIError
 from dataverse.utils.batching import BatchCommand, RequestMethod, ThreadCommand, chunk_data
 
 
@@ -70,7 +70,7 @@ class Dataverse:
             "OData-MaxVersion": "4.0",
         }
 
-        if headers is not None:
+        if headers:
             for k, v in headers.items():
                 default_headers[k] = v
 
@@ -86,12 +86,13 @@ class Dataverse:
             json=json,
             timeout=timeout,
         )
-        if not (200 <= resp.status_code <= 299):
-            logging.error(
-                "Request failed for %s to %s.",
-                method.name,
-                request_url,
-            )
+
+        try:
+            resp.raise_for_status()
+        except requests.HTTPError:
+            error_msg = resp.json()["error"]["message"].splitlines()[0]
+            raise DataverseAPIError(message=f"{method.name} request failed: {error_msg}", response=resp) from None
+
         return resp
 
     def _batch_api_call(
@@ -138,6 +139,14 @@ class Dataverse:
                 )
                 for call in calls
             ]
-            resp = [future.result() for future in as_completed(futures)]
+
+            # Need something like this for handling
+            # exceptions during threaded calls
+            resp = []
+            for future in as_completed(futures):
+                try:
+                    resp.append(future.result())
+                except DataverseAPIError as e:
+                    resp.append(e.response)
 
         return resp

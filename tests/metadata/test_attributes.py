@@ -1,6 +1,6 @@
 import pytest
 
-from dataverse.metadata.attributes import AutoNumberMetadata, LookupAttributeMetadata
+from dataverse.metadata.attributes import LookupAttributeMetadata, StringAttributeMetadata, StringFormat
 from dataverse.metadata.complex_properties import Label
 
 
@@ -24,7 +24,7 @@ def test_lookup(lookup_field: LookupAttributeMetadata):
 
 
 def test_autonumber(description_label: Label, display_name_label: Label):
-    a = AutoNumberMetadata(
+    a = StringAttributeMetadata(
         schema_name="autonumber",
         description=description_label,
         display_name=display_name_label,
@@ -32,3 +32,4 @@ def test_autonumber(description_label: Label, display_name_label: Label):
     )
 
     assert a.auto_number_format == "ROWID-{SEQNUM:5}"
+    assert a.format_name == StringFormat.TEXT

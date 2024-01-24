@@ -437,6 +437,11 @@ def test_entity_delete_bad_args(entity: DataverseEntity):
         entity.delete()
 
 
+def test_entity_delete_mode_not_supported(entity: DataverseEntity):
+    with pytest.raises(DataverseError, match=r"Mode .* is not supported.*"):
+        entity.delete(mode="foo", ids=["bar"])
+
+
 """
 entity.delete_column()
 """
@@ -541,11 +546,9 @@ def test_entity_delete_column_bad_args(entity: DataverseEntity):
         entity.delete_columns(columns=["Foo", "Bar"])
 
 
-def test_entity_delete_mode_not_supported(
-    entity: DataverseEntity,
-):
+def test_entity_delete_column_mode_not_supported(entity: DataverseEntity):
     with pytest.raises(DataverseError, match=r"Mode .* is not supported.*"):
-        entity.delete(mode="foo", ids=["bar"])
+        entity.delete_columns(columns=["col"], mode="foo", ids=["bar"])
 
 
 """
@@ -553,7 +556,31 @@ entity.upsert()
 """
 
 
-def test_entity_upsert_primaryid(
+def test_entity_upsert_individual_primaryid(
+    entity: DataverseEntity,
+    primary_id: str,
+    mocked_responses: responses.RequestsMock,
+):
+    # Setup
+    data = [{primary_id: str(uuid4()), "test_val": random.randint(1, 10)} for _ in range(4)]
+
+    for row in data:
+        id = row[primary_id]
+        payload = {k: v for k, v in row.items() if k != primary_id}
+
+        mocked_responses.patch(
+            url=f"{entity._endpoint}{entity.entity_set_name}({id})",
+            match=[json_params_matcher(payload)],
+            status=204,
+        )
+
+    resp = entity.upsert(data, mode="individual")
+
+    for row in resp:
+        assert row.status_code == 204
+
+
+def test_entity_upsert_batch_primaryid(
     entity: DataverseEntity,
     primary_id: str,
     mocked_responses: responses.RequestsMock,
@@ -563,7 +590,7 @@ def test_entity_upsert_primaryid(
 
     mocked_responses.post(url=f"{entity._endpoint}$batch")
 
-    resp = entity.upsert(data=data)
+    resp = entity.upsert(data=data, mode="batch")
 
     elements = resp[0].request.body.split("--batch")[1:-1]
 
@@ -572,7 +599,7 @@ def test_entity_upsert_primaryid(
         assert json.dumps(expected) in out
 
 
-def test_entity_upsert_altkey(
+def test_entity_upsert_batch_altkey(
     entity: DataverseEntity,
     primary_id: str,
     mocked_responses: responses.RequestsMock,
@@ -593,7 +620,7 @@ def test_entity_upsert_altkey(
 
     mocked_responses.post(url=f"{entity._endpoint}$batch")
 
-    resp = entity.upsert(data=data, altkey_name=altkey_2_name)
+    resp = entity.upsert(data=data, mode="batch", altkey_name=altkey_2_name)
 
     elements = resp[0].request.body.split("--batch")[1:-1]
 
@@ -601,3 +628,33 @@ def test_entity_upsert_altkey(
         row = ",".join([f"{part}={expected.pop(part).__repr__()}" for part in altkey_2_cols])
         assert f"{entity.entity_set_name}({row})" in out
         assert json.dumps(expected) in out
+
+
+def test_entity_upsert_mode_not_supported(entity: DataverseEntity):
+    with pytest.raises(DataverseError, match=r"Mode .* is not supported.*"):
+        entity.upsert({"data": 1}, mode="foo")
+
+
+def test_entity_upsert_bad_altkey(entity: DataverseEntity):
+    with pytest.raises(DataverseError, match=r"Altkey.*"):
+        entity.upsert({"data": 1}, altkey_name="foo")
+
+
+def test_entity_upsert_dataframe(entity: DataverseEntity, mocked_responses: responses.RequestsMock, primary_id: str):
+    # Setup
+    df = pd.DataFrame([{primary_id: str(uuid4()), "data": i} for i in range(3)])
+
+    for row in df.to_dict("records"):
+        id = row[primary_id]
+        payload = {k: v for k, v in row.items() if k != primary_id}
+
+        mocked_responses.patch(
+            url=f"{entity._endpoint}{entity.entity_set_name}({id})",
+            match=[json_params_matcher(payload)],
+            status=204,
+        )
+
+    resp = entity.upsert(df, mode="individual")
+
+    for row in resp:
+        assert row.status_code == 204

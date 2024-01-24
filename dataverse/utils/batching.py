@@ -1,6 +1,6 @@
 import json
+import logging
 from collections.abc import Iterable
-from copy import deepcopy
 from dataclasses import dataclass, field
 from enum import Enum, auto
 from textwrap import dedent
@@ -164,6 +164,45 @@ def transform_to_batch_for_delete(url: str, data: Iterable[str], column: str | N
     return [BatchCommand(url=f"{url}({id}){column}", method=RequestMethod.DELETE) for id in data]
 
 
+UpsertDataType = tuple[str, dict[str, Any]]
+
+
+def transform_upsert_data(
+    data: Collection[Mapping[str, Any]],
+    keys: Iterable[str],
+    is_primary_id: bool,
+) -> Generator[UpsertDataType, None, None]:
+    """
+    Transform upsert data to keys and payload.
+
+    Parameters
+    ----------
+    data : Collection[Mapping[str, Any]]
+        The data to upsert to Dataverse.
+    keys : Iterable[str]
+        The keys to extract from the data to form the target row identifier.
+    is_primary_id : bool
+        Whether the given key (singular) is the primary ID attribute for the Entity.
+
+    Yields
+    -------
+    tuple : str, dict
+        [0] : The target row identifier
+        [1] : The data payload
+    """
+    for row in data:
+        if is_primary_id:
+            # No repr on string
+            row_key = [f"{row[part]}" for part in keys]
+        else:
+            # Repr on string
+            row_key = [f"{part}={row[part].__repr__()}" for part in keys]
+        row_data = {k: v for k, v in row.items() if k not in keys}
+
+        logging.warning(row_key)
+        yield ",".join(row_key), row_data
+
+
 def transform_to_batch_for_upsert(
     url: str,
     data: Collection[MutableMapping[str, Any]],
@@ -186,20 +225,12 @@ def transform_to_batch_for_upsert(
     """
     commands = []
 
-    data = deepcopy(data)  # Make idempotent
-
-    for row in data:
-        if is_primary_id:
-            # No repr on string
-            row_key = [f"{row.pop(part)}" for part in keys]
-        else:
-            # Repr on string
-            row_key = [f"{part}={row.pop(part).__repr__()}" for part in keys]
+    for keys, payload in transform_upsert_data(data, keys, is_primary_id):
         commands.append(
             BatchCommand(
-                url=f"{url}({','.join(row_key)})",
+                url=f"{url}({keys})",
                 method=RequestMethod.PATCH,
-                data=row,
+                data=payload,
             )
         )
 

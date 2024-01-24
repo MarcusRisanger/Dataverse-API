@@ -16,6 +16,7 @@ from dataverse.utils.batching import (
     transform_to_batch_for_create,
     transform_to_batch_for_delete,
     transform_to_batch_for_upsert,
+    transform_upsert_data,
 )
 from dataverse.utils.data import convert_dataframe_to_dict
 
@@ -325,12 +326,21 @@ class DataverseEntity(Dataverse):
     def delete(self, *, mode: Literal["individual", "batch"], filter: str) -> list[requests.Response]:
         ...
 
+    @overload
+    def delete(self, *, mode: Literal["batch"], batch_size: int, filter: str) -> list[requests.Response]:
+        ...
+
+    @overload
+    def delete(self, *, mode: Literal["batch"], batch_size: int, ids: Collection[str]) -> list[requests.Response]:
+        ...
+
     def delete(
         self,
         *,
         mode: Literal["individual", "batch"] = "individual",
         ids: Collection[str] | None = None,
         filter: str | None = None,
+        batch_size: int | None = None,
     ) -> list[requests.Response]:
         """
         Delete rows in Entity.
@@ -359,7 +369,7 @@ class DataverseEntity(Dataverse):
             ids = {row[self.primary_id_attr] for row in records}
 
         length = len(ids)
-        logging.warning("%d rows to delete.", length)
+        logging.info("%d rows to delete.", length)
         if mode == "individual":
             logging.debug("%d rows to delete using individual deletes.", length)
             return self.__delete_singles(data=ids)
@@ -367,11 +377,14 @@ class DataverseEntity(Dataverse):
         if mode == "batch":
             logging.debug("%d rows to delete using batch deletes.", length)
             batch_data = transform_to_batch_for_delete(url=self.entity_set_name, data=ids)
-            return self._batch_api_call(batch_data, batch_size=100, timeout=120)
+            return self._batch_api_call(batch_data, batch_size=batch_size or 100, timeout=120)
 
         raise DataverseModeError(mode, "individual", "batch")
 
     def __delete_column_singles(self, data: Iterable[str], column: str) -> list[requests.Response]:
+        """
+        Delete row column value by individual requests.
+        """
         calls = [
             ThreadCommand(
                 method=RequestMethod.DELETE,
@@ -454,10 +467,30 @@ class DataverseEntity(Dataverse):
 
         raise DataverseModeError(mode, "individual", "batch")
 
+    def __upsert_singles(
+        self,
+        data: Collection[Mapping[str, Any]],
+        keys: Iterable[str],
+        is_primary_id: bool,
+    ) -> list[requests.Response]:
+        """
+        Upsert row by individual requests.
+        """
+        calls = [
+            ThreadCommand(
+                method=RequestMethod.PATCH,
+                url=f"{self.entity_set_name}({key})",
+                json=payload,
+            )
+            for key, payload in transform_upsert_data(data, keys, is_primary_id)
+        ]
+        return self._threaded_call(calls=calls)
+
     def upsert(
         self,
         data: Collection[MutableMapping[str, Any]] | pd.DataFrame,
         *,
+        mode: Literal["individual", "batch"] = "individual",
         altkey_name: str | None = None,
     ) -> list[requests.Response]:
         """
@@ -475,7 +508,7 @@ class DataverseEntity(Dataverse):
         if altkey_name is not None:
             try:
                 key_columns = self.alternate_keys[altkey_name]
-            except IndexError:
+            except KeyError:
                 raise DataverseError(f"Altkey '{altkey_name}' is not valid for Entity '{self.logical_name}'.")
             is_primary_id = False
         else:
@@ -485,11 +518,18 @@ class DataverseEntity(Dataverse):
         if isinstance(data, pd.DataFrame):
             data = convert_dataframe_to_dict(data)
 
-        logging.debug("%d rows to upsert. Using batch upserts.", len(data))
-        batch_data = transform_to_batch_for_upsert(
-            url=self.entity_set_name,
-            data=data,
-            keys=key_columns,
-            is_primary_id=is_primary_id,
-        )
-        return self._batch_api_call(batch_data)
+        if mode == "individual":
+            logging.debug("%d rows to upsert. Using individual upserts.", len(data))
+            return self.__upsert_singles(data=data, keys=key_columns, is_primary_id=is_primary_id)
+
+        if mode == "batch":
+            logging.debug("%d rows to upsert. Using batch upserts.", len(data))
+            batch_data = transform_to_batch_for_upsert(
+                url=self.entity_set_name,
+                data=data,
+                keys=key_columns,
+                is_primary_id=is_primary_id,
+            )
+            return self._batch_api_call(batch_data)
+
+        raise DataverseModeError(mode, "individual", "batch")
