@@ -15,10 +15,10 @@ The `dataverse-api` package is an abstraction layer developed for allowing simpl
 * [To do](#to-do)
 * [Usage](#usage)
     * [DataverseClient](#dataverseclient)
-        * [Initialize Entity interface](#initialize-interface-with-entity)
         * [Create new Entity](#create-new-entity)
         * [Update existing Entity](#update-existing-entity)
     * [DataverseEntity](#dataverseentity)
+        * [Initialize Entity interface](#initialize-interface-with-entity)
         * [Read](#read)
         * [Create](#create)
         * [Upsert](#upsert)
@@ -141,15 +141,6 @@ $ poetry run coverage xml
 
 ## DataverseClient
 
-### Initialize interface with Entity
-
-To initializes an interface with a specific Dataverse Entity, use the `.entity()` method. It returns a `DataverseEntity` object that allows interaction with this specific entity.
-
-```python
-entity = client.entity(logical_name="foo")
-```
-As of now, only `LogicalName` is supported for instantiating a new `DataverseEntity` object.
-
 ### Create new Entity
 
 It is possible to create a new Entity using the `DataverseClient`. This requires a full `EntityMetadata` definition according to Dataverse standards. You can make this yourself and follow the `MetadataDumper` protocol, or use the provided `define_entity` function.
@@ -183,7 +174,7 @@ entity_meta = EntityMetadata.model_validate_dataverse(resp.json())
 
 You can update an existing Entity definition easily by retrieving the Entity metadata definition, and reupload an adjusted version.
 
-Below is a simple example. Note that this method also supports `return_representation` as the `DataverseClient.create_entity()` method.
+Below is a simple example. Note that this method also supports `return_representation` in the same manner as the `DataverseClient.create_entity()` method, if you want to return the edited Entity metadata as persisted in Dataverse.
 
 ```python
 metadata = client.get_entity_definition("new_name")
@@ -193,6 +184,16 @@ client.update_entity(metadata)
 ```
 
 ## DataverseEntity
+
+### Initialize interface with Entity
+
+To initializes an interface with a specific Dataverse Entity, use the `.entity()` method. It returns a `DataverseEntity` object that allows interaction with this specific entity.
+
+```python
+entity = client.entity(logical_name="foo")
+```
+As of now, only `LogicalName` is supported for instantiating a new `DataverseEntity` object.
+
 
 ### Read
 
