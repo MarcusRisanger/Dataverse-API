@@ -15,6 +15,7 @@ The `dataverse-api` package is an abstraction layer developed for allowing simpl
 * [To do](#to-do)
 * [Usage](#usage)
     * [DataverseClient](#dataverseclient)
+        * [Initialize DataverseClient](#initialize-dataverseclient)
         * [Create new Entity](#create-new-entity)
         * [Update existing Entity](#update-existing-entity)
     * [DataverseEntity](#dataverseentity)
@@ -122,9 +123,8 @@ $ poetry run coverage xml
 
 ## To Do:
 
-* Lightweight schema implementation
-    - Illegal file extensions
 * Entity implementation
+    - Illegal file extensions
     - Upload file
     - Upload image
     - Upload large file
@@ -140,6 +140,10 @@ $ poetry run coverage xml
 # Usage
 
 ## DataverseClient
+
+### Initialize DataverseClient
+
+TBD
 
 ### Create new Entity
 
@@ -187,7 +191,7 @@ client.update_entity(metadata)
 
 ### Initialize interface with Entity
 
-To initializes an interface with a specific Dataverse Entity, use the `.entity()` method. It returns a `DataverseEntity` object that allows interaction with this specific entity.
+To initializes an interface with a specific Dataverse Entity, use the `DataverseClient.entity()` method. It returns a `DataverseEntity` object that allows interaction with this specific entity.
 
 ```python
 entity = client.entity(logical_name="foo")
