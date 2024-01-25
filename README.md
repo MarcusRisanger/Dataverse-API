@@ -131,6 +131,7 @@ $ poetry run coverage xml
     - Upload file
     - Upload image
     - Upload large file
+* Add Tests:
     - Add column
     - Remove column
     - Add alternate key

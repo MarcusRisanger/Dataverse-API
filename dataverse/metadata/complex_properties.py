@@ -49,6 +49,7 @@ class LocalizedLabel(MetadataBase):
 
     label: str
     language_code: int = 1033
+    is_managed: bool = False
 
     def model_post_init(self, _: Any) -> None:
         self.odata_type: str = BASE_TYPE + "LocalizedLabel"

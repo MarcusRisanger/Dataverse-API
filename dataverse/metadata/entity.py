@@ -4,17 +4,14 @@ data as possible for ease of use.
 """
 
 
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from typing import Any
 
-from dataverse.metadata.attributes import StringAttributeMetadata
+from dataverse.metadata.attributes import AttributeTypes
 from dataverse.metadata.base import BASE_TYPE, MetadataBase
 from dataverse.metadata.complex_properties import Label
 from dataverse.metadata.enums import OwnershipType
 from dataverse.utils.labels import define_label
-
-# Should be union of all AttributeTypes
-AttributeTypes = StringAttributeMetadata
 
 
 class EntityMetadata(MetadataBase):
@@ -84,3 +81,32 @@ def define_entity(
         has_activities=has_activities,
         has_notes=has_notes,
     )
+
+
+class AlternateKeyMetadata(MetadataBase):
+    schema_name: str
+    display_name: Label
+    key_attributes: Iterable[str]
+
+
+def get_altkey_metadata(
+    schema_name: str, display_name: str | Label, key_attributes: Iterable[str]
+) -> AlternateKeyMetadata:
+    """
+    Get `AlternateKeyMetadata`.
+
+    Parameters
+    ----------
+    schema_name : str
+        Schema name of alternate key.
+    display_name : str | Label
+        Display name or Label for alternate key.
+    key_attributes : Iterable[str]
+        Iterable of strings that comprise the alternate key.
+    """
+    if isinstance(display_name, str):
+        display_name = define_label(display_name)
+
+    key_attributes = list(set(key_attributes))
+
+    return AlternateKeyMetadata(schema_name=schema_name, display_name=display_name, key_attributes=key_attributes)

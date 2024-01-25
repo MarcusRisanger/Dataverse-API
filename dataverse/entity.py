@@ -8,7 +8,9 @@ import requests
 
 from dataverse._api import Dataverse
 from dataverse.errors import DataverseError, DataverseModeError
-from dataverse.metadata.base import BASE_TYPE
+from dataverse.metadata.base import BASE_TYPE, MetadataDumper
+from dataverse.metadata.complex_properties import Label
+from dataverse.metadata.entity import get_altkey_metadata
 from dataverse.utils.batching import (
     RequestMethod,
     ThreadCommand,
@@ -451,7 +453,7 @@ class DataverseEntity(Dataverse):
             ids = {row[self.primary_id_attr] for row in records}
 
         length = len(ids) * len(columns)  # Total number of deletion requests
-        output = []
+        output: list[requests.Response] = []
         if mode == "individual":
             logging.debug("%d properties to delete. Using single deletes.", length)
             for col in columns:
@@ -533,3 +535,161 @@ class DataverseEntity(Dataverse):
             return self._batch_api_call(batch_data)
 
         raise DataverseModeError(mode, "individual", "batch")
+
+    def add_attribute(
+        self,
+        attribute: MetadataDumper,
+        solution_name: str | None = None,
+        return_representation: bool = False,
+    ) -> requests.Response:
+        """
+        Add attribute to Entity.
+
+        Parameters
+        ----------
+        attribute : MetadataDumper
+            Dumpable metadata for new Attribute.
+        solution_name : str
+            Unique name for solution attribute is part of.
+        return_representation : bool
+            Whether to include the metadata representation after
+            creation in the response from server.
+
+        Returns
+        -------
+        requests.Response
+            The response from the server.
+        """
+
+        headers: dict[str, str] = dict()
+
+        if solution_name is not None:
+            headers["MSCRM.SolutionUniqueName"] = solution_name
+
+        if return_representation:
+            headers["Prefer"] = "return=representation"
+
+        return self._api_call(
+            method=RequestMethod.POST,
+            url=f"EntityDefinitions(LogicalName='{self.logical_name}')/Attributes",
+            headers=headers,
+            json=attribute.dump_to_dataverse(),
+        )
+
+    @overload
+    def remove_attribute(self, *, attribute_id: str) -> requests.Response:
+        ...
+
+    @overload
+    def remove_attribute(self, *, logical_name: str) -> requests.Response:
+        ...
+
+    def remove_attribute(
+        self,
+        *,
+        attribute_id: str | None = None,
+        logical_name: str | None = None,
+    ) -> requests.Response:
+        """
+        Remove Attribute from Entity.
+
+        Parameters
+        ----------
+        attribute_id : str
+            GUID of Attribute.
+        logical_name : str
+            LogicalName of Attribute.
+
+        Returns
+        -------
+        requests.Response
+            The response from the server.
+        """
+        if attribute_id is None and logical_name is None:
+            raise DataverseError("Supply either 'id' or 'logical_name' kwarg.")
+
+        if attribute_id:
+            return self._api_call(
+                method=RequestMethod.DELETE,
+                url=f"EntityDefinitions(LogicalName='{self.logical_name}')/Attributes({attribute_id})",
+            )
+
+        return self._api_call(
+            method=RequestMethod.DELETE,
+            url=f"EntityDefinitions(LogicalName='{self.logical_name}')/Attributes(LogicalName='{logical_name}')",
+        )
+
+    def add_alternate_key(
+        self,
+        schema_name: str,
+        display_name: str | Label,
+        key_attributes: Iterable[str],
+        return_representation: bool = False,
+    ) -> requests.Response:
+        """
+        Add an alternate key to Entity.
+
+        Parameters
+        ----------
+        alternate_key : MetadataDumper
+            Dumpable metadata for new Alternate Key.
+        """
+        headers: dict[str, str] = dict()
+        if return_representation:
+            headers["Prefer"] = "return_representation"
+
+        key = get_altkey_metadata(
+            schema_name=schema_name,
+            display_name=display_name,
+            key_attributes=key_attributes,
+        )
+
+        return self._api_call(
+            method=RequestMethod.POST,
+            url=f"EntityMetadata(LogicalName='{self.logical_name}')/Keys",
+            headers=headers,
+            json=key.dump_to_dataverse(),
+        )
+
+    @overload
+    def remove_alternate_key(self, *, altkey_id: str) -> requests.Response:
+        ...
+
+    @overload
+    def remove_alternate_key(self, *, logical_name: str) -> requests.Response:
+        ...
+
+    def remove_alternate_key(
+        self,
+        *,
+        altkey_id: str | None = None,
+        logical_name: str | None = None,
+    ) -> requests.Response:
+        """
+        Remove Alternate Key from Entity.
+
+        Parameters
+        ----------
+        attribute_id : str
+            GUID of Alternate Key.
+        logical_name : str
+            LogicalName of Alternate Key.
+
+        Returns
+        -------
+        requests.Response
+            The response from the server.
+        """
+        if altkey_id is None and logical_name is None:
+            raise DataverseError("Supply either 'id' or 'logical_name' kwarg.")
+
+        if altkey_id:
+            return self._api_call(
+                method=RequestMethod.DELETE,
+                url=f"EntityDefinitions(LogicalName='{self.logical_name}')/Attributes({altkey_id})",
+            )
+
+        return self._api_call(
+            method=RequestMethod.DELETE,
+            url=f"EntityDefinitions(LogicalName='{self.logical_name}')/Attributes(LogicalName='{logical_name}')",
+        )

@@ -77,7 +77,7 @@ class DataverseClient(Dataverse):
         requests.Response
             The response from the server.
         """
-        headers = dict()
+        headers: dict[str, str] = dict()
         if return_representation:
             headers["Prefer"] = "return=representation"
         if solution_name:
@@ -157,7 +157,7 @@ class DataverseClient(Dataverse):
         requests.Response
             The response from the server.
         """
-        headers = dict()
+        headers: dict[str, str] = dict()
         if solution_name:
             headers["MSCRM.SolutionUniqueName"] = solution_name
         if preserve_localized_labels:
@@ -204,14 +204,16 @@ class DataverseClient(Dataverse):
         ----------
         relationship_definition : MetadataDumper
             The relationship definition to establish in Dataverse.
+        return_representation : bool
+            Whether to include the metadata representation after creation
+            in the response from server.
 
         Returns
         -------
         requests.Response
             The response from the server.
         """
-        headers = dict()
-
+        headers: dict[str, str] = dict()
         if return_representation:
             headers["Prefer"] = "return=representation"
 
@@ -268,6 +270,7 @@ class DataverseClient(Dataverse):
         headers: dict[str, str] = dict()
         if preserve_localized_labels:
             headers["MSCRM.Mergelabels"] = "true"
+
         return self._api_call(
             method=RequestMethod.PUT,
             url=f"RelationshipDefinitions(SchemaName='{relationship.schema_name}')",

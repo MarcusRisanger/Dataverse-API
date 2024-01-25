@@ -228,6 +228,7 @@ class BooleanAttributeMetadata(AttributeMetadata):
     required_level : dataverse.RequiredLevel
     """
 
+    default_value: bool = False
     option_set: BooleanOptionSet = Field(default=BooleanOptionSet())
 
     def model_post_init(self, __context: Any) -> None:
@@ -235,3 +236,14 @@ class BooleanAttributeMetadata(AttributeMetadata):
         self.attribute_type = AttributeType.BOOLEAN
         self.attribute_type_name = AttributeTypeName.BOOLEAN
         return super().model_post_init(__context)
+
+
+AttributeTypes = (
+    StringAttributeMetadata
+    | DecimalAttributeMetadata
+    | DateTimeAttributeMetadata
+    | IntegerAttributeMetadata
+    | BigIntAttributeMetadata
+    | BooleanAttributeMetadata
+    | MemoAttributeMetadata
+)
