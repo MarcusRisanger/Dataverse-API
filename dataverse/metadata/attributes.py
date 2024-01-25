@@ -216,6 +216,18 @@ class BooleanOptionSet(MetadataBase):
 
 
 class BooleanAttributeMetadata(AttributeMetadata):
+    """
+    Attribute Metadata for a Boolean column.
+
+    Parameters
+    ----------
+    schema_name : str
+    option_set : BooleanOptionSet
+    description : dataverse.Label
+    display_name : dataverse.Label
+    required_level : dataverse.RequiredLevel
+    """
+
     option_set: BooleanOptionSet = Field(default=BooleanOptionSet())
 
     def model_post_init(self, __context: Any) -> None:
