@@ -1,4 +1,3 @@
-import json
 import logging
 import random
 from copy import deepcopy
@@ -14,6 +13,7 @@ from dataverse_api.dataverse import DataverseClient
 from dataverse_api.entity import DataverseEntity
 from dataverse_api.errors import DataverseError
 from dataverse_api.metadata.base import BASE_TYPE
+from dataverse_api.utils.data import serialize_json
 
 
 @pytest.fixture
@@ -619,7 +619,7 @@ def test_entity_upsert_batch_primaryid(
 
     for out, expected in zip(elements, data):
         assert f"{entity.entity_set_name}({expected.pop(primary_id)})" in out
-        assert json.dumps(expected) in out
+        assert serialize_json(expected) in out
 
 
 def test_entity_upsert_batch_altkey(
@@ -650,7 +650,7 @@ def test_entity_upsert_batch_altkey(
     for out, expected in zip(elements, data):
         row = ",".join([f"{part}={expected.pop(part).__repr__()}" for part in altkey_2_cols])
         assert f"{entity.entity_set_name}({row})" in out
-        assert json.dumps(expected) in out
+        assert serialize_json(expected) in out
 
 
 def test_entity_upsert_mode_not_supported(entity: DataverseEntity):

@@ -1,3 +1,5 @@
+import json
+from collections.abc import Mapping
 from datetime import date, datetime
 from typing import Any
 
@@ -14,3 +16,9 @@ def coerce_timestamps(obj: object) -> str:
     if isinstance(obj, (datetime, date, pd.Timestamp)):
         return obj.isoformat()
     raise TypeError("Type %s not serializable" % type(obj))
+
+
+def serialize_json(obj: Mapping[str, Any] | None) -> str:
+    if obj is None:
+        return ""
+    return json.dumps(obj, default=coerce_timestamps)

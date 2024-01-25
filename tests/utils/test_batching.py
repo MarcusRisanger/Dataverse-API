@@ -1,7 +1,7 @@
-import json
 from textwrap import dedent
 
 from dataverse_api.utils.batching import BatchCommand, RequestMethod
+from dataverse_api.utils.data import serialize_json
 
 
 def test_batch_command_delete():
@@ -19,7 +19,7 @@ def test_batch_command_delete():
     Content-Type: application/json
 
 
-    null
+
     """
 
     command = BatchCommand(url=url, method=method)
@@ -44,7 +44,7 @@ def test_batch_command_post():
     Content-Type: application/json; type=entry
 
 
-    {json.dumps(data)}
+    {serialize_json(data)}
     """
 
     command = BatchCommand(url=url, method=method, data=data)
@@ -70,7 +70,7 @@ def test_batch_command_patch_with_header():
     Content-Type: application/json
     MSCRM.SuppressDuplicateDetection: false
 
-    {json.dumps(data)}
+    {serialize_json(data)}
     """
 
     command = BatchCommand(url=url, method=method, data=data, headers=header)

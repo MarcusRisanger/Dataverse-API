@@ -1,4 +1,3 @@
-import json as _json
 from collections.abc import Callable, Mapping, Sequence
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any
@@ -9,7 +8,7 @@ import requests
 
 from dataverse_api.errors import DataverseAPIError
 from dataverse_api.utils.batching import BatchCommand, RequestMethod, ThreadCommand, chunk_data
-from dataverse_api.utils.data import coerce_timestamps
+from dataverse_api.utils.data import serialize_json
 
 
 class Dataverse:
@@ -80,7 +79,7 @@ class Dataverse:
             timeout = 120
 
         if json is not None and data is None:
-            data = _json.dumps(json, default=coerce_timestamps)
+            data = serialize_json(json)
 
         resp = self._session.request(
             method=method.name,
@@ -88,7 +87,6 @@ class Dataverse:
             headers=default_headers,
             params=params,
             data=data,
-            # json=json,
             timeout=timeout,
         )
 

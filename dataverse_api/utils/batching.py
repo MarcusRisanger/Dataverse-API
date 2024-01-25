@@ -1,4 +1,3 @@
-import json
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from enum import Enum, auto
@@ -6,6 +5,7 @@ from textwrap import dedent
 from typing import Any, Collection, Generator, Mapping, MutableMapping, Sequence, TypeVar
 from urllib.parse import urljoin
 
+from dataverse_api.utils.data import serialize_json
 from dataverse_api.utils.text import encode_altkeys
 
 T = TypeVar("T")
@@ -108,7 +108,7 @@ class BatchCommand:
         {self.method.name} {url} HTTP/1.1
         {self.content_type}
         {self.extra_header}\n
-        {json.dumps(self.data)}
+        {serialize_json(self.data)}
         """
         return dedent(row_command)
 
