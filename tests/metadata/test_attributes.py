@@ -1,7 +1,7 @@
 import pytest
 
-from dataverse.metadata.attributes import LookupAttributeMetadata, StringAttributeMetadata, StringFormat
-from dataverse.metadata.complex_properties import Label
+from dataverse_api.metadata.attributes import LookupAttributeMetadata, StringAttributeMetadata, StringFormat
+from dataverse_api.metadata.complex_properties import Label
 
 
 @pytest.fixture

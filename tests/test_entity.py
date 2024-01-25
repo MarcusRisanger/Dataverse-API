@@ -10,10 +10,10 @@ import pytest
 import responses
 from responses.matchers import header_matcher, json_params_matcher, query_param_matcher
 
-from dataverse.dataverse import DataverseClient
-from dataverse.entity import DataverseEntity
-from dataverse.errors import DataverseError
-from dataverse.metadata.base import BASE_TYPE
+from dataverse_api.dataverse import DataverseClient
+from dataverse_api.entity import DataverseEntity
+from dataverse_api.errors import DataverseError
+from dataverse_api.metadata.base import BASE_TYPE
 
 
 @pytest.fixture

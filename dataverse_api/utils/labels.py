@@ -1,4 +1,4 @@
-from dataverse.metadata.complex_properties import Label, create_label
+from dataverse_api.metadata.complex_properties import Label, create_label
 
 
 def define_label(label: str | Label | None = None, override: str = "", *, language_code: int | None = None) -> Label:

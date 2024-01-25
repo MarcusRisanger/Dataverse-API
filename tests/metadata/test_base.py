@@ -1,6 +1,6 @@
 from pydantic import Field
 
-from dataverse.metadata.base import MetadataBase
+from dataverse_api.metadata.base import MetadataBase
 
 
 def test_base():

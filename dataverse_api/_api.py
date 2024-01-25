@@ -7,9 +7,9 @@ from uuid import uuid4
 
 import requests
 
-from dataverse.errors import DataverseAPIError
-from dataverse.utils.batching import BatchCommand, RequestMethod, ThreadCommand, chunk_data
-from dataverse.utils.data import coerce_timestamps
+from dataverse_api.errors import DataverseAPIError
+from dataverse_api.utils.batching import BatchCommand, RequestMethod, ThreadCommand, chunk_data
+from dataverse_api.utils.data import coerce_timestamps
 
 
 class Dataverse:

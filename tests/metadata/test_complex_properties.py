@@ -2,7 +2,7 @@ import logging
 
 import pytest
 
-from dataverse.metadata.complex_properties import (
+from dataverse_api.metadata.complex_properties import (
     CascadeConfiguration,
     CascadeType,
     Label,

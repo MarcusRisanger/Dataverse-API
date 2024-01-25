@@ -1,4 +1,4 @@
-from dataverse.metadata.enums import BaseEnum
+from dataverse_api.metadata.enums import BaseEnum
 
 
 def test_base_enum():

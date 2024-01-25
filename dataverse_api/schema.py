@@ -4,7 +4,7 @@ from typing import Any, Optional, Union
 
 import requests
 
-from dataverse._api import Dataverse
+from dataverse_api._api import Dataverse
 
 
 @dataclass

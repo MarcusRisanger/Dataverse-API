@@ -1,7 +1,7 @@
 import json
 from textwrap import dedent
 
-from dataverse.utils.batching import BatchCommand, RequestMethod
+from dataverse_api.utils.batching import BatchCommand, RequestMethod
 
 
 def test_batch_command_delete():

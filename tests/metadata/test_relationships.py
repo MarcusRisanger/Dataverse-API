@@ -1,6 +1,6 @@
-from dataverse.metadata.attributes import LookupAttributeMetadata
-from dataverse.metadata.relationships import OneToManyRelationshipMetadata, define_relationship
-from dataverse.utils.labels import Label
+from dataverse_api.metadata.attributes import LookupAttributeMetadata
+from dataverse_api.metadata.relationships import OneToManyRelationshipMetadata, define_relationship
+from dataverse_api.utils.labels import Label
 
 
 def test_one_many_relationship(one_many_relationship: OneToManyRelationshipMetadata):

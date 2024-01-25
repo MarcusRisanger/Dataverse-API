@@ -1,4 +1,4 @@
-from dataverse.errors import DataverseError
+from dataverse_api.errors import DataverseError
 
 
 def test_dataverse_error():

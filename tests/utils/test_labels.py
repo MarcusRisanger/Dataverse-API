@@ -1,7 +1,7 @@
 import pytest
 
-from dataverse.metadata.complex_properties import Label
-from dataverse.utils.labels import define_label
+from dataverse_api.metadata.complex_properties import Label
+from dataverse_api.utils.labels import define_label
 
 
 @pytest.fixture

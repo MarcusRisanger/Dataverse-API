@@ -7,9 +7,9 @@ from typing import Any
 
 from pydantic import Field
 
-from dataverse.metadata.base import BASE_TYPE, MetadataBase
-from dataverse.metadata.complex_properties import Label, RequiredLevel, create_label, required_level_default
-from dataverse.metadata.enums import (
+from dataverse_api.metadata.base import BASE_TYPE, MetadataBase
+from dataverse_api.metadata.complex_properties import Label, RequiredLevel, create_label, required_level_default
+from dataverse_api.metadata.enums import (
     AttributeType,
     AttributeTypeName,
     DateTimeFormat,
@@ -17,7 +17,7 @@ from dataverse.metadata.enums import (
     MemoFormat,
     StringFormat,
 )
-from dataverse.utils.labels import define_label
+from dataverse_api.utils.labels import define_label
 
 
 class AttributeMetadata(MetadataBase):

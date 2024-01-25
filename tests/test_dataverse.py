@@ -6,13 +6,13 @@ import pytest
 import responses
 from responses.matchers import header_matcher, json_params_matcher
 
-from dataverse.dataverse import DataverseClient
-from dataverse.errors import DataverseAPIError
-from dataverse.metadata.entity import EntityMetadata
-from dataverse.metadata.enums import OwnershipType
-from dataverse.metadata.helpers import Publisher, Solution
-from dataverse.metadata.relationships import OneToManyRelationshipMetadata
-from dataverse.utils.batching import BatchCommand, RequestMethod
+from dataverse_api.dataverse import DataverseClient
+from dataverse_api.errors import DataverseAPIError
+from dataverse_api.metadata.entity import EntityMetadata
+from dataverse_api.metadata.enums import OwnershipType
+from dataverse_api.metadata.helpers import Publisher, Solution
+from dataverse_api.metadata.relationships import OneToManyRelationshipMetadata
+from dataverse_api.utils.batching import BatchCommand, RequestMethod
 
 
 def test_api_call(

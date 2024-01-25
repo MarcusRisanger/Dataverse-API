@@ -1,6 +1,6 @@
-from dataverse.metadata.attributes import StringAttributeMetadata
-from dataverse.metadata.entity import define_entity
-from dataverse.utils.labels import create_label
+from dataverse_api.metadata.attributes import StringAttributeMetadata
+from dataverse_api.metadata.entity import define_entity
+from dataverse_api.utils.labels import create_label
 
 
 def test_create_entity_metadata():

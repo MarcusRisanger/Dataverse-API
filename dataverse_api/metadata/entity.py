@@ -7,11 +7,11 @@ data as possible for ease of use.
 from collections.abc import Sequence
 from typing import Any
 
-from dataverse.metadata.attributes import AttributeTypes
-from dataverse.metadata.base import BASE_TYPE, MetadataBase
-from dataverse.metadata.complex_properties import Label
-from dataverse.metadata.enums import OwnershipType
-from dataverse.utils.labels import define_label
+from dataverse_api.metadata.attributes import AttributeTypes
+from dataverse_api.metadata.base import BASE_TYPE, MetadataBase
+from dataverse_api.metadata.complex_properties import Label
+from dataverse_api.metadata.enums import OwnershipType
+from dataverse_api.utils.labels import define_label
 
 
 class EntityMetadata(MetadataBase):

@@ -7,8 +7,13 @@ from typing import Any, overload
 
 from pydantic import Field
 
-from dataverse.metadata.base import BASE_TYPE, MetadataBase
-from dataverse.metadata.enums import AssociatedMenuBehavior, AssociatedMenuGroup, AttributeRequiredLevel, CascadeType
+from dataverse_api.metadata.base import BASE_TYPE, MetadataBase
+from dataverse_api.metadata.enums import (
+    AssociatedMenuBehavior,
+    AssociatedMenuGroup,
+    AttributeRequiredLevel,
+    CascadeType,
+)
 
 
 class RequiredLevel(MetadataBase):

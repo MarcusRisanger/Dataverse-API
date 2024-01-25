@@ -4,12 +4,12 @@ import pytest
 import requests
 import responses
 
-from dataverse.dataverse import DataverseClient
-from dataverse.metadata.attributes import LookupAttributeMetadata, StringAttributeMetadata
-from dataverse.metadata.complex_properties import Label, LocalizedLabel
-from dataverse.metadata.entity import define_entity
-from dataverse.metadata.relationships import OneToManyRelationshipMetadata
-from dataverse.utils.labels import define_label
+from dataverse_api.dataverse import DataverseClient
+from dataverse_api.metadata.attributes import LookupAttributeMetadata, StringAttributeMetadata
+from dataverse_api.metadata.complex_properties import Label, LocalizedLabel
+from dataverse_api.metadata.entity import define_entity
+from dataverse_api.metadata.relationships import OneToManyRelationshipMetadata
+from dataverse_api.utils.labels import define_label
 
 
 @pytest.fixture

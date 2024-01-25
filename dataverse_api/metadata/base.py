@@ -5,7 +5,7 @@ from typing import Any, Protocol, Self
 
 from pydantic import BaseModel, ConfigDict
 
-from dataverse.utils.text import convert_dict_keys_to_snake, convert_dict_keys_to_title
+from dataverse_api.utils.text import convert_dict_keys_to_snake, convert_dict_keys_to_title
 
 BASE_TYPE = "Microsoft.Dynamics.CRM."
 

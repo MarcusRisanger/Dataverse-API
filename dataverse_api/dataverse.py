@@ -6,13 +6,13 @@ from collections.abc import Callable
 
 import requests
 
-from dataverse._api import Dataverse
-from dataverse.entity import DataverseEntity
-from dataverse.metadata.base import MetadataDumper
-from dataverse.metadata.entity import EntityMetadata
-from dataverse.metadata.helpers import Publisher, Solution
-from dataverse.metadata.relationships import RelationshipMetadata
-from dataverse.utils.batching import BatchCommand, RequestMethod
+from dataverse_api._api import Dataverse
+from dataverse_api.entity import DataverseEntity
+from dataverse_api.metadata.base import MetadataDumper
+from dataverse_api.metadata.entity import EntityMetadata
+from dataverse_api.metadata.helpers import Publisher, Solution
+from dataverse_api.metadata.relationships import RelationshipMetadata
+from dataverse_api.utils.batching import BatchCommand, RequestMethod
 
 
 class DataverseClient(Dataverse):

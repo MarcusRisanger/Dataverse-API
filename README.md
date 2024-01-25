@@ -52,7 +52,7 @@ from msal import ConfidentialClientApplication
 from msal_requests_auth.auth import ClientCredentialAuth
 from requests import Session
 
-from dataverse.dataverse import DataverseClient
+from dataverse_api import DataverseClient
 
 # Prepare Auth
 app_id = os.getenv("app_id")
@@ -66,7 +66,7 @@ app_reg = ConfidentialClientApplication(
 )
 auth = ClientCredentialAuth(
     client=app_reg,
-    scopes=[url + "/.default"]
+    scopes=[environment_url + "/.default"]
 )
 
 # Prepare Session
@@ -164,9 +164,9 @@ The `define_label` function makes it simple to generate `Label` metadata with co
 In the example below, the optional `return_representation` argument has been set to `True` to receive the full Entity metadata definition as created by Dataverse as part of the server response. The response can be parsed by `EntityMetadata` classmethod to get a full fledged object for editing.
 
 ```python
-from dataverse.metadata.attributes import StringAttributeMetadata
-from dataverse.metadata.entity import EntityMetadata, define_entity
-from dataverse.utils.labels import define_label
+from dataverse_api.metadata.attributes import StringAttributeMetadata
+from dataverse_api.metadata.entity import EntityMetadata, define_entity
+from dataverse_api.utils.labels import define_label
 
 new_entity = define_entity(
     schema_name="new_name",

@@ -7,10 +7,10 @@ from typing import Any
 
 from pydantic import Field
 
-from dataverse.metadata.attributes import LookupAttributeMetadata
-from dataverse.metadata.base import BASE_TYPE, MetadataBase
-from dataverse.metadata.complex_properties import AssociatedMenuConfiguration, CascadeConfiguration, Label
-from dataverse.utils.labels import define_label
+from dataverse_api.metadata.attributes import LookupAttributeMetadata
+from dataverse_api.metadata.base import BASE_TYPE, MetadataBase
+from dataverse_api.metadata.complex_properties import AssociatedMenuConfiguration, CascadeConfiguration, Label
+from dataverse_api.utils.labels import define_label
 
 
 class RelationshipMetadata(MetadataBase):

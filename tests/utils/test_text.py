@@ -1,4 +1,4 @@
-from dataverse.utils.text import convert_dict_keys_to_snake, convert_dict_keys_to_title, encode_altkeys
+from dataverse_api.utils.text import convert_dict_keys_to_snake, convert_dict_keys_to_title, encode_altkeys
 
 
 def test_conversion_to_title():

@@ -6,12 +6,12 @@ from typing import Any, Literal, overload
 import pandas as pd
 import requests
 
-from dataverse._api import Dataverse
-from dataverse.errors import DataverseError, DataverseModeError
-from dataverse.metadata.base import BASE_TYPE, MetadataDumper
-from dataverse.metadata.complex_properties import Label
-from dataverse.metadata.entity import get_altkey_metadata
-from dataverse.utils.batching import (
+from dataverse_api._api import Dataverse
+from dataverse_api.errors import DataverseError, DataverseModeError
+from dataverse_api.metadata.base import BASE_TYPE, MetadataDumper
+from dataverse_api.metadata.complex_properties import Label
+from dataverse_api.metadata.entity import get_altkey_metadata
+from dataverse_api.utils.batching import (
     RequestMethod,
     ThreadCommand,
     chunk_data,
@@ -20,7 +20,7 @@ from dataverse.utils.batching import (
     transform_to_batch_for_upsert,
     transform_upsert_data,
 )
-from dataverse.utils.data import convert_dataframe_to_dict
+from dataverse_api.utils.data import convert_dataframe_to_dict
 
 
 class DataverseEntity(Dataverse):

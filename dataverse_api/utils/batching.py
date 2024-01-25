@@ -6,7 +6,7 @@ from textwrap import dedent
 from typing import Any, Collection, Generator, Mapping, MutableMapping, Sequence, TypeVar
 from urllib.parse import urljoin
 
-from dataverse.utils.text import encode_altkeys
+from dataverse_api.utils.text import encode_altkeys
 
 T = TypeVar("T")
 
