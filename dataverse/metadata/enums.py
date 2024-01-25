@@ -33,13 +33,25 @@ class StringFormat(BaseEnum):
 
 
 class AttributeType(BaseEnum):
-    STRING = "String"
+    BIG_INT = "BigInt"
+    BOOLEAN = "Boolean"
+    DATE_TIME = "DateTime"
+    DECIMAL = "Decimal"
+    INTEGER = "Integer"
     LOOKUP = "Lookup"
+    MEMO = "Memo"
+    STRING = "String"
 
 
 class AttributeTypeName(BaseEnum):
+    BIG_INT = {"value": "BigIntType"}
+    BOOLEAN = {"value": "BooleanType"}
+    DATE_TIME = {"value": "DateTimeType"}
+    DECIMAL = {"value": "DecimalType"}
+    INTEGER = {"value": "IntegerType"}
+    LOOKUP = {"value": "LookupType"}
+    MEMO = {"Value": "MemoType"}
     STRING_TYPE = {"value": "StringType"}
-    LOOKUP = {"value": "Lookup"}
 
 
 class AssociatedMenuBehavior(BaseEnum):
@@ -74,6 +86,36 @@ class CascadeType(BaseEnum):
     USER_OWNED = "UserOwned"
     REMOVE_LINK = "RemoveLink"
     RESTRICT = "Restrict"
+
+
+class DateTimeFormat(BaseEnum):
+    """
+    Enum for DateTime Formats.
+    """
+
+    DATE_ONLY = "DateOnly"
+    DATE_AND_TIME = "DateAndTime"
+
+
+class IntegerFormat(BaseEnum):
+    """
+    Enum for Integer Formats.
+    """
+
+    NONE = "None"
+    DURATION = "Duration"
+    TIME_ZONE = "TimeZone"
+    LANGUAGE = "Language"
+    LOCALE = "Locale"
+
+
+class MemoFormat(BaseEnum):
+    """
+    Enum for Memo Formats.
+    """
+
+    TEXT_AREA = "TextArea"
+    RICH_TEXT = "RichText"
 
 
 class OwnershipType(BaseEnum):
