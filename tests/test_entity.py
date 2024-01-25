@@ -2,6 +2,7 @@ import json
 import logging
 import random
 from copy import deepcopy
+from datetime import date, datetime
 from uuid import uuid4
 
 import pandas as pd
@@ -239,6 +240,28 @@ def test_entity_create_by_singles(
 
     caplog.set_level(logging.DEBUG)
     resp = entity.create(data=small_data_package)
+
+    assert all([x.status_code == 204 for x in resp])
+    assert "using individual inserts" in caplog.text
+
+
+def test_entity_create_by_singles_write_timestamp(
+    entity: DataverseEntity,
+    mocked_responses: responses.RequestsMock,
+    small_data_package: list[dict[str, str]],
+    caplog: pytest.LogCaptureFixture,
+):
+    # Data package
+    url = entity._endpoint + entity.entity_set_name
+    data = [{"test": datetime.utcnow()}, {"test": date.today()}, {"test": pd.Timestamp.now()}]
+
+    # Mock single requests
+    for row in data:
+        row_data = {k: v.isoformat() for k, v in row.items()}
+        mocked_responses.post(url=url, match=[json_params_matcher(row_data)], status=204)
+
+    caplog.set_level(logging.DEBUG)
+    resp = entity.create(data=data)
 
     assert all([x.status_code == 204 for x in resp])
     assert "using individual inserts" in caplog.text

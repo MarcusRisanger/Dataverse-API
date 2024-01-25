@@ -1,3 +1,4 @@
+import json as _json
 from collections.abc import Callable, Mapping, Sequence
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any
@@ -8,6 +9,7 @@ import requests
 
 from dataverse.errors import DataverseAPIError
 from dataverse.utils.batching import BatchCommand, RequestMethod, ThreadCommand, chunk_data
+from dataverse.utils.data import coerce_timestamps
 
 
 class Dataverse:
@@ -77,13 +79,16 @@ class Dataverse:
         if timeout is None:
             timeout = 120
 
+        if json is not None and data is None:
+            data = _json.dumps(json, default=coerce_timestamps)
+
         resp = self._session.request(
             method=method.name,
             url=request_url,
             headers=default_headers,
             params=params,
             data=data,
-            json=json,
+            # json=json,
             timeout=timeout,
         )
 
@@ -142,7 +147,7 @@ class Dataverse:
 
             # Need something like this for handling
             # exceptions during threaded calls
-            resp = []
+            resp: list[requests.Response] = []
             for future in as_completed(futures):
                 try:
                     resp.append(future.result())
