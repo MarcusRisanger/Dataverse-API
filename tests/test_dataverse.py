@@ -1,290 +1,244 @@
-import logging
-from urllib.parse import urljoin
+import json
+import re
+from typing import Any
 
 import pytest
-import requests
 import responses
+from responses.matchers import header_matcher, json_params_matcher
 
-from dataverse_api.dataclasses import DataverseBatchCommand
-from dataverse_api.dataverse import DataverseClient
-from dataverse_api.entity import DataverseEntity
-from dataverse_api.utils import convert_data
-
-
-@pytest.fixture
-def dataverse_entity_name():
-    return "test"
-
-
-@pytest.fixture
-def dataverse_resource():
-    return "https://org.api.region.microsoft.com"
+from dataverse.dataverse import DataverseClient
+from dataverse.errors import DataverseAPIError
+from dataverse.metadata.entity import EntityMetadata
+from dataverse.metadata.enums import OwnershipType
+from dataverse.metadata.helpers import Publisher, Solution
+from dataverse.metadata.relationships import OneToManyRelationshipMetadata
+from dataverse.utils.batching import BatchCommand, RequestMethod
 
 
-@pytest.fixture
-def dataverse_api_url(dataverse_resource):
-    return urljoin(dataverse_resource, "/api/data/v9.2/")
-
-
-@pytest.fixture()
-def entity_initialization_response():
-    with open("tests/sample_data/test_entity_init.txt") as f:
-        return f.read()
-
-
-@pytest.fixture()
-def entity_picklist_response():
-    with open("tests/sample_data/test_picklist_choices.txt") as f:
-        return f.read()
-
-
-@pytest.fixture()
-def entity_initialization_response_bad():
-    with open("tests/sample_data/test_entity_init_bad.txt") as f:
-        return f.read()
-
-
-@pytest.fixture
-def dataverse_access_token():
-    token = {"access_token": "abc123", "token_type": "Bearer", "expires_in": 123}
-    return token
-
-
-@pytest.fixture
-def dataverse_auth(
-    dataverse_access_token,
+def test_api_call(
+    client: DataverseClient,
+    mocked_responses: responses.RequestsMock,
+    caplog: pytest.LogCaptureFixture,
 ):
-    class MockAuth:
-        def __init__(self):
-            pass
+    # Mocking an errored request
 
-        def _get_access_token(self):
-            return dataverse_access_token
+    mocked_responses.get(url=f"{client._endpoint}Foo", status=500, json={"error": {"message": "Whoopsie!"}})
 
-        def __call__(
-            self, input_request: requests.PreparedRequest
-        ) -> requests.PreparedRequest:
-            token = self._get_access_token()
-            input_request.headers[
-                "Authorization"
-            ] = f"{token['token_type']} {token['access_token']}"
-            return input_request
-
-    auth = MockAuth()
-    return auth
+    with pytest.raises(DataverseAPIError, match=r".*request failed.*"):
+        client._api_call(method=RequestMethod.GET, url="Foo")
 
 
-@pytest.fixture
-def mocked_init_response(
-    dataverse_api_url, entity_initialization_response, entity_picklist_response
-):
-    with responses.RequestsMock(assert_all_requests_are_fired=False) as rsps:
-        # Entity validation calls
-        rsps.add(
-            method="POST",
-            url=urljoin(
-                dataverse_api_url,
-                "$batch",
-            ),
-            status=200,
-            body=entity_initialization_response,
-        )
-
-        rsps.add(
-            method="POST",
-            url=urljoin(
-                dataverse_api_url,
-                "$batch",
-            ),
-            status=200,
-            body=entity_picklist_response,
-        )
-
-        yield rsps
-
-
-@pytest.fixture
-def dataverse_client(dataverse_auth, dataverse_resource) -> DataverseClient:
-    client = DataverseClient(resource=dataverse_resource, auth=dataverse_auth)
-    return client
-
-
-@pytest.fixture
-def dataverse_batch_commands():
-    data = [
-        DataverseBatchCommand(uri="uri1", mode="mode1", data={"col1": 1, "col2": 2}),
-        DataverseBatchCommand(uri="uri2", mode="mode1", data={"col1": 3, "col2": 4}),
-        DataverseBatchCommand(uri="uri3", mode="mode1", data={"col1": 5, "col2": 6}),
+def test_api_batch(client: DataverseClient, mocked_responses: responses.RequestsMock):
+    batch = "funky"
+    batch_data = [
+        BatchCommand(url="foo", method=RequestMethod.GET),
+        BatchCommand(url="bar", method=RequestMethod.PUT, data={"foo": "bar"}),
+        BatchCommand(url="moo", method=RequestMethod.POST, data={"foo": "bar"}),
     ]
-    return data
 
-
-def test_dataverse_instantiation(
-    dataverse_client,
-):
-    c: DataverseClient = dataverse_client
-
-    assert c._entity_cache == dict()
-
-
-@pytest.fixture
-def mocked_failure_responses(dataverse_api_url):
-    # Common arguments
-    api_url = dataverse_api_url
-    postfix = "foo"
-
-    with responses.RequestsMock() as rsps:
-        # Client failure calls
-        rsps.add(method="GET", url=urljoin(api_url, postfix), status=400)
-        rsps.add(method="POST", url=urljoin(api_url, postfix), status=400)
-        rsps.add(method="PUT", url=urljoin(api_url, f"{postfix}(test)/col"), status=400)
-        rsps.add(method="PATCH", url=urljoin(api_url, postfix), status=400)
-        rsps.add(method="DELETE", url=urljoin(api_url, postfix), status=400)
-        rsps.add(method="POST", url=urljoin(api_url, "$batch"), status=400)
-
-        yield rsps
-
-
-@responses.activate
-def test_dataverse_client_request_failures(
-    dataverse_api_url,
-    dataverse_client,
-):
-    pass
-    # # Common args
-    # c: DataverseClient = dataverse_client
-    # postfix = "foo"
-    # api_url = dataverse_api_url
-
-    # # Setting up client failure calls
-    # responses.add(method="GET", url=urljoin(api_url, postfix), status=400)
-    # responses.add(method="POST", url=urljoin(api_url, postfix), status=400)
-    # responses.add(
-    #     method="PUT", url=urljoin(api_url, f"{postfix}(test)/col"), status=400
-    # )
-    # responses.add(method="PATCH", url=urljoin(api_url, postfix), status=400)
-    # responses.add(method="DELETE", url=urljoin(api_url, postfix), status=400)
-    # responses.add(method="POST", url=urljoin(api_url, "$batch"), status=400)
-
-    # # Mocking endpoint responses raising errors
-    # with pytest.raises(DataverseError, match=r"Error with GET request: .+"):
-    #     c.get(postfix)
-
-    # with pytest.raises(DataverseError, match=r"Error with POST request: .+"):
-    #     c.post(postfix)
-
-    # with pytest.raises(DataverseError, match=r"Error with PUT request: .+"):
-    #     c.put(postfix, key="test", column="col", value=1)
-
-    # with pytest.raises(DataverseError, match=r"Error with PATCH request: .+"):
-    #     c.patch(postfix, data={"col": 1})
-
-    # with pytest.raises(DataverseError, match=r"Error with DELETE request: .+"):
-    #     c.delete(postfix)
-
-    # with pytest.raises(DataverseError, match=r"Error with POST request: .+"):
-    #     c.post("$batch")
-
-
-@pytest.fixture
-def entity_validated(
-    dataverse_client,
-    dataverse_entity_name,
-    mocked_init_response,
-):
-    c: DataverseClient = dataverse_client
-
-    entity = c.entity(logical_name=dataverse_entity_name, validate=True)
-
-    return entity
-
-
-@pytest.fixture
-def entity_unvalidated(
-    dataverse_client,
-    dataverse_entity_name,
-    mocked_init_response,
-):
-    c: DataverseClient = dataverse_client
-
-    entity_name = dataverse_entity_name
-    entity = c.entity(logical_name=entity_name)
-
-    return entity
-
-
-def test_entity_validated(
-    entity_validated,
-    dataverse_entity_name,
-    mocked_init_response,
-):
-    entity: DataverseEntity = entity_validated
-
-    assert entity._validate is True
-    assert entity.schema.entity.name == dataverse_entity_name + "s"
-    assert entity.schema.entity.primary_attr == "testid"
-    assert entity.schema.altkeys == [
-        {"test_pk"},
-        {"test_value_number", "test_value_text"},
-    ]
-    assert len(entity.schema.attributes) == 22
-    assert entity.schema.attributes["test_pk"].can_create is True
-    assert entity.schema.entity.language_code == 1033
-    assert (
-        all(
-            i in entity.schema.attributes
-            for i in [
-                "testid",
-                "test_pk",
-                "test_value_text",
-                "test_value_number",
-            ]
-        )
-        is True
+    mocked_responses.post(
+        url=f"{client._endpoint}$batch",
+        match=[header_matcher({"Content-Type": f'multipart/mixed; boundary="batch_{batch}"', "If-None-Match": "null"})],
     )
-    assert len(entity.schema.attributes["test_choice_unsync"].choices) == 2
-    assert entity.schema.entity.primary_attr in entity.schema.attributes
-    for key in entity.schema.altkeys:
-        assert all(col in entity.schema.attributes for col in key)
+
+    req = client._batch_api_call(batch_data, id_generator=lambda: batch)[0].request.body
+
+    # Each batch command should be constructed like this:
+    full_pattern = (
+        rf"--batch_{batch}\nContent-Type: application/http\nContent.Transfer.Encoding: binary\n\n"
+        + rf"(?:PUT|GET|DELETE|POST|PATCH) {client._endpoint}.+ (?:HTTP\/1.1)"
+        + "\nContent-Type: application/json(?:; type=entry)?\n\n"
+    )
+    pat = re.compile(full_pattern, re.M)
+    assert len(re.findall(pat, req)) == len(batch_data)
+    assert len(re.findall(rf"--batch_{batch}--$", req, re.M)) == 1, "Should have only one end of batch line."
+    assert req[-2:] == "\n\n", "Should end with 2 clrfs"
+
+    # POST batches have an additional line in Content-Type element header:
+    pat = re.compile(r"Content-Type: application\/json; type=entry")
+    assert len(re.findall(pat, req)) == len(list(filter(lambda x: x.method == RequestMethod.POST, batch_data)))
 
 
-@pytest.mark.parametrize(
-    "data, mode, result",
-    [
-        ({"testid": 1, "test_value_text": "foo"}, None, None),
-        ({"testid": 1, "test_pk": "A", "test_value_text": "foo"}, "write", {"testid"}),
-        ({"test_pk": "A", "test_value_number": 2}, "create", {"test_pk"}),
-    ],
-)
-def test_data_validation(
-    data,
-    mode,
-    result,
-    entity_validated,
-    mocked_init_response,
+@pytest.fixture
+def create_entity_response(client: DataverseClient, sample_entity: EntityMetadata):
+    return {
+        "url": f"{client._endpoint}EntityDefinitions",
+        "status": 204,
+        "content_type": "application/json",
+        "match": [json_params_matcher(sample_entity.dump_to_dataverse())],
+    }
+
+
+def test_create_entity(
+    client: DataverseClient,
+    mocked_responses: responses.RequestsMock,
+    sample_entity: EntityMetadata,
+    create_entity_response: dict[str, Any],
 ):
-    entity: DataverseEntity = entity_validated
-    data = convert_data(data)
+    # Mocking the request sent by endpoint
+    mocked_responses.post(**create_entity_response)
 
-    assert entity._validate_payload(data=data, mode=mode) == result
+    # Running function - this errors if the endpoint URL
+    # does not match with the mocked response URL
+    resp = client.create_entity(sample_entity)
+
+    # Run some assertions that payload contains critical attributes
+    assert json.loads(resp.request.body) == sample_entity.dump_to_dataverse()
 
 
-def test_entity_unvalidated(
-    caplog,
-    entity_unvalidated,
-    dataverse_api_url,
-    dataverse_entity_name,
-    mocked_init_response,
+def test_create_entity_with_solution_name(
+    client: DataverseClient,
+    mocked_responses: responses.RequestsMock,
+    sample_entity: EntityMetadata,
+    create_entity_response: dict[str, Any],
 ):
-    entity: DataverseEntity = entity_unvalidated
+    # Again for invoking with `solution_name`
+    mocked_responses.post(**create_entity_response)
+    resp = client.create_entity(sample_entity, solution_name="Foo")
 
-    assert entity.schema.entity.name == dataverse_entity_name + "s"
-    assert entity.schema.entity.primary_attr == "testid"
-    assert entity._validate is False
-    assert entity.api_url == dataverse_api_url
+    # Run assertions again!
+    assert resp.request.headers["MSCRM.SolutionName"] == "Foo"
 
-    with caplog.at_level(logging.INFO):
-        validation = entity._validate_payload({"foo": 1, "bar": 2})
 
-    assert validation is None
-    assert "Data validation not performed." in caplog.text
+def test_delete_entity(
+    client: DataverseClient,
+    mocked_responses: responses.RequestsMock,
+):
+    name = "Foo"
+
+    # Setting up response mock
+    url = f"{client._endpoint}EntityDefinitions(LogicalName='{name}')"
+    mocked_responses.delete(url=url)
+
+    resp = client.delete_entity(logical_name=name)
+
+    assert resp.request.body is None
+
+
+def test_create_publisher(
+    client: DataverseClient,
+    mocked_responses: responses.RequestsMock,
+):
+    pub = Publisher("A", "B", "C", "D", 123)
+
+    mocked_responses.post(
+        url=f"{client._endpoint}publishers",
+        status=204,
+        match=[json_params_matcher(pub())],
+    )
+
+    resp = client.create_publisher(publisher_definition=pub)
+
+    assert resp.status_code == 204
+
+
+def test_create_solution(
+    client: DataverseClient,
+    mocked_responses: responses.RequestsMock,
+):
+    sol = Solution("A", "B", "C", "D")
+
+    mocked_responses.post(
+        url=f"{client._endpoint}solutions",
+        status=204,
+        match=[json_params_matcher(sol())],
+    )
+
+    resp = client.create_solution(solution_definition=sol)
+
+    assert resp.status_code == 204
+
+
+def test_create_relationship(
+    client: DataverseClient,
+    mocked_responses: responses.RequestsMock,
+    one_many_relationship: OneToManyRelationshipMetadata,
+):
+    mocked_responses.post(
+        url=f"{client._endpoint}RelationshipDefinitions",
+        status=204,
+        match=[json_params_matcher(one_many_relationship.dump_to_dataverse())],
+    )
+
+    resp = client.create_relationship(relationship_definition=one_many_relationship)
+
+    assert resp.status_code == 204
+
+
+def test_get_language_codes(
+    client: DataverseClient,
+    mocked_responses: responses.RequestsMock,
+):
+    mocked_responses.get(
+        url=f"{client._endpoint}RetrieveAvailableLanguages",
+        status=200,
+        json={"LocaleIds": [123, 456], "Foo": "Bar"},
+    )
+    resp = client.get_language_codes()
+
+    assert resp == [123, 456]
+
+
+@pytest.fixture
+def test_get_entity_definition(
+    client: DataverseClient,
+    mocked_responses: responses.RequestsMock,
+    sample_entity_definition: dict[str, Any],
+    schema_name: str,
+) -> EntityMetadata:
+    mocked_responses.get(
+        url=f"{client._endpoint}EntityDefinitions(LogicalName='foo')", status=200, json=sample_entity_definition
+    )
+
+    resp = client.get_entity_definition(logical_name="foo")
+
+    assert resp.display_name.localized_labels[0].label == "Display Name Test"
+    assert resp.description.localized_labels[0].label == "Description Test"
+    assert resp.ownership_type == OwnershipType.NONE
+    assert resp.schema_name == schema_name
+
+    return resp
+
+
+def test_update_entity(
+    client: DataverseClient,
+    mocked_responses: responses.RequestsMock,
+    test_get_entity_definition: EntityMetadata,
+    schema_name: str,
+):
+    mocked_responses.put(
+        url=f"{client._endpoint}EntityDefinitions(LogicalName='{schema_name.lower()}')",
+        status=204,
+        match=[
+            json_params_matcher(test_get_entity_definition.dump_to_dataverse()),
+            header_matcher({"Content-Type": "application/json; charset=utf-8"}),
+        ],
+    )
+
+    resp = client.update_entity(test_get_entity_definition)
+    assert resp.status_code == 204
+
+
+def test_update_entity_with_kwargs(
+    client: DataverseClient,
+    mocked_responses: responses.RequestsMock,
+    test_get_entity_definition: EntityMetadata,
+    schema_name: str,
+):
+    mocked_responses.put(
+        url=f"{client._endpoint}EntityDefinitions(LogicalName='{schema_name.lower()}')",
+        status=204,
+        match=[
+            json_params_matcher(test_get_entity_definition.dump_to_dataverse()),
+            header_matcher(
+                {
+                    "Content-Type": "application/json; charset=utf-8",
+                    "MSCRM.UniqueSolutionName": "foo",
+                    "MSCRM.PreserveLabels": "true",
+                }
+            ),
+        ],
+    )
+
+    resp = client.update_entity(test_get_entity_definition, solution_name="foo", preserve_localized_labels=True)
+    assert resp.status_code == 204

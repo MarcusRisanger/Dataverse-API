@@ -150,3 +150,7 @@ dmypy.json
 
 # jetbrains
 .idea/
+
+.old_junk/
+run.py
+.ruff_cache

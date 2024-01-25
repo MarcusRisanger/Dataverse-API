@@ -7,28 +7,34 @@ readme = "README.md"
 
 [tool.poetry.dependencies]
 python = "^3.11"
-msal = "^1.22.0"
+msal = "^1.26.0"
 msal-requests-auth = "^0.7.0"
 pandas = "^2.0.1"
 python-box = ">=7.0,<8.0"
+sqlalchemy = "^2.0.23"
+pyodbc = "^5.0.1"
+pydantic = "^2.5.3"
 
 
 [tool.poetry.group.dev.dependencies]
-black = "^23.3.0"
-ipykernel = "^6.22.0"
+ipykernel = "^6.26.0"
 python-dotenv = "^1.0.0"
-flake8 = "^6.0.0"
-isort = "^5.12.0"
-pre-commit = "^3.3.1"
-coverage = "^7.2.5"
-pytest = "^7.3.1"
-pytest-mock = "^3.10.0"
-requests-mock = "^1.10.0"
-responses = "^0.23.1"
+pre-commit = "^3.5.0"
+coverage = "^7.4.0"
+pytest = "^7.4.3"
+pytest-mock = "^3.12.0"
+requests-mock = "^1.11.0"
+responses = "^0.24.1"
+types-requests = "^2.31.0.10"
+pytest-xdist = "^3.5.0"
+pandas-stubs = "^2.1.4.231218"
+ruff = "^0.1.9"
 
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
 
-[tool.isort]
-profile = 'black'
+
+[tool.ruff]
+line-length = 120
+ignore-init-module-imports = true
