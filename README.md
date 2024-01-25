@@ -122,7 +122,10 @@ $ poetry run coverage xml
 ```
 
 ## To Do:
-
+* Metadata
+    - Choice
+    - Multichoice
+    - Money
 * Entity implementation
     - Illegal file extensions
     - Upload file

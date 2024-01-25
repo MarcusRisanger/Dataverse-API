@@ -208,7 +208,7 @@ def bool_opt(val: bool) -> BoolOption:
 
 class BooleanOptionSet(MetadataBase):
     true_option: BoolOption = Field(default=bool_opt(True))
-    false_optoin: BoolOption = Field(default=bool_opt(False))
+    false_option: BoolOption = Field(default=bool_opt(False))
 
     def model_post_init(self, __context: Any) -> None:
         self.option_set_type = "Boolean"
