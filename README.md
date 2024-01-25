@@ -24,6 +24,8 @@ The `dataverse-api` package is an abstraction layer developed for allowing simpl
         * [Create](#create)
         * [Upsert](#upsert)
         * [Delete](#delete)
+        * [Add and remove Attributes](#add-and-remove-attributes)
+        * [Add and remove Alternate Keys](#add-and-remove-alternate-keys)
 
 
 
@@ -122,6 +124,7 @@ $ poetry run coverage xml
 ```
 
 ## To Do:
+* Documentation ..
 * Metadata
     - Choice
     - Multichoice
@@ -131,6 +134,9 @@ $ poetry run coverage xml
     - Upload file
     - Upload image
     - Upload large file
+    - Add / remove relationships
+    - Add relationships (single/collection valued) as attr on entity
+    - Add columns as attr on entity
 * Add Tests:
     - Add column
     - Remove column
@@ -216,5 +222,13 @@ TBD
 TBD
 
 ### Delete
+
+TBD
+
+### Add and remove Attributes
+
+TBD
+
+## Add and remove Alternate Keys
 
 TBD

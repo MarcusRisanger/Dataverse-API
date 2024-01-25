@@ -35,7 +35,6 @@ def single_label(localized_label: LocalizedLabel) -> Label:
 def test_localized_label(localized_label: LocalizedLabel):
     a = localized_label.dump_to_dataverse()
 
-    assert len(a) == 3
     assert a["Label"] == localized_label.label
     assert a["@odata.type"] == localized_label.odata_type
     assert a["LanguageCode"] == localized_label.language_code

@@ -37,9 +37,7 @@ class DataverseEntity(Dataverse):
         self.__supports_update_multiple = False
 
         # Populate entity properties
-        self.__get_entity_set_properties()
-        self.__get_entity_alternate_keys()
-        self.__get_entity_sdk_messages()
+        self.update_schema()
 
     @property
     def logical_name(self) -> str:
@@ -136,6 +134,18 @@ class DataverseEntity(Dataverse):
             self.__supports_create_multiple = True
         if update in returned_actions:
             self.__supports_update_multiple = True
+
+    def update_schema(self, arg: Literal["altkeys", "properties", "messages"] | None = None) -> None:
+        """
+        Update schema.
+        """
+        if arg == "altkeys":
+            self.__get_entity_alternate_keys()
+            return
+
+        self.__get_entity_alternate_keys()
+        self.__get_entity_sdk_messages()
+        self.__get_entity_set_properties()
 
     def read(
         self,
@@ -623,7 +633,7 @@ class DataverseEntity(Dataverse):
         self,
         schema_name: str,
         display_name: str | Label,
-        key_attributes: Iterable[str],
+        key_attributes: Sequence[str],
         return_representation: bool = False,
     ) -> requests.Response:
         """
@@ -644,12 +654,16 @@ class DataverseEntity(Dataverse):
             key_attributes=key_attributes,
         )
 
-        return self._api_call(
+        resp = self._api_call(
             method=RequestMethod.POST,
             url=f"EntityMetadata(LogicalName='{self.logical_name}')/Keys",
             headers=headers,
             json=key.dump_to_dataverse(),
         )
+
+        self.update_schema("altkeys")
+
+        return resp
 
     @overload
     def remove_alternate_key(self, *, altkey_id: str) -> requests.Response:
@@ -684,12 +698,16 @@ class DataverseEntity(Dataverse):
             raise DataverseError("Supply either 'id' or 'logical_name' kwarg.")
 
         if altkey_id:
-            return self._api_call(
+            resp = self._api_call(
                 method=RequestMethod.DELETE,
                 url=f"EntityDefinitions(LogicalName='{self.logical_name}')/Attributes({altkey_id})",
             )
 
-        return self._api_call(
+        resp = self._api_call(
             method=RequestMethod.DELETE,
             url=f"EntityDefinitions(LogicalName='{self.logical_name}')/Attributes(LogicalName='{logical_name}')",
         )
+
+        self.update_schema("altkeys")
+
+        return resp

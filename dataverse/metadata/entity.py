@@ -4,7 +4,7 @@ data as possible for ease of use.
 """
 
 
-from collections.abc import Iterable, Sequence
+from collections.abc import Sequence
 from typing import Any
 
 from dataverse.metadata.attributes import AttributeTypes
@@ -86,11 +86,11 @@ def define_entity(
 class AlternateKeyMetadata(MetadataBase):
     schema_name: str
     display_name: Label
-    key_attributes: Iterable[str]
+    key_attributes: Sequence[str]
 
 
 def get_altkey_metadata(
-    schema_name: str, display_name: str | Label, key_attributes: Iterable[str]
+    schema_name: str, display_name: str | Label, key_attributes: Sequence[str]
 ) -> AlternateKeyMetadata:
     """
     Get `AlternateKeyMetadata`.
