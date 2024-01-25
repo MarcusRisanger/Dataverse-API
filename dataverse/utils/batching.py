@@ -1,5 +1,4 @@
 import json
-import logging
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from enum import Enum, auto
@@ -199,7 +198,6 @@ def transform_upsert_data(
             row_key = [f"{part}={row[part].__repr__()}" for part in keys]
         row_data = {k: v for k, v in row.items() if k not in keys}
 
-        logging.warning(row_key)
         yield ",".join(row_key), row_data
 
 
