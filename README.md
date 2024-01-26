@@ -55,15 +55,12 @@ from requests import Session
 from dataverse_api import DataverseClient
 
 # Prepare Auth
-app_id = os.getenv("app_id")
-secret = os.getenv("client_secret")
-environment_url = os.getenv("environment_url")
-authority_url = os.getenv("authority_url")
 app_reg = ConfidentialClientApplication(
-    client_id=app_id,
-    client_credential=secret,
-    authority=authority_url,
+    client_id=os.getenv("app_id"),
+    client_credential=os.getenv("client_secret"),
+    authority=os.getenv("authority_url"),
 )
+environment_url = os.getenv("environment_url")
 auth = ClientCredentialAuth(
     client=app_reg,
     scopes=[environment_url + "/.default"]
@@ -74,7 +71,7 @@ session = Session()
 session.auth = auth
 
 # Instantiate DataverseClient
-client = DataverseClient(session, environment_url)
+client = DataverseClient(session=session, environment_url=environment_url)
 
 # Instantiate interface to Entity
 entity = client.entity(logical_name="organization")
@@ -153,7 +150,17 @@ $ poetry run coverage xml
 
 ### Initialize DataverseClient
 
-TBD
+For now, I've coded the framework around the `requests` library, for good and bad! In the future, I will consider generalizing further, letting the user pass an authenticated requests handler of choice to the framework by specifying a `Protocol` to follow instead.
+
+To instantiate, pass a `requests.Session` together with a Dataverse environment URL to the `DataverseClient` constructor:
+
+```python
+session = Session()
+session.auth = auth
+environment_url = os.getenv("dataverse_url")
+
+client = DataverseClient(session=session, environment_url=environment_url)
+```
 
 ### Create new Entity
 
@@ -211,15 +218,35 @@ As of now, only `LogicalName` is supported for instantiating a new `DataverseEnt
 
 ### Read
 
-TBD
+The `DataverseEntity.read()` method has been furnished with the necessary arguments to do querying as specified in the [Microsoft Dataverse documentation](https://learn.microsoft.com/en-us/power-apps/developer/data-platform/webapi/query-data-web-api?view=dataverse-latest).
+
+A simple example:
+
+```python
+data = entity.read(select=["name","address"], filter="salary gt 10000", top=5, order_by="salary desc")
+```
 
 ### Create
 
-TBD
+To create rows, you can use a `pandas.DataFrame` or a simple construct like a list of dicts, where each dict contains the data for a single row.
+
+Below is an example of creating rows in the Entity by passing a dataframe and specifying that the creation method should be the `CreateMultiple` web API Action. The `return_created` argument can be set to `True` if you need the IDs as reference.
+
+```python
+entity.create(data=df, mode="multiple", return_created=True)
+```
+
+Note that the different modes provide different content when `return_created` is set to `True` - the script simply sets a `Prefer` header to include created data in the server response.
+
+For now the user may choose how to handle this based on the list of `requests.Response` objects that will be returned by the method.
 
 ### Upsert
 
-TBD
+Upserting data into Dataverse is simple. If you are just updating existing data you may have the URI (Primary Attribute ID) in your data. You can then omit the `alternate_key` argument.
+
+```python
+entity.upsert(data=df, alternate_key="my_key", mode="batch")
+```
 
 ### Delete
 

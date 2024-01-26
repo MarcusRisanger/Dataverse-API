@@ -1,8 +1,8 @@
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
 from enum import Enum, auto
 from textwrap import dedent
-from typing import Any, Collection, Generator, Mapping, MutableMapping, Sequence, TypeVar
+from typing import Any, Collection, Generator, Mapping, MutableMapping, TypeVar
 from urllib.parse import urljoin
 
 from dataverse_api.utils.data import serialize_json

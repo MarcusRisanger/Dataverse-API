@@ -93,7 +93,7 @@ def create_label(*, label: str, language_code: int) -> Label:
 
 
 @overload
-def create_label(*, labels: list[tuple[str, int]]) -> Label:
+def create_label(*, labels: Sequence[tuple[str, int]]) -> Label:
     ...
 
 

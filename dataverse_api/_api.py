@@ -39,8 +39,7 @@ class Dataverse:
         timeout: int | None = None,
     ) -> requests.Response:
         """
-        Send API call to Dataverse. Fails silently, emits warnings
-        if responses are not in 200-range.
+        Send API call to Dataverse.
 
         Parameters
         ----------
@@ -61,6 +60,11 @@ class Dataverse:
         -------
         requests.Response
             Response from API call.
+
+        Raises
+        ------
+        requests.HTTPError
+            For failing requests.
         """
         request_url = urljoin(self._endpoint, url)
 
@@ -102,11 +106,34 @@ class Dataverse:
         self,
         batch_commands: Sequence[BatchCommand],
         id_generator: Callable[[], str] | None = None,
-        batch_size: int = 500,
+        batch_size: int | None = None,
         timeout: int | None = None,
     ) -> list[requests.Response]:
+        """
+        Performs a batch requests.
+
+        Parameters
+        ----------
+        batch_commands : Sequence[BatchCommand]
+            The request descriptions for each batch command to submit.
+        id_generator : Callable[[], str]
+            Optional callable for generating unique batch IDs.
+        batch_size : int
+            Optional batch size override for tuning sizes.
+        timeout : int | None
+            Optional timeout override.
+
+        Returns
+        -------
+        list[requests.Responses]
+            The responses per request.
+        """
+
         if id_generator is None:
             id_generator = lambda: str(uuid4())  # noqa: E731
+
+        if batch_size is None:
+            batch_size = 500
 
         batches: list[ThreadCommand] = list()
         for batch in chunk_data(batch_commands, batch_size):
@@ -127,6 +154,18 @@ class Dataverse:
     def _threaded_call(self, calls: Sequence[ThreadCommand], timeout: int | None = None) -> list[requests.Response]:
         """
         Performs a threaded API call using `concurrent.futures.ThreadPoolExecutor`
+
+        Parameters
+        ----------
+        calls : Sequence[ThreadCommand]
+            The descriptions of each request to submit.
+        timeout : int | None
+            Optional timeout override.
+
+        Returns
+        -------
+        list[requests.Responses]
+            The responses per request.
         """
         with ThreadPoolExecutor() as exec:
             futures = [
