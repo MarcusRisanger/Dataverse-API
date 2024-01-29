@@ -7,7 +7,10 @@ import pandas as pd
 
 
 def convert_dataframe_to_dict(data: pd.DataFrame) -> list[dict[str, Any]]:
-    return data.to_dict(orient="records")  # type: ignore
+    """
+    Converts to dict and drops NaNs.
+    """
+    return [{k: v for k, v in m.items() if v == v and v is not None} for m in data.to_dict(orient="records")]  # type: ignore
 
 
 def coerce_timestamps(obj: object) -> str:
