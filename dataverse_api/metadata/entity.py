@@ -4,7 +4,7 @@ data as possible for ease of use.
 """
 
 
-from collections.abc import Sequence
+from collections.abc import Collection, Sequence
 from typing import Any
 
 from dataverse_api.metadata.attributes import AttributeTypes
@@ -90,7 +90,9 @@ class AlternateKeyMetadata(MetadataBase):
 
 
 def get_altkey_metadata(
-    schema_name: str, display_name: str | Label, key_attributes: Sequence[str]
+    schema_name: str,
+    display_name: str | Label,
+    key_attributes: Collection[str],
 ) -> AlternateKeyMetadata:
     """
     Get `AlternateKeyMetadata`.
@@ -101,8 +103,8 @@ def get_altkey_metadata(
         Schema name of alternate key.
     display_name : str | Label
         Display name or Label for alternate key.
-    key_attributes : Iterable[str]
-        Iterable of strings that comprise the alternate key.
+    key_attributes : Collection[str]
+        Collection of strings that comprise the alternate key.
     """
     if isinstance(display_name, str):
         display_name = define_label(display_name)

@@ -12,8 +12,8 @@ from dataverse_api.metadata.base import BASE_TYPE, MetadataDumper
 from dataverse_api.metadata.complex_properties import Label
 from dataverse_api.metadata.entity import get_altkey_metadata
 from dataverse_api.utils.batching import (
+    APICommand,
     RequestMethod,
-    ThreadCommand,
     chunk_data,
     transform_to_batch_for_create,
     transform_to_batch_for_delete,
@@ -147,30 +147,74 @@ class DataverseEntity(Dataverse):
         self.__get_entity_sdk_messages()
         self.__get_entity_set_properties()
 
+    @overload
     def read(
         self,
         *,
-        select: list[str] | None = None,
-        filter: str | None = None,
+        select: Collection[str] | None,
+        top: int | None,
+        filter: str | None,
+        page_size: int | None,
+        expand: str | None,
+        order_by: str | None,
+    ) -> list[dict[str, Any]]:
+        ...
+
+    @overload
+    def read(
+        self,
+        *,
+        select: Collection[str] | None,
+        top: int | None,
+        filter: str | None,
+        page_size: int | None,
+        expand: str | None,
+        order_by: str | None,
+        return_responses: Literal[True],
+    ) -> list[requests.Response]:
+        ...
+
+    @overload
+    def read(self, *, select: Collection[str], filter: str | None) -> list[dict[str, Any]]:
+        ...
+
+    def read(
+        self,
+        *,
+        select: Collection[str] | None = None,
         top: int | None = None,
+        filter: str | None = None,
         page_size: int | None = None,
         expand: str | None = None,
         order_by: str | None = None,
-    ) -> list[dict[str, Any]]:
+        return_responses: bool = False,
+    ) -> list[dict[str, Any]] | list[requests.Response]:
         """
         Read data from Entity.
 
-        Optional querying keyword args:
-          - select: A single column or list of columns to return from the
-            current entity.
-          - filter: A fully qualified filtering string.
-          - expand: A fully qualified expand string.
-          - orderby: A fully qualified order_by string.
-          - top: Optional limit on returned records.
-          - apply: A fully qualified string describing aggregation
-            and grouping of returned records.
-          - page_size: Limits the total number of records
-            retrieved per API call.
+        Parameters
+        ----------
+        select : Collection[str]
+            Columns to return in the query.
+        top : int
+            Optional limit on returned records.
+        filter : str
+            A fully qualified filtering string.
+        expand : str
+            A fully qualified expand string.
+        orderby : str
+            A fully qualified order_by string.
+        apply : str
+            A fully qualified string describing aggregation and grouping of returned records.
+        page_size : int
+            Limits the total number of records retrieved per API call.
+        return_responses : bool
+            Returns complete responses instead of data records.
+
+        Returns
+        -------
+        list[dict[str, Any]]
+            The extended "value" element for all response-JSONs from server.
         """
 
         additional_headers: dict[str, str] = dict()
@@ -189,7 +233,7 @@ class DataverseEntity(Dataverse):
         if expand:
             params["$expand"] = expand
 
-        output: list[dict[str, Any]] = list()
+        output: list[requests.Response] = list()
         url = self.entity_set_name
 
         # Looping through pages
@@ -199,14 +243,46 @@ class DataverseEntity(Dataverse):
             url=url,
             headers=additional_headers,
             params=params,
-        ).json()
-        output.extend(response["value"])
-        while response.get("@odata.nextLink"):
-            response = self._api_call(method=RequestMethod.GET, url=response["@odata.nextLink"]).json()
-            output.extend(response["value"])
+        )
+        output.append(response)
+        while response.json().get("@odata.nextLink"):
+            response = self._api_call(method=RequestMethod.GET, url=response.json()["@odata.nextLink"])
+            output.append(response)
 
-        logging.debug("Fetched all data for read operation, %d elements.", len(output))
-        return output
+        if return_responses:
+            logging.debug("Fetched all data for read operation, %d responses.", len(output))
+            return output
+        else:
+            data_output = []
+            for resp in output:
+                data_output.extend(resp.json()["value"])
+            logging.debug("Fetched all data for read operation, %d elements.", len(data_output))
+            return data_output
+
+    @overload
+    def create(
+        self,
+        data: Sequence[MutableMapping[str, Any]] | pd.DataFrame,
+        *,
+        mode: Literal["individual", "multiple"],
+        detect_duplicates: bool = False,
+        return_created: bool = False,
+        threading: bool = False,
+    ) -> list[requests.Response]:
+        ...
+
+    @overload
+    def create(
+        self,
+        data: Sequence[MutableMapping[str, Any]] | pd.DataFrame,
+        *,
+        mode: Literal["batch"],
+        detect_duplicates: bool = False,
+        return_created: bool = False,
+        batch_size: int | None = None,
+        threading: bool = False,
+    ) -> list[requests.Response]:
+        ...
 
     def create(
         self,
@@ -215,24 +291,27 @@ class DataverseEntity(Dataverse):
         mode: Literal["individual", "multiple", "batch"] = "individual",
         detect_duplicates: bool = False,
         return_created: bool = False,
+        batch_size: int | None = None,
+        threading: bool = False,
     ) -> list[requests.Response]:
         """
         Create rows in Dataverse Entity. Failures will occur if trying to insert
         a record where alternate key already exists, partial success is possible.
 
-        data : sequence of Serializable JSON dicts or `pandas.DataFrame`.
-            The data to create in Dataverse.
+        data : Sequence[MutableMapping[str, Any] | pd.DataFrame
+            The data to create in Dataverse, JSON serializable.
         mode : Literal["individual", "multiple", "batch"]
-            Whether to create rows using single requests, `CreateMultiple` action or as
-            batch requests.
+            Whether to create rows using individual requests, `CreateMultiple` web API action
+            or as batch requests using the `$batch` endpoint.
         detect_duplicates : bool
             Whether Dataverse will run duplicate detection rules upon insertion.
         return_created : bool
             Whether the returned list of Responses will contain information on
             created rows.
+        batch_size : int
+            Optional override if batch mode is specified, useful for tuning workload
+            per batch if 429s occur.
         """
-        # TODO: Return data option?
-
         if isinstance(data, pd.DataFrame):
             data = convert_dataframe_to_dict(data)
 
@@ -246,47 +325,51 @@ class DataverseEntity(Dataverse):
         length = len(data)
         if mode == "individual":
             logging.debug("%d rows to insert using individual inserts.", length)
-            return self.__create_singles(headers=headers, data=data)
+            return self.__create_singles(headers=headers, data=data, threading=threading)
 
         if mode == "multiple":
             if not self.supports_create_multiple:
                 raise DataverseError(f"CreateMultiple is not supported by {self.logical_name}. Use a different mode.")
-            logging.debug("%d rows to insert using CreateMultiple.", length)
-            return self.__create_multiple(headers=headers, data=data)
+            if isinstance(data, Sequence):
+                logging.debug("%d rows to insert using CreateMultiple.", length)
+                return self.__create_multiple(headers=headers, data=data, threading=threading)
+            raise TypeError("Variable 'data' is not of type Sequence.")
 
         if mode == "batch":
             logging.debug(
                 "%d rows to insert using batch insertion.",
                 length,
             )
-            return self.__create_batch(data=data)
+            return self.__create_batch(data=data, batch_size=batch_size, threading=threading)
 
         raise DataverseModeError(mode, "individual", "multiple", "batch")
 
     def __create_singles(
         self,
-        data: Sequence[MutableMapping[str, Any]],
-        headers: Mapping[str, str] | None = None,
-        params: Mapping[str, Any] | None = None,
+        data: Collection[MutableMapping[str, Any]],
+        headers: Mapping[str, str],
+        threading: bool,
     ) -> list[requests.Response]:
         """
         Insert rows one by one using threaded API call.
         """
         calls = [
-            ThreadCommand(
+            APICommand(
                 method=RequestMethod.POST,
                 url=self.entity_set_name,
                 headers=headers,
-                params=params,
                 json=row,
             )
             for row in data
         ]
 
-        return self._threaded_call(calls=calls)
+        if threading:
+            return self._threaded_call(calls=calls)
+        else:
+            return self._individual_call(calls=calls)
 
     def __create_multiple(
-        self, headers: Mapping[str, str], data: Sequence[MutableMapping[str, Any]]
+        self, headers: Mapping[str, str], data: Sequence[MutableMapping[str, Any]], threading: bool
     ) -> list[requests.Response]:
         """
         Insert rows by using the `CreateMultiple` Web API Action.
@@ -300,7 +383,7 @@ class DataverseEntity(Dataverse):
 
         # Chunking the payload to suggested size
         calls = [
-            ThreadCommand(
+            APICommand(
                 method=RequestMethod.POST,
                 url=f"{self.entity_set_name}/{BASE_TYPE}CreateMultiple",
                 headers=headers,
@@ -309,41 +392,52 @@ class DataverseEntity(Dataverse):
             for rows in chunk_data(data=data, size=500)
         ]
 
-        # Threading the write operation
-        return self._threaded_call(calls)
+        if threading:
+            return self._threaded_call(calls)
+        else:
+            return self._individual_call(calls)
 
-    def __create_batch(self, data: Sequence[MutableMapping[str, Any]]) -> list[requests.Response]:
+    def __create_batch(
+        self, data: Collection[MutableMapping[str, Any]], batch_size: int | None, threading: bool
+    ) -> list[requests.Response]:
         """
         Run a batch insert operation on the given data.
         """
         batch_data = transform_to_batch_for_create(url=self.entity_set_name, data=data)
-        return self._batch_api_call(batch_data)
+        return self._batch_api_call(batch_data, batch_size=batch_size, threading=threading)
 
-    def __delete_singles(self, data: Iterable[str]) -> list[requests.Response]:
+    def __delete_singles(self, data: Iterable[str], threading: bool) -> list[requests.Response]:
         calls = [
-            ThreadCommand(
+            APICommand(
                 method=RequestMethod.DELETE,
                 url=f"{self.entity_set_name}({id})",
             )
             for id in data
         ]
 
-        return self._threaded_call(calls=calls)
+        if threading:
+            return self._threaded_call(calls=calls)
+        else:
+            return self._individual_call(calls=calls)
 
     @overload
-    def delete(self, *, mode: Literal["individual", "batch"], ids: Collection[str]) -> list[requests.Response]:
+    def delete(self, *, mode: Literal["individual"], ids: Collection[str]) -> list[requests.Response]:
         ...
 
     @overload
-    def delete(self, *, mode: Literal["individual", "batch"], filter: str) -> list[requests.Response]:
+    def delete(self, *, mode: Literal["individual"], filter: str, threading: bool = False) -> list[requests.Response]:
         ...
 
     @overload
-    def delete(self, *, mode: Literal["batch"], batch_size: int, filter: str) -> list[requests.Response]:
+    def delete(
+        self, *, mode: Literal["batch"], filter: str, batch_size: int | None, threading: bool = False
+    ) -> list[requests.Response]:
         ...
 
     @overload
-    def delete(self, *, mode: Literal["batch"], batch_size: int, ids: Collection[str]) -> list[requests.Response]:
+    def delete(
+        self, *, mode: Literal["batch"], ids: Collection[str], batch_size: int | None, threading: bool = False
+    ) -> list[requests.Response]:
         ...
 
     def delete(
@@ -353,6 +447,7 @@ class DataverseEntity(Dataverse):
         ids: Collection[str] | None = None,
         filter: str | None = None,
         batch_size: int | None = None,
+        threading: bool = False,
     ) -> list[requests.Response]:
         """
         Delete rows in Entity.
@@ -363,12 +458,15 @@ class DataverseEntity(Dataverse):
         Parameters
         ----------
         mode : Literal["individual","batch"]
-            Whether to delete rows using single requests or batch requests.
-        ids : list[str]
+            Whether to delete rows using individual requests or batch requests.
+        ids : Collection[str]
             List of primary IDs to delete. Takes precedence if passed.
         filter : str
             Filter statement for targeting specific records in Entity
             for deletion. Use `filter="all"` to delete all records.
+        batch_size : int
+            Optional override if batch mode is specified, useful for tuning workload
+            per batch if 429s occur.
         """
         if ids is None and filter is None:
             raise DataverseError("Function requires either ids to delete or a string passed as filter.")
@@ -384,45 +482,40 @@ class DataverseEntity(Dataverse):
         logging.info("%d rows to delete.", length)
         if mode == "individual":
             logging.debug("%d rows to delete using individual deletes.", length)
-            return self.__delete_singles(data=ids)
+            return self.__delete_singles(data=ids, threading=threading)
 
         if mode == "batch":
             logging.debug("%d rows to delete using batch deletes.", length)
             batch_data = transform_to_batch_for_delete(url=self.entity_set_name, data=ids)
-            return self._batch_api_call(batch_data, batch_size=batch_size or 100, timeout=120)
+            return self._batch_api_call(batch_data, batch_size=batch_size or 100, timeout=120, threading=threading)
 
         raise DataverseModeError(mode, "individual", "batch")
 
-    def __delete_column_singles(self, data: Iterable[str], column: str) -> list[requests.Response]:
+    def __delete_column_singles(self, data: Iterable[str], column: str, threading: bool) -> list[requests.Response]:
         """
         Delete row column value by individual requests.
         """
         calls = [
-            ThreadCommand(
+            APICommand(
                 method=RequestMethod.DELETE,
                 url=f"{self.entity_set_name}({id})/{column}",
             )
             for id in data
         ]
-        return self._threaded_call(calls=calls)
+        if threading:
+            return self._threaded_call(calls=calls)
+        else:
+            return self._individual_call(calls=calls)
 
     @overload
     def delete_columns(
-        self,
-        columns: Collection[str],
-        *,
-        mode: Literal["individual", "batch"],
-        ids: Collection[str],
+        self, columns: Collection[str], *, mode: Literal["individual", "batch"], ids: Collection[str], threading: bool
     ) -> list[requests.Response]:
         ...
 
     @overload
     def delete_columns(
-        self,
-        columns: Collection[str],
-        *,
-        mode: Literal["individual", "batch"],
-        filter: str,
+        self, columns: Collection[str], *, mode: Literal["individual", "batch"], filter: str, threading: bool
     ) -> list[requests.Response]:
         ...
 
@@ -433,6 +526,7 @@ class DataverseEntity(Dataverse):
         mode: Literal["individual", "batch"] = "individual",
         ids: Collection[str] | None = None,
         filter: str | None = None,
+        threading: bool = False,
     ) -> list[requests.Response]:
         """
         Delete values in specific column for rows in Entity.
@@ -442,11 +536,11 @@ class DataverseEntity(Dataverse):
 
         Parameters
         ----------
-        column : collection of str
+        column : Collection[str]
             The columns in Dataverse to target for deletion.
         mode : Literal["individual", "batch"]
-            Whether to delete columns using single requests or batch requests.
-        ids : collection of str
+            Whether to delete columns using individual requests or batch requests.
+        ids : Collection[str]
             List of primary IDs to delete. Takes precedence if passed.
         filter : str
             Filter statement for targeting specific records in Entity for deletion.
@@ -465,31 +559,28 @@ class DataverseEntity(Dataverse):
         length = len(ids) * len(columns)  # Total number of deletion requests
         output: list[requests.Response] = []
         if mode == "individual":
-            logging.debug("%d properties to delete. Using single deletes.", length)
+            logging.debug("%d properties to delete. Using individual deletes.", length)
             for col in columns:
-                output.extend(self.__delete_column_singles(data=ids, column=col))
+                output.extend(self.__delete_column_singles(data=ids, column=col, threading=threading))
             return output
 
         if mode == "batch":
             logging.debug("%d properties to delete. Using batch deletes.", length)
             for col in columns:
                 batch_data = transform_to_batch_for_delete(url=self.entity_set_name, data=ids, column=col)
-                output.extend(self._batch_api_call(batch_data))
+                output.extend(self._batch_api_call(batch_data, threading=threading))
             return output
 
         raise DataverseModeError(mode, "individual", "batch")
 
     def __upsert_singles(
-        self,
-        data: Collection[Mapping[str, Any]],
-        keys: Iterable[str],
-        is_primary_id: bool,
+        self, data: Collection[Mapping[str, Any]], keys: Iterable[str], is_primary_id: bool, threading: bool
     ) -> list[requests.Response]:
         """
         Upsert row by individual requests.
         """
         calls = [
-            ThreadCommand(
+            APICommand(
                 method=RequestMethod.PATCH,
                 url=f"{self.entity_set_name}({key})",
                 json=payload,
@@ -504,14 +595,17 @@ class DataverseEntity(Dataverse):
         *,
         mode: Literal["individual", "batch"] = "individual",
         altkey_name: str | None = None,
+        threading: bool = False,
     ) -> list[requests.Response]:
         """
         Upsert data into Entity.
 
         Parameters
         ----------
-        data : collection of mutablemappings or dataframe
+        data : Collection[MutableMapping[str, Any]] | pd.DataFrame
             The data to upsert.
+        mode : Literal["individual", "batch"]
+            Whether to upsert data using individual requests or batch requests.
         altkey_name : str
             The alternate key to use as ID (if any).
             Will assume entity primary ID attribute if not given.
@@ -532,7 +626,7 @@ class DataverseEntity(Dataverse):
 
         if mode == "individual":
             logging.debug("%d rows to upsert. Using individual upserts.", len(data))
-            return self.__upsert_singles(data=data, keys=key_columns, is_primary_id=is_primary_id)
+            return self.__upsert_singles(data=data, keys=key_columns, is_primary_id=is_primary_id, threading=threading)
 
         if mode == "batch":
             logging.debug("%d rows to upsert. Using batch upserts.", len(data))
@@ -542,7 +636,7 @@ class DataverseEntity(Dataverse):
                 keys=key_columns,
                 is_primary_id=is_primary_id,
             )
-            return self._batch_api_call(batch_data)
+            return self._batch_api_call(batch_data, threading=threading)
 
         raise DataverseModeError(mode, "individual", "batch")
 
@@ -633,7 +727,7 @@ class DataverseEntity(Dataverse):
         self,
         schema_name: str,
         display_name: str | Label,
-        key_attributes: Sequence[str],
+        key_attributes: Collection[str],
         return_representation: bool = False,
     ) -> requests.Response:
         """
