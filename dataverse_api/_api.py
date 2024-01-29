@@ -1,3 +1,4 @@
+import logging
 from collections.abc import Callable, Mapping, Sequence
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any
@@ -7,7 +8,7 @@ from uuid import uuid4
 import requests
 
 from dataverse_api.errors import DataverseAPIError
-from dataverse_api.utils.batching import BatchCommand, RequestMethod, ThreadCommand, chunk_data
+from dataverse_api.utils.batching import APICommand, BatchCommand, RequestMethod, chunk_data
 from dataverse_api.utils.data import serialize_json
 
 
@@ -108,6 +109,7 @@ class Dataverse:
         id_generator: Callable[[], str] | None = None,
         batch_size: int | None = None,
         timeout: int | None = None,
+        threading: bool = False,
     ) -> list[requests.Response]:
         """
         Performs a batch requests.
@@ -135,7 +137,7 @@ class Dataverse:
         if batch_size is None:
             batch_size = 500
 
-        batches: list[ThreadCommand] = list()
+        batches: list[APICommand] = list()
         for batch in chunk_data(batch_commands, batch_size):
             # Generate a unique ID for the batch
             id = f"batch_{id_generator()}"
@@ -147,17 +149,46 @@ class Dataverse:
             payload = "\n".join(batch_data)
             headers = {"Content-Type": f'multipart/mixed; boundary="{id}"', "If-None-Match": "null"}
 
-            batches.append(ThreadCommand(method=RequestMethod.POST, url="$batch", headers=headers, data=payload))
+            batches.append(APICommand(method=RequestMethod.POST, url="$batch", headers=headers, data=payload))
 
-        return self._threaded_call(batches, timeout=timeout)
+        if threading:
+            return self._threaded_call(batches, timeout=timeout)
+        else:
+            return self._individual_call(batches, timeout=timeout)
 
-    def _threaded_call(self, calls: Sequence[ThreadCommand], timeout: int | None = None) -> list[requests.Response]:
+    def _individual_call(self, calls: Sequence[APICommand], timeout: int | None = None) -> list[requests.Response]:
+        """
+        Performs a sequential API calls.
+
+        Parameters
+        ----------
+        calls : Sequence[APICommand]
+            The descriptions of each request to submit.
+        timeout : int | None
+            Optional timeout override.
+
+        Returns
+        -------
+        list[requests.Responses]
+            The responses per request.
+        """
+
+        out = []
+        for call in calls:
+            try:
+                out.append(self._api_call(**call.__dict__, timeout=timeout))
+            except DataverseAPIError as e:
+                logging.error(f"API request error: {e.args[0]}")
+                out.append(e.response)
+        return out
+
+    def _threaded_call(self, calls: Sequence[APICommand], timeout: int | None = None) -> list[requests.Response]:
         """
         Performs a threaded API call using `concurrent.futures.ThreadPoolExecutor`
 
         Parameters
         ----------
-        calls : Sequence[ThreadCommand]
+        calls : Sequence[APICommand]
             The descriptions of each request to submit.
         timeout : int | None
             Optional timeout override.
@@ -171,12 +202,7 @@ class Dataverse:
             futures = [
                 exec.submit(
                     self._api_call,
-                    method=call.method,
-                    url=call.url,
-                    headers=call.headers,
-                    params=call.params,
-                    data=call.data,
-                    json=call.json,
+                    **call.__dict__,
                     timeout=timeout,
                 )
                 for call in calls
@@ -189,6 +215,7 @@ class Dataverse:
                 try:
                     resp.append(future.result())
                 except DataverseAPIError as e:
+                    logging.error(f"API request error: {e.args[0]}")
                     resp.append(e.response)
 
         return resp

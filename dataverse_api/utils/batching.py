@@ -19,10 +19,10 @@ class RequestMethod(Enum):
     DELETE = auto()
 
 
-@dataclass(slots=True)
-class ThreadCommand:
+@dataclass
+class APICommand:
     """
-    For encapsulating a single request for Threaded execution.
+    For encapsulating a single request.
 
     Parameters
     ----------
