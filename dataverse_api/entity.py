@@ -151,12 +151,12 @@ class DataverseEntity(Dataverse):
     def read(
         self,
         *,
-        select: Collection[str] | None,
-        top: int | None,
-        filter: str | None,
-        page_size: int | None,
-        expand: str | None,
-        order_by: str | None,
+        select: Collection[str] | None = None,
+        top: int | None = None,
+        filter: str | None = None,
+        page_size: int | None = None,
+        expand: str | None = None,
+        order_by: str | None = None,
     ) -> list[dict[str, Any]]:
         ...
 
@@ -164,18 +164,14 @@ class DataverseEntity(Dataverse):
     def read(
         self,
         *,
-        select: Collection[str] | None,
-        top: int | None,
-        filter: str | None,
-        page_size: int | None,
-        expand: str | None,
-        order_by: str | None,
+        select: Collection[str] | None = None,
+        top: int | None = None,
+        filter: str | None = None,
+        page_size: int | None = None,
+        expand: str | None = None,
+        order_by: str | None = None,
         return_responses: Literal[True],
     ) -> list[requests.Response]:
-        ...
-
-    @overload
-    def read(self, *, select: Collection[str], filter: str | None) -> list[dict[str, Any]]:
         ...
 
     def read(
@@ -253,7 +249,7 @@ class DataverseEntity(Dataverse):
             logging.debug("Fetched all data for read operation, %d responses.", len(output))
             return output
         else:
-            data_output = []
+            data_output: list[dict[str, Any]] = []
             for resp in output:
                 data_output.extend(resp.json()["value"])
             logging.debug("Fetched all data for read operation, %d elements.", len(data_output))
@@ -330,10 +326,8 @@ class DataverseEntity(Dataverse):
         if mode == "multiple":
             if not self.supports_create_multiple:
                 raise DataverseError(f"CreateMultiple is not supported by {self.logical_name}. Use a different mode.")
-            if isinstance(data, Sequence):
-                logging.debug("%d rows to insert using CreateMultiple.", length)
-                return self.__create_multiple(headers=headers, data=data, threading=threading)
-            raise TypeError("Variable 'data' is not of type Sequence.")
+            logging.debug("%d rows to insert using CreateMultiple.", length)
+            return self.__create_multiple(headers=headers, data=data, threading=threading)
 
         if mode == "batch":
             logging.debug(
@@ -421,22 +415,43 @@ class DataverseEntity(Dataverse):
             return self._individual_call(calls=calls)
 
     @overload
-    def delete(self, *, mode: Literal["individual"], ids: Collection[str]) -> list[requests.Response]:
-        ...
-
-    @overload
-    def delete(self, *, mode: Literal["individual"], filter: str, threading: bool = False) -> list[requests.Response]:
-        ...
-
-    @overload
     def delete(
-        self, *, mode: Literal["batch"], filter: str, batch_size: int | None, threading: bool = False
+        self,
+        *,
+        mode: Literal["individual"],
+        ids: Collection[str],
     ) -> list[requests.Response]:
         ...
 
     @overload
     def delete(
-        self, *, mode: Literal["batch"], ids: Collection[str], batch_size: int | None, threading: bool = False
+        self,
+        *,
+        mode: Literal["individual"],
+        filter: str,
+        threading: bool = False,
+    ) -> list[requests.Response]:
+        ...
+
+    @overload
+    def delete(
+        self,
+        *,
+        mode: Literal["batch"],
+        filter: str,
+        batch_size: int | None = None,
+        threading: bool = False,
+    ) -> list[requests.Response]:
+        ...
+
+    @overload
+    def delete(
+        self,
+        *,
+        mode: Literal["batch"],
+        ids: Collection[str],
+        batch_size: int | None = None,
+        threading: bool = False,
     ) -> list[requests.Response]:
         ...
 
@@ -509,13 +524,23 @@ class DataverseEntity(Dataverse):
 
     @overload
     def delete_columns(
-        self, columns: Collection[str], *, mode: Literal["individual", "batch"], ids: Collection[str], threading: bool
+        self,
+        columns: Collection[str],
+        *,
+        ids: Collection[str],
+        mode: Literal["individual", "batch"] = "individual",
+        threading: bool = False,
     ) -> list[requests.Response]:
         ...
 
     @overload
     def delete_columns(
-        self, columns: Collection[str], *, mode: Literal["individual", "batch"], filter: str, threading: bool
+        self,
+        columns: Collection[str],
+        *,
+        filter: str,
+        mode: Literal["individual", "batch"] = "individual",
+        threading: bool = False,
     ) -> list[requests.Response]:
         ...
 
@@ -523,9 +548,9 @@ class DataverseEntity(Dataverse):
         self,
         columns: Collection[str],
         *,
-        mode: Literal["individual", "batch"] = "individual",
         ids: Collection[str] | None = None,
         filter: str | None = None,
+        mode: Literal["individual", "batch"] = "individual",
         threading: bool = False,
     ) -> list[requests.Response]:
         """
