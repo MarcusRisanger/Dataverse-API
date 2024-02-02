@@ -260,7 +260,7 @@ class DataverseEntity(Dataverse):
         self,
         data: Sequence[MutableMapping[str, Any]] | pd.DataFrame,
         *,
-        mode: Literal["individual", "multiple"],
+        mode: Literal["individual", "multiple"] = "individual",
         detect_duplicates: bool = False,
         return_created: bool = False,
         threading: bool = False,
@@ -388,8 +388,7 @@ class DataverseEntity(Dataverse):
 
         if threading:
             return self._threaded_call(calls)
-        else:
-            return self._individual_call(calls)
+        return self._individual_call(calls)
 
     def __create_batch(
         self, data: Collection[MutableMapping[str, Any]], batch_size: int | None, threading: bool
@@ -411,8 +410,7 @@ class DataverseEntity(Dataverse):
 
         if threading:
             return self._threaded_call(calls=calls)
-        else:
-            return self._individual_call(calls=calls)
+        return self._individual_call(calls=calls)
 
     @overload
     def delete(
@@ -435,23 +433,13 @@ class DataverseEntity(Dataverse):
 
     @overload
     def delete(
-        self,
-        *,
-        mode: Literal["batch"],
-        filter: str,
-        batch_size: int | None = None,
-        threading: bool = False,
+        self, *, mode: Literal["batch"], filter: str, batch_size: int | None = None, threading: bool = False
     ) -> list[requests.Response]:
         ...
 
     @overload
     def delete(
-        self,
-        *,
-        mode: Literal["batch"],
-        ids: Collection[str],
-        batch_size: int | None = None,
-        threading: bool = False,
+        self, *, mode: Literal["batch"], ids: Collection[str], batch_size: int | None = None, threading: bool = False
     ) -> list[requests.Response]:
         ...
 
@@ -519,17 +507,16 @@ class DataverseEntity(Dataverse):
         ]
         if threading:
             return self._threaded_call(calls=calls)
-        else:
-            return self._individual_call(calls=calls)
+        return self._individual_call(calls=calls)
 
     @overload
     def delete_columns(
         self,
         columns: Collection[str],
         *,
-        ids: Collection[str],
         mode: Literal["individual", "batch"] = "individual",
-        threading: bool = False,
+        ids: Collection[str],
+        threading: bool,
     ) -> list[requests.Response]:
         ...
 
@@ -538,9 +525,9 @@ class DataverseEntity(Dataverse):
         self,
         columns: Collection[str],
         *,
-        filter: str,
         mode: Literal["individual", "batch"] = "individual",
-        threading: bool = False,
+        filter: str,
+        threading: bool,
     ) -> list[requests.Response]:
         ...
 
@@ -612,7 +599,9 @@ class DataverseEntity(Dataverse):
             )
             for key, payload in transform_upsert_data(data, keys, is_primary_id)
         ]
-        return self._threaded_call(calls=calls)
+        if threading:
+            return self._threaded_call(calls=calls)
+        return self._individual_call(calls=calls)
 
     def upsert(
         self,
