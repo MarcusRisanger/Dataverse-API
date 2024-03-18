@@ -415,7 +415,7 @@ class DataverseEntity(Dataverse):
     def delete(
         self,
         *,
-        mode: Literal["individual"],
+        mode: Literal["individual"] = "individual",
         ids: Collection[str],
     ) -> list[requests.Response]:
         ...
@@ -424,7 +424,7 @@ class DataverseEntity(Dataverse):
     def delete(
         self,
         *,
-        mode: Literal["individual"],
+        mode: Literal["individual"] = "individual",
         filter: str,
         threading: bool = False,
     ) -> list[requests.Response]:
