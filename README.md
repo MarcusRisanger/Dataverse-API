@@ -211,7 +211,7 @@ client.update_entity(metadata)
 To initializes an interface with a specific Dataverse Entity, use the `DataverseClient.entity()` method. It returns a `DataverseEntity` object that allows interaction with this specific entity.
 
 ```python
-entity = client.entity(logical_name="foo")
+foo = client.entity(logical_name="foo")
 ```
 As of now, only `LogicalName` is supported for instantiating a new `DataverseEntity` object.
 
@@ -223,7 +223,7 @@ The `DataverseEntity.read()` method has been furnished with the necessary argume
 A simple example:
 
 ```python
-data = entity.read(select=["name","address"], filter="salary gt 10000", top=5, order_by="salary desc")
+data = foo.read(select=["name","address"], filter="salary gt 10000", top=5, order_by="salary desc")
 ```
 
 ### Create
@@ -233,7 +233,7 @@ To create rows, you can use a `pandas.DataFrame` or a simple construct like a li
 Below is an example of creating rows in the Entity by passing a dataframe and specifying that the creation method should be the `CreateMultiple` web API Action. The `return_created` argument can be set to `True` if you need the IDs as reference.
 
 ```python
-entity.create(data=df, mode="multiple", return_created=True)
+foo.create(data=df, mode="multiple", return_created=True)
 ```
 
 Note that the different modes provide different content when `return_created` is set to `True` - the script simply sets a `Prefer` header to include created data in the server response.
@@ -245,7 +245,7 @@ For now the user may choose how to handle this based on the list of `requests.Re
 Upserting data into Dataverse is simple. If you are just updating existing data you may have the URI (Primary Attribute ID) in your data. You can then omit the `alternate_key` argument.
 
 ```python
-entity.upsert(data=df, alternate_key="my_key", mode="batch")
+foo.upsert(data=df, alternate_key="my_key", mode="batch")
 ```
 
 ### Delete
