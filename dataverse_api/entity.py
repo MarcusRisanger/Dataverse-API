@@ -11,6 +11,7 @@ from dataverse_api.errors import DataverseError, DataverseModeError
 from dataverse_api.metadata.base import BASE_TYPE, MetadataDumper
 from dataverse_api.metadata.complex_properties import Label
 from dataverse_api.metadata.entity import get_altkey_metadata
+from dataverse_api.schema import DataverseRelationships
 from dataverse_api.utils.batching import (
     APICommand,
     RequestMethod,
@@ -20,7 +21,11 @@ from dataverse_api.utils.batching import (
     transform_to_batch_for_upsert,
     transform_upsert_data,
 )
-from dataverse_api.utils.data import convert_dataframe_to_dict
+from dataverse_api.utils.data import (
+    convert_dataframe_to_dict,
+    extract_collection_valued_relationships,
+    extract_single_valued_relationships,
+)
 
 
 class DataverseEntity(Dataverse):
@@ -37,7 +42,7 @@ class DataverseEntity(Dataverse):
         self.__supports_update_multiple = False
 
         # Populate entity properties
-        self.update_schema()
+        self.update_schema("all")
 
     @property
     def logical_name(self) -> str:
@@ -66,6 +71,10 @@ class DataverseEntity(Dataverse):
     @property
     def supports_update_multiple(self) -> bool:
         return self.__supports_update_multiple
+
+    @property
+    def relationships(self) -> DataverseRelationships:
+        return self.__relationships
 
     def __get_entity_set_properties(self) -> None:
         """
@@ -108,7 +117,7 @@ class DataverseEntity(Dataverse):
 
     def __get_entity_sdk_messages(self) -> None:
         """
-        Fetch sdk messages to determine whether entity supports certain actions.
+        Fetch sdk messages to determine whether Entity supports certain actions.
         """
         create, update = "CreateMultiple", "UpdateMultiple"
         actions = [create, update]
@@ -135,7 +144,32 @@ class DataverseEntity(Dataverse):
         if update in returned_actions:
             self.__supports_update_multiple = True
 
-    def update_schema(self, arg: Literal["altkeys", "properties", "messages"] | None = None) -> None:
+    def __get_entity_relationships(self) -> None:
+        """
+        Fetch the relationships for the Entity.
+
+        Collection-valued: 1:N relationships where this Entity is on the one-side.
+        Single-valued: N:1 relationships where this Entity is on the many-side.
+        """
+        one_to_many = self._api_call(
+            method=RequestMethod.GET,
+            url=f"EntityDefinitions(LogicalName='{self.logical_name}')/OneToManyRelationships",
+        ).json()["value"]
+        many_to_one = self._api_call(
+            method=RequestMethod.GET,
+            url=f"EntityDefinitions(LogicalName='{self.logical_name}')/ManyToOneRelationships",
+        ).json()["value"]
+
+        collection_valued = extract_collection_valued_relationships(
+            data=one_to_many, entity_logical_name=self.logical_name
+        )
+        single_valued = extract_single_valued_relationships(data=many_to_one)
+
+        self.__relationships = DataverseRelationships(single_valued=single_valued, collection_valued=collection_valued)
+
+    def update_schema(
+        self, arg: Literal["all", "altkeys", "properties", "messages", "relationships"] | None = None
+    ) -> None:
         """
         Update schema.
         """
@@ -143,9 +177,23 @@ class DataverseEntity(Dataverse):
             self.__get_entity_alternate_keys()
             return
 
-        self.__get_entity_alternate_keys()
-        self.__get_entity_sdk_messages()
-        self.__get_entity_set_properties()
+        if arg == "properties":
+            self.__get_entity_set_properties()
+            return
+
+        if arg == "messages":
+            self.__get_entity_sdk_messages()
+            return
+
+        if arg == "relationships":
+            self.__get_entity_relationships()
+            return
+
+        if arg == "all":
+            self.__get_entity_alternate_keys()
+            self.__get_entity_sdk_messages()
+            self.__get_entity_set_properties()
+            self.__get_entity_relationships()
 
     @overload
     def read(
