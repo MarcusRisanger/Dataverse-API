@@ -87,7 +87,7 @@ class Dataverse:
             data = serialize_json(json)
 
         resp = self._session.request(
-            method=method.name,
+            method=method,
             url=request_url,
             headers=default_headers,
             params=params,
@@ -99,7 +99,7 @@ class Dataverse:
             resp.raise_for_status()
         except requests.HTTPError:
             error_msg = resp.json()["error"]["message"].splitlines()[0]
-            raise DataverseAPIError(message=f"{method.name} request failed: {error_msg}", response=resp) from None
+            raise DataverseAPIError(message=f"{method} request failed: {error_msg}", response=resp) from None
 
         return resp
 

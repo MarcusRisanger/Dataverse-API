@@ -1,6 +1,6 @@
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
-from enum import Enum, auto
+from enum import StrEnum
 from textwrap import dedent
 from typing import Any, Collection, Generator, Mapping, MutableMapping, TypeVar
 from urllib.parse import urljoin
@@ -11,12 +11,12 @@ from dataverse_api.utils.text import encode_altkeys
 T = TypeVar("T")
 
 
-class RequestMethod(Enum):
-    GET = auto()
-    POST = auto()
-    PATCH = auto()
-    PUT = auto()
-    DELETE = auto()
+class RequestMethod(StrEnum):
+    GET = "GET"
+    POST = "POST"
+    PATCH = "PATCH"
+    PUT = "PUT"
+    DELETE = "DELETE"
 
 
 @dataclass
@@ -105,7 +105,7 @@ class BatchCommand:
         Content-Type: application/http
         Content-Transfer-Encoding: binary
 
-        {self.method.name} {url} HTTP/1.1
+        {self.method} {url} HTTP/1.1
         {self.content_type}
         {self.extra_header}\n
         {serialize_json(self.data)}
