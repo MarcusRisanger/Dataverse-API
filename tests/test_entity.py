@@ -111,7 +111,6 @@ def entity(
     )
 
     # Action SDK Messages call
-
     mocked_responses.get(
         url=client._endpoint + "sdkmessagefilters",
         match=[
@@ -131,6 +130,34 @@ def entity(
             "value": [
                 {"sdkmessageid": {"name": "CreateMultiple"}},
                 {"sdkmessageid": {"name": "UpdateMultiple"}},
+            ]
+        },
+    )
+
+    # Relationships calls
+    refd_entity = "ReferencedEntityNavigationPropertyName"
+    reffing_entity = "ReferencingEntityNavigationPropertyName"
+
+    # One-to-many
+    mocked_responses.get(
+        url=client._endpoint + f"EntityDefinitions(LogicalName='{entity_name}')/ManyToOneRelationships",
+        json={
+            "value": [
+                {refd_entity: "123", reffing_entity: "foo"},
+                {refd_entity: "456", reffing_entity: "bar"},
+                {refd_entity: "789", reffing_entity: "baz"},
+            ]
+        },
+    )
+
+    # Many-to-one
+    mocked_responses.get(
+        url=client._endpoint + f"EntityDefinitions(LogicalName='{entity_name}')/OneToManyRelationships",
+        json={
+            "value": [
+                {refd_entity: "foo", reffing_entity: "bar"},
+                {refd_entity: "moo", reffing_entity: f"objectid_{entity_name}"},
+                {refd_entity: "schmoo", reffing_entity: f"regardingobjectid_{entity_name}"},
             ]
         },
     )
@@ -157,6 +184,8 @@ def test_entity_instantiation(
     assert entity.alternate_keys[altkey_2[0]] == altkey_2[1]
     assert entity.supports_create_multiple is True
     assert entity.supports_update_multiple is True
+    assert entity.relationships.collection_valued == ["foo"]
+    assert entity.relationships.single_valued == ["foo", "bar", "baz"]
 
 
 """
