@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "dataverse-api"
-version = "1.1.5"
+version = "1.1.6"
 description = "Abstraction layer for interacting with Microsoft Dataverse Web API using Python."
 authors = ["Marcus Risanger <69350948+MarcusRisanger@users.noreply.github.com>"]
 readme = "README.md"
@@ -10,8 +10,6 @@ python = "^3.11"
 msal = "^1.26.0"
 msal-requests-auth = "^0.7.0"
 pandas = "^2.0.1"
-sqlalchemy = "^2.0.23"
-pyodbc = "^5.0.1"
 pydantic = "^2.5.3"
 
 
