@@ -1,6 +1,7 @@
 """
 A collection of Dataverse Enum metadata classes.
 """
+
 from enum import Enum
 
 
