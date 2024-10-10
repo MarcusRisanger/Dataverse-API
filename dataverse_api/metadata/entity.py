@@ -3,7 +3,6 @@ The Dataverse Entity metadata class, and a function to define it using as little
 data as possible for ease of use.
 """
 
-
 from collections.abc import Collection, Sequence
 from typing import Any
 

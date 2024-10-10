@@ -2,7 +2,6 @@
 A collection of Dataverse Attribute metadata classes.
 """
 
-
 from typing import Any
 
 from pydantic import Field

@@ -1,6 +1,7 @@
 """
 The base Metadata class for Dataverse.
 """
+
 from typing import Any, Protocol, Self
 
 from pydantic import BaseModel, ConfigDict
