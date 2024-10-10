@@ -127,9 +127,9 @@ class DataverseEntity(Dataverse):
         params: dict[str, str] = dict()
         params["$select"] = "sdkmessagefilterid"
         params["$expand"] = "sdkmessageid($select=name)"
-        params[
-            "$filter"
-        ] = f"""({' or '.join(f"{msg_col} eq '{x}'" for x in actions)}) and {col} eq '{self.logical_name}'"""
+        params["$filter"] = (
+            f"""({' or '.join(f"{msg_col} eq '{x}'" for x in actions)}) and {col} eq '{self.logical_name}'"""
+        )
 
         logging.debug("Retrieving SDK messages for %s", self.logical_name)
         resp = self._api_call(
@@ -205,9 +205,9 @@ class DataverseEntity(Dataverse):
         page_size: int | None = None,
         expand: str | None = None,
         order_by: str | None = None,
+        return_formatted_values: bool = False,
         return_responses: Literal[False] = False,
-    ) -> list[dict[str, Any]]:
-        ...
+    ) -> list[dict[str, Any]]: ...
 
     @overload
     def read(
@@ -219,9 +219,9 @@ class DataverseEntity(Dataverse):
         page_size: int | None = None,
         expand: str | None = None,
         order_by: str | None = None,
+        return_formatted_values: bool = False,
         return_responses: Literal[True],
-    ) -> list[requests.Response]:
-        ...
+    ) -> list[requests.Response]: ...
 
     def read(
         self,
@@ -232,6 +232,7 @@ class DataverseEntity(Dataverse):
         page_size: int | None = None,
         expand: str | None = None,
         order_by: str | None = None,
+        return_formatted_values: bool = False,
         return_responses: bool = False,
     ) -> list[dict[str, Any]] | list[requests.Response]:
         """
@@ -253,6 +254,8 @@ class DataverseEntity(Dataverse):
             A fully qualified string describing aggregation and grouping of returned records.
         page_size : int
             Limits the total number of records retrieved per API call.
+        return_formatted_values : bool
+            Return formatted values (e.g. for lookup, choice columns) in response.
         return_responses : bool
             Returns complete responses instead of data records.
 
@@ -263,8 +266,15 @@ class DataverseEntity(Dataverse):
         """
 
         additional_headers: dict[str, str] = dict()
-        if page_size is not None:
-            additional_headers["Prefer"] = f"odata.maxpagesize={page_size}"
+        formatted_arg = "odata.include-annotations=OData.Community.Display.V1.FormattedValue"
+        page_size_arg = f"odata.maxpagesize={page_size}"
+
+        if page_size is not None and return_formatted_values:
+            additional_headers["Prefer"] = f"{formatted_arg},{page_size_arg}"
+        elif page_size is not None:
+            additional_headers["Prefer"] = page_size_arg
+        elif return_formatted_values:
+            additional_headers["Prefer"] = formatted_arg
 
         params: dict[str, Any] = dict()
         if select:
@@ -313,8 +323,7 @@ class DataverseEntity(Dataverse):
         detect_duplicates: bool = False,
         return_created: bool = False,
         threading: bool = False,
-    ) -> list[requests.Response]:
-        ...
+    ) -> list[requests.Response]: ...
 
     @overload
     def create(
@@ -326,8 +335,7 @@ class DataverseEntity(Dataverse):
         return_created: bool = False,
         batch_size: int | None = None,
         threading: bool = False,
-    ) -> list[requests.Response]:
-        ...
+    ) -> list[requests.Response]: ...
 
     def create(
         self,
@@ -466,8 +474,7 @@ class DataverseEntity(Dataverse):
         *,
         mode: Literal["individual"] = "individual",
         ids: Collection[str],
-    ) -> list[requests.Response]:
-        ...
+    ) -> list[requests.Response]: ...
 
     @overload
     def delete(
@@ -476,20 +483,17 @@ class DataverseEntity(Dataverse):
         mode: Literal["individual"] = "individual",
         filter: str,
         threading: bool = False,
-    ) -> list[requests.Response]:
-        ...
+    ) -> list[requests.Response]: ...
 
     @overload
     def delete(
         self, *, mode: Literal["batch"], filter: str, batch_size: int | None = None, threading: bool = False
-    ) -> list[requests.Response]:
-        ...
+    ) -> list[requests.Response]: ...
 
     @overload
     def delete(
         self, *, mode: Literal["batch"], ids: Collection[str], batch_size: int | None = None, threading: bool = False
-    ) -> list[requests.Response]:
-        ...
+    ) -> list[requests.Response]: ...
 
     def delete(
         self,
@@ -565,8 +569,7 @@ class DataverseEntity(Dataverse):
         mode: Literal["individual", "batch"] = "individual",
         ids: Collection[str],
         threading: bool,
-    ) -> list[requests.Response]:
-        ...
+    ) -> list[requests.Response]: ...
 
     @overload
     def delete_columns(
@@ -576,8 +579,7 @@ class DataverseEntity(Dataverse):
         mode: Literal["individual", "batch"] = "individual",
         filter: str,
         threading: bool,
-    ) -> list[requests.Response]:
-        ...
+    ) -> list[requests.Response]: ...
 
     def delete_columns(
         self,
@@ -743,12 +745,10 @@ class DataverseEntity(Dataverse):
         )
 
     @overload
-    def remove_attribute(self, *, attribute_id: str) -> requests.Response:
-        ...
+    def remove_attribute(self, *, attribute_id: str) -> requests.Response: ...
 
     @overload
-    def remove_attribute(self, *, logical_name: str) -> requests.Response:
-        ...
+    def remove_attribute(self, *, logical_name: str) -> requests.Response: ...
 
     def remove_attribute(
         self,
@@ -822,12 +822,10 @@ class DataverseEntity(Dataverse):
         return resp
 
     @overload
-    def remove_alternate_key(self, *, altkey_id: str) -> requests.Response:
-        ...
+    def remove_alternate_key(self, *, altkey_id: str) -> requests.Response: ...
 
     @overload
-    def remove_alternate_key(self, *, logical_name: str) -> requests.Response:
-        ...
+    def remove_alternate_key(self, *, logical_name: str) -> requests.Response: ...
 
     def remove_alternate_key(
         self,
