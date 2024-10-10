@@ -7,4 +7,5 @@ jobs:
       - uses: actions/checkout@v4
       - uses: astral-sh/ruff-action@v1
         with:
-          args: --fix
+          changed-files: "true"
+          args: "format --check"
