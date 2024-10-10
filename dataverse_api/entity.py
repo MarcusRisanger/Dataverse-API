@@ -205,6 +205,7 @@ class DataverseEntity(Dataverse):
         page_size: int | None = None,
         expand: str | None = None,
         order_by: str | None = None,
+        return_responses: Literal[False] = False,
     ) -> list[dict[str, Any]]:
         ...
 
