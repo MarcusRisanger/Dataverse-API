@@ -113,7 +113,6 @@ class IntegerAttributeMetadata(AttributeMetadata):
     schema_name : str
     min_value : int
     max_value : int
-    precision : int
     format : dataverse.IntegerFormat
     description : dataverse.Label
     display_name : dataverse.Label
@@ -122,7 +121,6 @@ class IntegerAttributeMetadata(AttributeMetadata):
 
     min_value: int
     max_value: int
-    precision: int = 2
     format: IntegerFormat = Field(default=IntegerFormat.NONE)
 
     def model_post_init(self, __context: Any) -> None:
