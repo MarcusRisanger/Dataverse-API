@@ -96,7 +96,7 @@ def test_batch_command_put():
     Content-Type: application/json
 
 
-    {{{'"value"'}: {data['test']}}}
+    {{{'"value"'}: {data["test"]}}}
     """
 
     command = BatchCommand(url=url, method=method, data=data)

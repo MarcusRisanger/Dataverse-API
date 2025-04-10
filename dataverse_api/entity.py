@@ -128,7 +128,7 @@ class DataverseEntity(Dataverse):
         params["$select"] = "sdkmessagefilterid"
         params["$expand"] = "sdkmessageid($select=name)"
         params["$filter"] = (
-            f"""({' or '.join(f"{msg_col} eq '{x}'" for x in actions)}) and {col} eq '{self.logical_name}'"""
+            f"""({" or ".join(f"{msg_col} eq '{x}'" for x in actions)}) and {col} eq '{self.logical_name}'"""
         )
 
         logging.debug("Retrieving SDK messages for %s", self.logical_name)

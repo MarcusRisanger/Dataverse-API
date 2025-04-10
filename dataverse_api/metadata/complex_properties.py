@@ -78,23 +78,19 @@ class Label(MetadataBase):
 
 
 @overload
-def create_label() -> Label:
-    ...
+def create_label() -> Label: ...
 
 
 @overload
-def create_label(*, label: str) -> Label:
-    ...
+def create_label(*, label: str) -> Label: ...
 
 
 @overload
-def create_label(*, label: str, language_code: int) -> Label:
-    ...
+def create_label(*, label: str, language_code: int) -> Label: ...
 
 
 @overload
-def create_label(*, labels: Sequence[tuple[str, int]]) -> Label:
-    ...
+def create_label(*, labels: Sequence[tuple[str, int]]) -> Label: ...
 
 
 def create_label(

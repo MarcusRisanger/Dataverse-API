@@ -1,7 +1,7 @@
 # `dataverse-api`
 
+[![uv](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json)](https://github.com/astral-sh/uv)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
-[![Build Status](https://github.com/MarcusRisanger/dataverse-api/workflows/release/badge.svg)](https://github.com/MarcusRisanger/dataverse-api/actions)
 [![codecov](https://codecov.io/gh/MarcusRisanger/Dataverse-API/branch/main/graph/badge.svg)](https://codecov.io/gh/MarcusRisanger/Dataverse-API)
 
 The `dataverse-api` package is an abstraction layer developed for allowing simple interaction with Microsoft Dataverse Web API.
@@ -83,41 +83,47 @@ entity.read(select=["name"])
 
 ## Development environment
 
-[poetry](https://python-poetry.org) is used for managing dependencies. To develop
+[uv](https://docs.astral.sh/uv/) is used for managing dependencies. To develop
 `dataverse-api`, follow the below steps to set up your local environment:
 
-1.  [Install poetry](https://python-poetry.org/docs/#installation) if you haven't already.
+1.  [Install uv](https://docs.astral.sh/uv/getting-started/installation/) if you haven't already.
 
 2.  Clone repository:
-    ```
-    $ git clone git@github.com:MarcusRisanger/dataverse-api.git
-    ```
+```bash
+$ git clone git@github.com:MarcusRisanger/dataverse-api.git
+```
 3.  Move into the newly created local repository:
-    ```
-    $ cd dataverse-api
-    ```
+```bash
+$ cd dataverse-api
+```
 4.  Create virtual environment and install dependencies:
-    ```
-    $ poetry install
-    ```
+```bash
+$ uv venv --python 3.11
+$ uv sync
+```
 
 ### Code requirements
 
 All code must pass [ruff](https://github.com/astral-sh/ruff) style checks to be merged. It is recommended to install pre-commit hooks to ensure this locally before commiting code:
 
-```
-$ poetry run pre-commit install
+```bash
+$ uv tool install pre-commit
 ```
 
 Each public method, class and module should have docstrings. Docstrings are written in the Numpy style.
 
 ### Testing
 
-To produce Coverage reports, run the following commands:
+To run tests on multiple Python versions, we use `tox`:
 
+```bash
+$ uv tool install tox --with tox-uv
 ```
-$ poetry run coverage run -m pytest
-$ poetry run coverage xml
+
+When `tox` is installed, simply run:
+
+```bash
+$ tox run
 ```
 
 ## To Do:
@@ -139,10 +145,7 @@ $ poetry run coverage xml
     - Remove column
     - Add alternate key
     - Remove alternate key
-* Implement `CreateMultiple` request if creating more than 100 elements?
-    - https://learn.microsoft.com/en-us/power-apps/developer/data-platform/bulk-operations?tabs=webapi#createmultiple
-* Implement BulkDelete Action?
-    - https://learn.microsoft.com/en-us/power-apps/developer/data-platform/delete-data-bulk?tabs=sdk
+
 
 # Usage
 
@@ -150,7 +153,7 @@ $ poetry run coverage xml
 
 ### Initialize DataverseClient
 
-For now, I've coded the framework around the `requests` library, for good and bad! In the future, I will consider generalizing further, letting the user pass an authenticated requests handler of choice to the framework by specifying a `Protocol` to follow instead.
+For now, I've coded the framework around the `requests` library, for good and bad! In the future, I will consider generalizing further, letting the user pass an authenticated requests handler of choice to the framework by specifying a `Protocol` class instead.
 
 To instantiate, pass a `requests.Session` together with a Dataverse environment URL to the `DataverseClient` constructor:
 
