@@ -13,11 +13,9 @@ BASE_TYPE = "Microsoft.Dynamics.CRM."
 
 class MetadataDumper(Protocol):
     @property
-    def schema_name(self) -> str:
-        ...
+    def schema_name(self) -> str: ...
 
-    def dump_to_dataverse(self) -> dict[str, Any]:
-        ...
+    def dump_to_dataverse(self) -> dict[str, Any]: ...
 
 
 class MetadataBase(BaseModel):
