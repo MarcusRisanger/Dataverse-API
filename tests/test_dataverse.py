@@ -97,7 +97,7 @@ def test_create_entity_with_solution_name(
     resp = client.create_entity(sample_entity, solution_name="Foo")
 
     # Run assertions again!
-    assert resp.request.headers["MSCRM.SolutionName"] == "Foo"
+    assert resp.request.headers["MSCRM.SolutionUniqueName"] == "Foo"
 
 
 def test_delete_entity(
