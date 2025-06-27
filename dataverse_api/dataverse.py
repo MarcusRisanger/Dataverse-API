@@ -81,7 +81,7 @@ class DataverseClient(Dataverse):
         if return_representation:
             headers["Prefer"] = "return=representation"
         if solution_name:
-            headers["MSCRM.SolutionName"] = solution_name
+            headers["MSCRM.SolutionUniqueName"] = solution_name
 
         return self._api_call(
             method=RequestMethod.POST,
