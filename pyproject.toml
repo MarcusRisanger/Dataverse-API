@@ -3,7 +3,7 @@ name = "dataverse-api"
 version = "1.2.3"
 description = "Abstraction layer for interacting with Microsoft Dataverse Web API using Python."
 authors = [{ name = "Marcus Risanger", email = "69350948+MarcusRisanger@users.noreply.github.com" }]
-requires-python = "~=3.11"
+requires-python = ">=3.11,<4"
 readme = "README.md"
 dependencies = [
     "msal>=1.26.0,<2",
