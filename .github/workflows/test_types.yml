@@ -1,0 +1,34 @@
+
+name: Run Pytests and MyPy
+
+on: [pull_request, push]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  run-tests:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: 3.12
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v5
+      with:
+        version: "0.6.16"
+
+    - name: Install project with uv
+      run: uv sync --locked --all-extras --dev
+
+    - name: Install tox
+      run: uv tool install tox --with tox-uv
+
+    - name: Run tests with tox
+      run: tox run
