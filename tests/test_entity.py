@@ -1,7 +1,7 @@
 import logging
 import random
 from copy import deepcopy
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from uuid import uuid4
 
 import pandas as pd
@@ -282,7 +282,7 @@ def test_entity_create_by_singles_write_timestamp(
 ):
     # Data package
     url = entity._endpoint + entity.entity_set_name
-    data = [{"test": datetime.utcnow()}, {"test": date.today()}, {"test": pd.Timestamp.now()}]
+    data = [{"test": datetime.now(UTC)}, {"test": date.today()}, {"test": pd.Timestamp.now()}]
 
     # Mock single requests
     for row in data:
