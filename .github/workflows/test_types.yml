@@ -3,12 +3,13 @@ name: Run Pytests and MyPy
 
 on: [pull_request, push]
 
+concurrency:
+      group: ${{ github.workflow }}-${{ github.ref }}
+      cancel-in-progress: true
+
 jobs:
   run-tests:
     runs-on: ubuntu-latest
-    concurrency:
-      group: ${{ github.workflow }}-${{ github.ref }}
-      cancel-in-progress: true
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
