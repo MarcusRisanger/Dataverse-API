@@ -669,7 +669,7 @@ class DataverseEntity(Dataverse):
 
         Parameters
         ----------
-        data : Collection[MutableMapping[str, Any]] | IntoFrame
+        data : Collection[MutableMapping[str, Any]] | IntoFrameT
             The data to upsert.
         mode : Literal["individual", "batch"]
             Whether to upsert data using individual requests or batch requests.
