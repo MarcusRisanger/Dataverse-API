@@ -1,22 +1,69 @@
 import json
 from collections.abc import Collection, Mapping
-from datetime import date, datetime
 from typing import Any
 
-import pandas as pd
+import narwhals as nw
+from narwhals.typing import IntoFrameT
+from typing_extensions import Protocol, runtime_checkable
 
 
-def convert_dataframe_to_dict(data: pd.DataFrame) -> list[dict[str, Any]]:
+@runtime_checkable
+class TimeType(Protocol):
+    def isoformat(self) -> str: ...
+
+
+def is_not_none(value: Any) -> bool:
+    """Checks if a value is not None or NaN."""
+    return value == value and value is not None
+
+
+def dict_of_lists_to_list_of_dicts(data: dict[str, list[Any]]) -> list[dict[str, Any]]:
     """
-    Converts to dict and drops NaNs.
+    Converts a dictionary of lists into a list of dictionaries.
+    Example:
+        {'A': [1, 2], 'B': [3, 4]} -> [{'A': 1, 'B': 3}, {'A': 2, 'B': 4}]
+
+    Parameters
+    ----------
+    data : dict[str, list[Any]]
+        The dictionary to convert.
+
+    Returns
+    -------
+    list[dict[str, Any]]
+        A list of dictionaries where each dictionary corresponds to a row in the original data.
     """
-    return [{k: v for k, v in m.items() if v == v and v is not None} for m in data.to_dict(orient="records")]  # type: ignore
+
+    keys = list(data.keys())
+    values = zip(*data.values())
+    zipped = [dict(zip(keys, v)) for v in values]
+    return [{k: v for k, v in row.items() if v == v and v is not None} for row in zipped]
+
+
+def convert_dataframe_to_dict(data: IntoFrameT) -> list[dict[str, Any]]:
+    """
+    Converts DataFrame to narwhals dict and drops NaNs.
+
+    Parameters
+    ----------
+    data : IntoFrameT
+        The data to convert, which can be a DataFrame or similar structure.
+
+    Returns
+    -------
+    list[dict[str, Any]]
+        A list of dictionaries where each dictionary corresponds to a row in the DataFrame.
+    """
+    df = nw.from_native(data)
+    data_dict = df.to_dict(as_series=False)
+
+    return dict_of_lists_to_list_of_dicts(data_dict)
 
 
 def coerce_timestamps(obj: object) -> str:
     """JSON serializer for objects not serializable by default json code"""
 
-    if isinstance(obj, (datetime, date, pd.Timestamp)):
+    if isinstance(obj, TimeType):
         return obj.isoformat()
     raise TypeError("Type %s not serializable" % type(obj))
 

@@ -5,6 +5,7 @@ from datetime import UTC, date, datetime
 from uuid import uuid4
 
 import pandas as pd
+import polars as pl
 import pytest
 import responses
 from responses.matchers import header_matcher, json_params_matcher, query_param_matcher
@@ -13,7 +14,7 @@ from dataverse_api.dataverse import DataverseClient
 from dataverse_api.entity import DataverseEntity
 from dataverse_api.errors import DataverseError
 from dataverse_api.metadata.base import BASE_TYPE
-from dataverse_api.utils.data import serialize_json
+from dataverse_api.utils.data import convert_dataframe_to_dict, is_not_none, serialize_json
 
 
 @pytest.fixture
@@ -365,12 +366,29 @@ def test_entity_create_with_args(
     assert all([x.status_code == 200 for x in resp])
 
 
-def test_entity_create_with_df(
+def test_entity_create_with_pandas_df(
     entity: DataverseEntity,
     mocked_responses: responses.RequestsMock,
 ):
     data = pd.DataFrame([("abc"), ("def")], columns=["test"])
-    dict_data = data.to_dict(orient="records")
+    dict_data = convert_dataframe_to_dict(data)
+
+    url = entity._endpoint + entity.entity_set_name
+
+    for row in dict_data:
+        mocked_responses.post(url=url, status=204, match=[json_params_matcher(row)])
+
+    resp = entity.create(data=data)
+
+    assert all([x.status_code == 204 for x in resp])
+
+
+def test_entity_create_with_polars_df(
+    entity: DataverseEntity,
+    mocked_responses: responses.RequestsMock,
+):
+    data = pl.DataFrame([{"test": "abc"}, {"test": "def"}])
+    dict_data = convert_dataframe_to_dict(data)
 
     url = entity._endpoint + entity.entity_set_name
 
@@ -692,13 +710,64 @@ def test_entity_upsert_bad_altkey(entity: DataverseEntity):
         entity.upsert({"data": 1}, altkey_name="foo")
 
 
-def test_entity_upsert_dataframe(entity: DataverseEntity, mocked_responses: responses.RequestsMock, primary_id: str):
+def test_entity_upsert_pandas_dataframe(
+    entity: DataverseEntity, mocked_responses: responses.RequestsMock, primary_id: str
+):
     # Setup
     df = pd.DataFrame([{primary_id: str(uuid4()), "data": i} for i in range(3)])
+    data = convert_dataframe_to_dict(df)
 
-    for row in df.to_dict("records"):
+    for row in data:
         id = row[primary_id]
         payload = {k: v for k, v in row.items() if k != primary_id}
+
+        mocked_responses.patch(
+            url=f"{entity._endpoint}{entity.entity_set_name}({id})",
+            match=[json_params_matcher(payload)],
+            status=204,
+        )
+
+    resp = entity.upsert(df, mode="individual")
+
+    for row in resp:
+        assert row.status_code == 204
+
+
+def test_entity_upsert_polars_dataframe(
+    entity: DataverseEntity, mocked_responses: responses.RequestsMock, primary_id: str
+):
+    # Setup
+    df = pl.DataFrame([{primary_id: str(uuid4()), "data": i} for i in range(3)])
+    data = convert_dataframe_to_dict(df)
+
+    for row in data:
+        id = row[primary_id]
+        payload = {k: v for k, v in row.items() if k != primary_id}
+
+        mocked_responses.patch(
+            url=f"{entity._endpoint}{entity.entity_set_name}({id})",
+            match=[json_params_matcher(payload)],
+            status=204,
+        )
+
+    resp = entity.upsert(df, mode="individual")
+
+    for row in resp:
+        assert row.status_code == 204
+
+
+def test_entity_upsert_dataframe_with_none(
+    entity: DataverseEntity, mocked_responses: responses.RequestsMock, primary_id: str
+):
+    # Setup
+    df = pd.DataFrame([{primary_id: str(uuid4()), "data": i, "more_data": i + 1} for i in range(3)])
+    df.loc[1, "more_data"] = None  # Introduce a None value
+
+    data = convert_dataframe_to_dict(df)
+
+    for row in data:
+        id = row[primary_id]
+        payload = {k: v for k, v in row.items() if k != primary_id and is_not_none(v)}
 
         mocked_responses.patch(
             url=f"{entity._endpoint}{entity.entity_set_name}({id})",
