@@ -352,7 +352,7 @@ class DataverseEntity(Dataverse):
         Create rows in Dataverse Entity. Failures will occur if trying to insert
         a record where alternate key already exists, partial success is possible.
 
-        data : Sequence[MutableMapping[str, Any] | IntoFrame
+        data : Sequence[MutableMapping[str, Any] | IntoFrameT
             The data to create in Dataverse, JSON serializable.
         mode : Literal["individual", "multiple", "batch"]
             Whether to create rows using individual requests, `CreateMultiple` web API action
