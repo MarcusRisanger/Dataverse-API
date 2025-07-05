@@ -231,7 +231,7 @@ data = foo.read(select=["name","address"], filter="salary gt 10000", top=5, orde
 
 ### Create
 
-To create rows, you can use a `pandas.DataFrame` or a simple construct like a list of dicts, where each dict contains the data for a single row.
+To create rows, you can use a `DataFrame` supported by [`narwhals`](https://narwhals-dev.github.io/narwhals/) or a simple construct like a list of dicts, where each dict contains the data for a single row.
 
 Below is an example of creating rows in the Entity by passing a dataframe and specifying that the creation method should be the `CreateMultiple` web API Action. The `return_created` argument can be set to `True` if you need the IDs as reference.
 
