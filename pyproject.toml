@@ -8,6 +8,7 @@ readme = "README.md"
 dependencies = [
     "narwhals>=1.45.0",
     "pydantic>=2.5.3,<3",
+    "requests>=2.32.4",
 ]
 
 [dependency-groups]
