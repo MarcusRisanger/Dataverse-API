@@ -240,7 +240,7 @@ def test_entity_read_with_paging(
 
     # Mocking responses
     mocked_responses.get(url=next_url, json=sample_data)
-    sample_data["@odata.nextLink"] = next_url
+    sample_data["@odata.nextLink"] = next_url  # type: ignore
     mocked_responses.get(url=url, json=sample_data)
 
     # Performing action
@@ -324,7 +324,7 @@ def test_entity_create_multiple_not_supported(
     medium_data_package: list[dict[str, str]],
 ):
     # Setup
-    entity._DataverseEntity__supports_create_multiple = False  # Ugh!
+    entity._DataverseEntity__supports_create_multiple = False  # type: ignore
 
     with pytest.raises(DataverseError, match=r"CreateMultiple is not supported.*"):
         entity.create(medium_data_package, mode="multiple")
@@ -405,7 +405,7 @@ def test_entity_create_mode_not_supported(
     medium_data_package: list[dict[str, str]],
 ):
     with pytest.raises(DataverseError, match=r"Mode .* is not supported.*"):
-        entity.create(medium_data_package, mode="foo")
+        entity.create(medium_data_package, mode="foo")  # type: ignore
 
 
 """
@@ -458,6 +458,8 @@ def test_entity_delete_batch_all(entity: DataverseEntity, mocked_responses: resp
 
     resp = entity.delete(mode="batch", filter="all")
 
+    assert isinstance(resp[0].request.body, str)  # type checking
+
     for item in return_payload:
         assert f"{entity._endpoint}{entity.entity_set_name}({item[id]})" in resp[0].request.body
 
@@ -504,12 +506,12 @@ def test_entity_delete_singles_filter(entity: DataverseEntity, mocked_responses:
 
 def test_entity_delete_bad_args(entity: DataverseEntity):
     with pytest.raises(DataverseError, match=r"Function requires either.*"):
-        entity.delete()
+        entity.delete()  # type: ignore
 
 
 def test_entity_delete_mode_not_supported(entity: DataverseEntity):
     with pytest.raises(DataverseError, match=r"Mode .* is not supported.*"):
-        entity.delete(mode="foo", ids=["bar"])
+        entity.delete(mode="foo", ids=["bar"])  # type: ignore
 
 
 """
@@ -560,7 +562,7 @@ def test_entity_delete_column_batch_all(entity: DataverseEntity, mocked_response
     # Deleting
     mocked_responses.post(url=f"{entity._endpoint}$batch")
 
-    resp = entity.delete_columns(mode="batch", columns=columns, filter="all")
+    resp = entity.delete_columns(columns=columns, mode="batch", filter="all")
 
     for item in return_payload:
         for i, col in enumerate(columns):
@@ -613,12 +615,12 @@ def test_entity_delete_column_singles_filter(entity: DataverseEntity, mocked_res
 
 def test_entity_delete_column_bad_args(entity: DataverseEntity):
     with pytest.raises(DataverseError, match=r"Function requires either.*"):
-        entity.delete_columns(columns=["Foo", "Bar"])
+        entity.delete_columns(columns=["Foo", "Bar"])  # type: ignore
 
 
 def test_entity_delete_column_mode_not_supported(entity: DataverseEntity):
     with pytest.raises(DataverseError, match=r"Mode .* is not supported.*"):
-        entity.delete_columns(columns=["col"], mode="foo", ids=["bar"])
+        entity.delete_columns(columns=["col"], mode="foo", ids=["bar"])  # type: ignore
 
 
 """
@@ -702,7 +704,7 @@ def test_entity_upsert_batch_altkey(
 
 def test_entity_upsert_mode_not_supported(entity: DataverseEntity):
     with pytest.raises(DataverseError, match=r"Mode .* is not supported.*"):
-        entity.upsert({"data": 1}, mode="foo")
+        entity.upsert({"data": 1}, mode="foo")  # type: ignore
 
 
 def test_entity_upsert_bad_altkey(entity: DataverseEntity):
