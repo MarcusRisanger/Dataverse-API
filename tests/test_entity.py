@@ -666,6 +666,7 @@ def test_entity_upsert_batch_primaryid(
 
     resp = entity.upsert(data=data, mode="batch")
 
+    assert isinstance(resp[0].request.body, str)  # type checking
     elements = resp[0].request.body.split("--batch")[1:-1]
 
     for out, expected in zip(elements, data):
@@ -696,6 +697,7 @@ def test_entity_upsert_batch_altkey(
 
     resp = entity.upsert(data=data, mode="batch", altkey_name=altkey_2_name)
 
+    assert isinstance(resp[0].request.body, str)  # type checking
     elements = resp[0].request.body.split("--batch")[1:-1]
 
     for out, expected in zip(elements, data):
