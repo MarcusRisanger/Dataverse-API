@@ -237,14 +237,16 @@ def test_entity_read_with_paging(
 ):
     url = entity._endpoint + entity.entity_set_name
     next_url = entity._endpoint + "foooooo"
+    headers = {"Prefer": "odata.include-annotations=OData.Community.Display.V1.FormattedValue"}
 
     # Mocking responses
-    mocked_responses.get(url=next_url, json=sample_data)
+    matcher = [header_matcher(headers, strict_match=False)]  # Headers should persist across calls
+    mocked_responses.get(url=next_url, json=sample_data, match=matcher)
     sample_data["@odata.nextLink"] = next_url  # type: ignore
-    mocked_responses.get(url=url, json=sample_data)
+    mocked_responses.get(url=url, json=sample_data, match=matcher)
 
     # Performing action
-    resp = entity.read()
+    resp = entity.read(return_formatted_values=True)  # Adds above Prefer header to calls
 
     assert len(resp) == 2 * len(sample_data["value"])
     assert resp == sample_data["value"] * 2
