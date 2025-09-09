@@ -304,7 +304,7 @@ class DataverseEntity(Dataverse):
         while response.json().get("@odata.nextLink"):
             response = self._api_call(
                 method=RequestMethod.GET,
-                url=response.json()["@odata.nextLink"]
+                url=response.json()["@odata.nextLink"],
                 headers=additional_headers,
                 params=params,
             )
