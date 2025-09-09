@@ -576,7 +576,7 @@ class DataverseEntity(Dataverse):
         *,
         mode: Literal["individual", "batch"] = "individual",
         ids: Collection[str],
-        threading: bool,
+        threading: bool = False,
     ) -> list[requests.Response]: ...
 
     @overload
@@ -586,7 +586,7 @@ class DataverseEntity(Dataverse):
         *,
         mode: Literal["individual", "batch"] = "individual",
         filter: str,
-        threading: bool,
+        threading: bool = False,
     ) -> list[requests.Response]: ...
 
     def delete_columns(
