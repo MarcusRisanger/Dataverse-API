@@ -302,7 +302,12 @@ class DataverseEntity(Dataverse):
         )
         output.append(response)
         while response.json().get("@odata.nextLink"):
-            response = self._api_call(method=RequestMethod.GET, url=response.json()["@odata.nextLink"])
+            response = self._api_call(
+                method=RequestMethod.GET,
+                url=response.json()["@odata.nextLink"],
+                headers=additional_headers,
+                params=params,
+            )
             output.append(response)
 
         if return_responses:
@@ -571,7 +576,7 @@ class DataverseEntity(Dataverse):
         *,
         mode: Literal["individual", "batch"] = "individual",
         ids: Collection[str],
-        threading: bool,
+        threading: bool = False,
     ) -> list[requests.Response]: ...
 
     @overload
@@ -581,7 +586,7 @@ class DataverseEntity(Dataverse):
         *,
         mode: Literal["individual", "batch"] = "individual",
         filter: str,
-        threading: bool,
+        threading: bool = False,
     ) -> list[requests.Response]: ...
 
     def delete_columns(
