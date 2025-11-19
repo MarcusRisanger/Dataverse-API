@@ -325,7 +325,7 @@ class DataverseEntity(Dataverse):
         self,
         data: Sequence[MutableMapping[str, Any]] | IntoFrame,
         *,
-        mode: Literal["individual"] = "individual",
+        mode: Literal["individual"],
         detect_duplicates: bool = False,
         return_created: bool = False,
         threading: bool = False,
@@ -336,7 +336,7 @@ class DataverseEntity(Dataverse):
         self,
         data: Sequence[MutableMapping[str, Any]] | IntoFrame,
         *,
-        mode: Literal["batch", "multiple"] = "batch",
+        mode: Literal["batch", "multiple"],
         detect_duplicates: bool = False,
         return_created: bool = False,
         batch_size: int | None = None,
@@ -491,7 +491,7 @@ class DataverseEntity(Dataverse):
     def delete(
         self,
         *,
-        mode: Literal["individual"] = "individual",
+        mode: Literal["individual"],
         ids: Collection[str],
     ) -> list[requests.Response]: ...
 
@@ -499,19 +499,29 @@ class DataverseEntity(Dataverse):
     def delete(
         self,
         *,
-        mode: Literal["individual"] = "individual",
+        mode: Literal["individual"],
         filter: str,
         threading: bool = False,
     ) -> list[requests.Response]: ...
 
     @overload
     def delete(
-        self, *, mode: Literal["batch"], filter: str, batch_size: int | None = None, threading: bool = False
+        self,
+        *,
+        mode: Literal["batch"],
+        filter: str,
+        batch_size: int | None = None,
+        threading: bool = False,
     ) -> list[requests.Response]: ...
 
     @overload
     def delete(
-        self, *, mode: Literal["batch"], ids: Collection[str], batch_size: int | None = None, threading: bool = False
+        self,
+        *,
+        mode: Literal["batch"],
+        ids: Collection[str],
+        batch_size: int | None = None,
+        threading: bool = False,
     ) -> list[requests.Response]: ...
 
     def delete(
@@ -563,7 +573,7 @@ class DataverseEntity(Dataverse):
             batch_commands = transform_to_batch_for_delete(url=self.entity_set_name, data=ids)
             return self._batch_api_call(
                 batch_commands=batch_commands,
-                batch_size=batch_size or 500,
+                batch_size=batch_size or 100,
                 timeout=120,
                 threading=threading,
             )
@@ -590,7 +600,7 @@ class DataverseEntity(Dataverse):
         self,
         columns: Collection[str],
         *,
-        mode: Literal["individual", "batch"] = "individual",
+        mode: Literal["individual"],
         ids: Collection[str],
         threading: bool = False,
     ) -> list[requests.Response]: ...
@@ -600,8 +610,30 @@ class DataverseEntity(Dataverse):
         self,
         columns: Collection[str],
         *,
-        mode: Literal["individual", "batch"] = "individual",
+        mode: Literal["individual"],
         filter: str,
+        threading: bool = False,
+    ) -> list[requests.Response]: ...
+
+    @overload
+    def delete_columns(
+        self,
+        columns: Collection[str],
+        *,
+        mode: Literal["batch"],
+        ids: Collection[str],
+        batch_size: int | None = None,
+        threading: bool = False,
+    ) -> list[requests.Response]: ...
+
+    @overload
+    def delete_columns(
+        self,
+        columns: Collection[str],
+        *,
+        mode: Literal["batch"],
+        filter: str,
+        batch_size: int | None = None,
         threading: bool = False,
     ) -> list[requests.Response]: ...
 
@@ -684,6 +716,27 @@ class DataverseEntity(Dataverse):
             return self._threaded_call(calls=calls)
         return self._individual_call(calls=calls)
 
+    @overload
+    def upsert(
+        self,
+        data: Collection[MutableMapping[str, Any]] | IntoFrame,
+        *,
+        mode: Literal["individual"],
+        altkey_name: str | None = None,
+        threading: bool = False,
+    ) -> list[requests.Response]: ...
+
+    @overload
+    def upsert(
+        self,
+        data: Collection[MutableMapping[str, Any]] | IntoFrame,
+        *,
+        mode: Literal["batch"],
+        altkey_name: str | None = None,
+        threading: bool = False,
+        batch_size: int | None = None,
+    ) -> list[requests.Response]: ...
+
     def upsert(
         self,
         data: Collection[MutableMapping[str, Any]] | IntoFrame,
@@ -705,6 +758,11 @@ class DataverseEntity(Dataverse):
         altkey_name : str
             The alternate key to use as ID (if any).
             Will assume entity primary ID attribute if not given.
+        threading : bool
+            Whether to use threading for individual requests.
+        batch_size : int
+            Optional override if batch mode is specified, useful for tuning workloads
+            if 429s or timeouts occur.
         """
         if altkey_name is not None:
             try:
