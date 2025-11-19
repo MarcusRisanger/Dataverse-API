@@ -675,6 +675,7 @@ class DataverseEntity(Dataverse):
         mode: Literal["individual", "batch"] = "individual",
         altkey_name: str | None = None,
         threading: bool = False,
+        batch_size: int | None = None,
     ) -> list[requests.Response]:
         """
         Upsert data into Entity.
@@ -689,6 +690,8 @@ class DataverseEntity(Dataverse):
             The alternate key to use as ID (if any).
             Will assume entity primary ID attribute if not given.
         """
+        if batch_size is None:
+            batch_size = 500
 
         if altkey_name is not None:
             try:
@@ -711,13 +714,13 @@ class DataverseEntity(Dataverse):
 
         if mode == "batch":
             logging.debug("%d rows to upsert. Using batch upserts.", len(data))
-            batch_data = transform_to_batch_for_upsert(
+            batch_commands = transform_to_batch_for_upsert(
                 url=self.entity_set_name,
                 data=data,
                 keys=key_columns,
                 is_primary_id=is_primary_id,
             )
-            return self._batch_api_call(batch_data, threading=threading)
+            return self._batch_api_call(batch_commands=batch_commands, threading=threading, batch_size=batch_size)
 
         raise DataverseModeError(mode, "individual", "batch")
 
