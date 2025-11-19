@@ -113,7 +113,7 @@ class BatchCommand:
         return dedent(row_command)
 
 
-def chunk_data(data: Sequence[T], size: int = 500) -> Generator[Sequence[T], None, None]:
+def chunk_data(data: Sequence[T], size: int) -> Generator[Sequence[T], None, None]:
     """
     Simple function to chunk a list into a maximum number of
     elements per chunk.

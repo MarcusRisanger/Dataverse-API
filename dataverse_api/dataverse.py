@@ -350,6 +350,7 @@ class DataverseClient(Dataverse):
         self,
         batch_data: list[BatchCommand],
         batch_id_generator: Callable[[], str] | None = None,
+        batch_size: int | None = None,
     ) -> list[requests.Response]:
         """
         Submits a custom batch for processing.
@@ -366,4 +367,8 @@ class DataverseClient(Dataverse):
         list of requests.Response
             The response from the server.
         """
-        return self._batch_api_call(batch_commands=batch_data, id_generator=batch_id_generator)
+        return self._batch_api_call(
+            batch_commands=batch_data,
+            batch_size=batch_size or 500,
+            id_generator=batch_id_generator,
+        )

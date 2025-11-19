@@ -106,8 +106,8 @@ class Dataverse:
     def _batch_api_call(
         self,
         batch_commands: Sequence[BatchCommand],
+        batch_size: int,
         id_generator: Callable[[], str] | None = None,
-        batch_size: int | None = None,
         timeout: int | None = None,
         threading: bool = False,
     ) -> list[requests.Response]:
@@ -118,10 +118,10 @@ class Dataverse:
         ----------
         batch_commands : Sequence[BatchCommand]
             The request descriptions for each batch command to submit.
+        batch_size : int
+            Batch size for tuning sizes.
         id_generator : Callable[[], str]
             Optional callable for generating unique batch IDs.
-        batch_size : int
-            Optional batch size override for tuning sizes.
         timeout : int | None
             Optional timeout override.
 
@@ -134,27 +134,24 @@ class Dataverse:
         if id_generator is None:
             id_generator = lambda: str(uuid4())  # noqa: E731
 
-        if batch_size is None:
-            batch_size = 500
-
-        batches: list[APICommand] = list()
-        for batch in chunk_data(batch_commands, batch_size):
+        calls: list[APICommand] = list()
+        for batch in chunk_data(data=batch_commands, size=batch_size):
             # Generate a unique ID for the batch
             id = f"batch_{id_generator()}"
 
             # Preparing batch data
-            batch_data = [comm.encode(id, self._endpoint) for comm in batch]
+            batch_data = [comm.encode(batch_id=id, api_url=self._endpoint) for comm in batch]
             batch_data.append(f"\n--{id}--\n\n")
 
             payload = "\n".join(batch_data)
             headers = {"Content-Type": f'multipart/mixed; boundary="{id}"', "If-None-Match": "null"}
 
-            batches.append(APICommand(method=RequestMethod.POST, url="$batch", headers=headers, data=payload))
+            calls.append(APICommand(method=RequestMethod.POST, url="$batch", headers=headers, data=payload))
 
         if threading:
-            return self._threaded_call(batches, timeout=timeout)
+            return self._threaded_call(calls=calls, timeout=timeout)
         else:
-            return self._individual_call(batches, timeout=timeout)
+            return self._individual_call(calls=calls, timeout=timeout)
 
     def _individual_call(self, calls: Sequence[APICommand], timeout: int | None = None) -> list[requests.Response]:
         """

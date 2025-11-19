@@ -5,7 +5,7 @@ from typing import Any, Literal, overload
 
 import requests
 from narwhals.dependencies import is_into_dataframe
-from narwhals.typing import IntoFrameT
+from narwhals.typing import IntoFrame
 
 from dataverse_api._api import Dataverse
 from dataverse_api.errors import DataverseError, DataverseModeError
@@ -323,9 +323,9 @@ class DataverseEntity(Dataverse):
     @overload
     def create(
         self,
-        data: Sequence[MutableMapping[str, Any]] | IntoFrameT,
+        data: Sequence[MutableMapping[str, Any]] | IntoFrame,
         *,
-        mode: Literal["individual", "multiple"] = "individual",
+        mode: Literal["individual"],
         detect_duplicates: bool = False,
         return_created: bool = False,
         threading: bool = False,
@@ -334,9 +334,9 @@ class DataverseEntity(Dataverse):
     @overload
     def create(
         self,
-        data: Sequence[MutableMapping[str, Any]] | IntoFrameT,
+        data: Sequence[MutableMapping[str, Any]] | IntoFrame,
         *,
-        mode: Literal["batch"],
+        mode: Literal["batch", "multiple"],
         detect_duplicates: bool = False,
         return_created: bool = False,
         batch_size: int | None = None,
@@ -345,7 +345,7 @@ class DataverseEntity(Dataverse):
 
     def create(
         self,
-        data: Sequence[MutableMapping[str, Any]] | IntoFrameT,
+        data: Sequence[MutableMapping[str, Any]] | IntoFrame,
         *,
         mode: Literal["individual", "multiple", "batch"] = "individual",
         detect_duplicates: bool = False,
@@ -369,12 +369,14 @@ class DataverseEntity(Dataverse):
             created rows.
         batch_size : int
             Optional override if batch mode is specified, useful for tuning workload
-            per batch if 429s occur.
+            per batch if e.g. timeouts or 429s occur.
         """
         if is_into_dataframe(data):
             data = convert_dataframe_to_dict(data)
 
         assert isinstance(data, Sequence)
+
+        batch_size = batch_size or 500
 
         headers: dict[str, str] = dict()
         if detect_duplicates:
@@ -392,7 +394,12 @@ class DataverseEntity(Dataverse):
             if not self.supports_create_multiple:
                 raise DataverseError(f"CreateMultiple is not supported by {self.logical_name}. Use a different mode.")
             logging.debug("%d rows to insert using CreateMultiple.", length)
-            return self.__create_multiple(headers=headers, data=data, threading=threading)
+            return self.__create_multiple(
+                headers=headers,
+                data=data,
+                batch_size=batch_size,
+                threading=threading,
+            )
 
         if mode == "batch":
             logging.debug(
@@ -427,7 +434,11 @@ class DataverseEntity(Dataverse):
         return self._individual_call(calls=calls)
 
     def __create_multiple(
-        self, headers: Mapping[str, str], data: Sequence[MutableMapping[str, Any]], threading: bool
+        self,
+        headers: Mapping[str, str],
+        data: Sequence[MutableMapping[str, Any]],
+        threading: bool,
+        batch_size: int,
     ) -> list[requests.Response]:
         """
         Insert rows by using the `CreateMultiple` Web API Action.
@@ -447,21 +458,21 @@ class DataverseEntity(Dataverse):
                 headers=headers,
                 json={"Targets": rows},
             )
-            for rows in chunk_data(data=data, size=500)
+            for rows in chunk_data(data=data, size=batch_size)
         ]
 
         if threading:
-            return self._threaded_call(calls)
-        return self._individual_call(calls)
+            return self._threaded_call(calls=calls)
+        return self._individual_call(calls=calls)
 
     def __create_batch(
-        self, data: Collection[MutableMapping[str, Any]], batch_size: int | None, threading: bool
+        self, data: Collection[MutableMapping[str, Any]], batch_size: int, threading: bool
     ) -> list[requests.Response]:
         """
         Run a batch insert operation on the given data.
         """
-        batch_data = transform_to_batch_for_create(url=self.entity_set_name, data=data)
-        return self._batch_api_call(batch_data, batch_size=batch_size, threading=threading)
+        batch_commands = transform_to_batch_for_create(url=self.entity_set_name, data=data)
+        return self._batch_api_call(batch_commands=batch_commands, batch_size=batch_size, threading=threading)
 
     def __delete_singles(self, data: Iterable[str], threading: bool) -> list[requests.Response]:
         calls = [
@@ -480,7 +491,7 @@ class DataverseEntity(Dataverse):
     def delete(
         self,
         *,
-        mode: Literal["individual"] = "individual",
+        mode: Literal["individual"],
         ids: Collection[str],
     ) -> list[requests.Response]: ...
 
@@ -488,19 +499,29 @@ class DataverseEntity(Dataverse):
     def delete(
         self,
         *,
-        mode: Literal["individual"] = "individual",
+        mode: Literal["individual"],
         filter: str,
         threading: bool = False,
     ) -> list[requests.Response]: ...
 
     @overload
     def delete(
-        self, *, mode: Literal["batch"], filter: str, batch_size: int | None = None, threading: bool = False
+        self,
+        *,
+        mode: Literal["batch"],
+        filter: str,
+        batch_size: int | None = None,
+        threading: bool = False,
     ) -> list[requests.Response]: ...
 
     @overload
     def delete(
-        self, *, mode: Literal["batch"], ids: Collection[str], batch_size: int | None = None, threading: bool = False
+        self,
+        *,
+        mode: Literal["batch"],
+        ids: Collection[str],
+        batch_size: int | None = None,
+        threading: bool = False,
     ) -> list[requests.Response]: ...
 
     def delete(
@@ -549,8 +570,13 @@ class DataverseEntity(Dataverse):
 
         if mode == "batch":
             logging.debug("%d rows to delete using batch deletes.", length)
-            batch_data = transform_to_batch_for_delete(url=self.entity_set_name, data=ids)
-            return self._batch_api_call(batch_data, batch_size=batch_size or 100, timeout=120, threading=threading)
+            batch_commands = transform_to_batch_for_delete(url=self.entity_set_name, data=ids)
+            return self._batch_api_call(
+                batch_commands=batch_commands,
+                batch_size=batch_size or 100,
+                timeout=120,
+                threading=threading,
+            )
 
         raise DataverseModeError(mode, "individual", "batch")
 
@@ -574,7 +600,7 @@ class DataverseEntity(Dataverse):
         self,
         columns: Collection[str],
         *,
-        mode: Literal["individual", "batch"] = "individual",
+        mode: Literal["individual"],
         ids: Collection[str],
         threading: bool = False,
     ) -> list[requests.Response]: ...
@@ -584,8 +610,30 @@ class DataverseEntity(Dataverse):
         self,
         columns: Collection[str],
         *,
-        mode: Literal["individual", "batch"] = "individual",
+        mode: Literal["individual"],
         filter: str,
+        threading: bool = False,
+    ) -> list[requests.Response]: ...
+
+    @overload
+    def delete_columns(
+        self,
+        columns: Collection[str],
+        *,
+        mode: Literal["batch"],
+        ids: Collection[str],
+        batch_size: int | None = None,
+        threading: bool = False,
+    ) -> list[requests.Response]: ...
+
+    @overload
+    def delete_columns(
+        self,
+        columns: Collection[str],
+        *,
+        mode: Literal["batch"],
+        filter: str,
+        batch_size: int | None = None,
         threading: bool = False,
     ) -> list[requests.Response]: ...
 
@@ -596,6 +644,7 @@ class DataverseEntity(Dataverse):
         ids: Collection[str] | None = None,
         filter: str | None = None,
         mode: Literal["individual", "batch"] = "individual",
+        batch_size: int | None = None,
         threading: bool = False,
     ) -> list[requests.Response]:
         """
@@ -637,8 +686,14 @@ class DataverseEntity(Dataverse):
         if mode == "batch":
             logging.debug("%d properties to delete. Using batch deletes.", length)
             for col in columns:
-                batch_data = transform_to_batch_for_delete(url=self.entity_set_name, data=ids, column=col)
-                output.extend(self._batch_api_call(batch_data, threading=threading))
+                batch_commands = transform_to_batch_for_delete(url=self.entity_set_name, data=ids, column=col)
+                output.extend(
+                    self._batch_api_call(
+                        batch_commands=batch_commands,
+                        batch_size=batch_size or 500,
+                        threading=threading,
+                    )
+                )
             return output
 
         raise DataverseModeError(mode, "individual", "batch")
@@ -655,19 +710,41 @@ class DataverseEntity(Dataverse):
                 url=f"{self.entity_set_name}({key})",
                 json=payload,
             )
-            for key, payload in transform_upsert_data(data, keys, is_primary_id)
+            for key, payload in transform_upsert_data(data=data, keys=keys, is_primary_id=is_primary_id)
         ]
         if threading:
             return self._threaded_call(calls=calls)
         return self._individual_call(calls=calls)
 
+    @overload
     def upsert(
         self,
-        data: Collection[MutableMapping[str, Any]] | IntoFrameT,
+        data: Collection[MutableMapping[str, Any]] | IntoFrame,
+        *,
+        mode: Literal["individual"],
+        altkey_name: str | None = None,
+        threading: bool = False,
+    ) -> list[requests.Response]: ...
+
+    @overload
+    def upsert(
+        self,
+        data: Collection[MutableMapping[str, Any]] | IntoFrame,
+        *,
+        mode: Literal["batch"],
+        altkey_name: str | None = None,
+        threading: bool = False,
+        batch_size: int | None = None,
+    ) -> list[requests.Response]: ...
+
+    def upsert(
+        self,
+        data: Collection[MutableMapping[str, Any]] | IntoFrame,
         *,
         mode: Literal["individual", "batch"] = "individual",
         altkey_name: str | None = None,
         threading: bool = False,
+        batch_size: int | None = None,
     ) -> list[requests.Response]:
         """
         Upsert data into Entity.
@@ -681,8 +758,12 @@ class DataverseEntity(Dataverse):
         altkey_name : str
             The alternate key to use as ID (if any).
             Will assume entity primary ID attribute if not given.
+        threading : bool
+            Whether to use threading for individual requests.
+        batch_size : int
+            Optional override if batch mode is specified, useful for tuning workloads
+            if 429s or timeouts occur.
         """
-
         if altkey_name is not None:
             try:
                 key_columns = self.alternate_keys[altkey_name]
@@ -704,13 +785,17 @@ class DataverseEntity(Dataverse):
 
         if mode == "batch":
             logging.debug("%d rows to upsert. Using batch upserts.", len(data))
-            batch_data = transform_to_batch_for_upsert(
+            batch_commands = transform_to_batch_for_upsert(
                 url=self.entity_set_name,
                 data=data,
                 keys=key_columns,
                 is_primary_id=is_primary_id,
             )
-            return self._batch_api_call(batch_data, threading=threading)
+            return self._batch_api_call(
+                batch_commands=batch_commands,
+                threading=threading,
+                batch_size=batch_size or 500,
+            )
 
         raise DataverseModeError(mode, "individual", "batch")
 
