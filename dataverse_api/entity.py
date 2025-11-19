@@ -325,7 +325,7 @@ class DataverseEntity(Dataverse):
         self,
         data: Sequence[MutableMapping[str, Any]] | IntoFrameT,
         *,
-        mode: Literal["individual", "multiple"] = "individual",
+        mode: Literal["individual"] = "individual",
         detect_duplicates: bool = False,
         return_created: bool = False,
         threading: bool = False,
@@ -336,7 +336,7 @@ class DataverseEntity(Dataverse):
         self,
         data: Sequence[MutableMapping[str, Any]] | IntoFrameT,
         *,
-        mode: Literal["batch"],
+        mode: Literal["batch", "multiple"] = "batch",
         detect_duplicates: bool = False,
         return_created: bool = False,
         batch_size: int | None = None,
@@ -369,7 +369,7 @@ class DataverseEntity(Dataverse):
             created rows.
         batch_size : int
             Optional override if batch mode is specified, useful for tuning workload
-            per batch if 429s occur.
+            per batch if e.g. timeouts or 429s occur.
         """
         if is_into_dataframe(data):
             data = convert_dataframe_to_dict(data)
@@ -392,7 +392,7 @@ class DataverseEntity(Dataverse):
             if not self.supports_create_multiple:
                 raise DataverseError(f"CreateMultiple is not supported by {self.logical_name}. Use a different mode.")
             logging.debug("%d rows to insert using CreateMultiple.", length)
-            return self.__create_multiple(headers=headers, data=data, threading=threading)
+            return self.__create_multiple(headers=headers, data=data, batch_size=batch_size, threading=threading)
 
         if mode == "batch":
             logging.debug(
@@ -427,11 +427,18 @@ class DataverseEntity(Dataverse):
         return self._individual_call(calls=calls)
 
     def __create_multiple(
-        self, headers: Mapping[str, str], data: Sequence[MutableMapping[str, Any]], threading: bool
+        self,
+        headers: Mapping[str, str],
+        data: Sequence[MutableMapping[str, Any]],
+        threading: bool,
+        batch_size: int | None,
     ) -> list[requests.Response]:
         """
         Insert rows by using the `CreateMultiple` Web API Action.
         """
+        if batch_size is None:
+            batch_size = 500
+
         # Preserving input data
         data = copy(data)
 
@@ -447,12 +454,12 @@ class DataverseEntity(Dataverse):
                 headers=headers,
                 json={"Targets": rows},
             )
-            for rows in chunk_data(data=data, size=500)
+            for rows in chunk_data(data=data, size=batch_size)
         ]
 
         if threading:
-            return self._threaded_call(calls)
-        return self._individual_call(calls)
+            return self._threaded_call(calls=calls)
+        return self._individual_call(calls=calls)
 
     def __create_batch(
         self, data: Collection[MutableMapping[str, Any]], batch_size: int | None, threading: bool
