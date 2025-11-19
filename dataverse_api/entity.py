@@ -5,7 +5,7 @@ from typing import Any, Literal, overload
 
 import requests
 from narwhals.dependencies import is_into_dataframe
-from narwhals.typing import IntoFrameT
+from narwhals.typing import IntoFrame
 
 from dataverse_api._api import Dataverse
 from dataverse_api.errors import DataverseError, DataverseModeError
@@ -323,7 +323,7 @@ class DataverseEntity(Dataverse):
     @overload
     def create(
         self,
-        data: Sequence[MutableMapping[str, Any]] | IntoFrameT,
+        data: Sequence[MutableMapping[str, Any]] | IntoFrame,
         *,
         mode: Literal["individual"] = "individual",
         detect_duplicates: bool = False,
@@ -334,7 +334,7 @@ class DataverseEntity(Dataverse):
     @overload
     def create(
         self,
-        data: Sequence[MutableMapping[str, Any]] | IntoFrameT,
+        data: Sequence[MutableMapping[str, Any]] | IntoFrame,
         *,
         mode: Literal["batch", "multiple"] = "batch",
         detect_duplicates: bool = False,
@@ -345,7 +345,7 @@ class DataverseEntity(Dataverse):
 
     def create(
         self,
-        data: Sequence[MutableMapping[str, Any]] | IntoFrameT,
+        data: Sequence[MutableMapping[str, Any]] | IntoFrame,
         *,
         mode: Literal["individual", "multiple", "batch"] = "individual",
         detect_duplicates: bool = False,
@@ -376,6 +376,8 @@ class DataverseEntity(Dataverse):
 
         assert isinstance(data, Sequence)
 
+        batch_size = batch_size or 500
+
         headers: dict[str, str] = dict()
         if detect_duplicates:
             headers["MSCRM.SuppressDuplicateDetection"] = "false"
@@ -392,7 +394,12 @@ class DataverseEntity(Dataverse):
             if not self.supports_create_multiple:
                 raise DataverseError(f"CreateMultiple is not supported by {self.logical_name}. Use a different mode.")
             logging.debug("%d rows to insert using CreateMultiple.", length)
-            return self.__create_multiple(headers=headers, data=data, batch_size=batch_size, threading=threading)
+            return self.__create_multiple(
+                headers=headers,
+                data=data,
+                batch_size=batch_size,
+                threading=threading,
+            )
 
         if mode == "batch":
             logging.debug(
@@ -431,14 +438,11 @@ class DataverseEntity(Dataverse):
         headers: Mapping[str, str],
         data: Sequence[MutableMapping[str, Any]],
         threading: bool,
-        batch_size: int | None,
+        batch_size: int,
     ) -> list[requests.Response]:
         """
         Insert rows by using the `CreateMultiple` Web API Action.
         """
-        if batch_size is None:
-            batch_size = 500
-
         # Preserving input data
         data = copy(data)
 
@@ -462,13 +466,13 @@ class DataverseEntity(Dataverse):
         return self._individual_call(calls=calls)
 
     def __create_batch(
-        self, data: Collection[MutableMapping[str, Any]], batch_size: int | None, threading: bool
+        self, data: Collection[MutableMapping[str, Any]], batch_size: int, threading: bool
     ) -> list[requests.Response]:
         """
         Run a batch insert operation on the given data.
         """
-        batch_data = transform_to_batch_for_create(url=self.entity_set_name, data=data)
-        return self._batch_api_call(batch_data, batch_size=batch_size, threading=threading)
+        batch_commands = transform_to_batch_for_create(url=self.entity_set_name, data=data)
+        return self._batch_api_call(batch_commands=batch_commands, batch_size=batch_size, threading=threading)
 
     def __delete_singles(self, data: Iterable[str], threading: bool) -> list[requests.Response]:
         calls = [
@@ -556,8 +560,13 @@ class DataverseEntity(Dataverse):
 
         if mode == "batch":
             logging.debug("%d rows to delete using batch deletes.", length)
-            batch_data = transform_to_batch_for_delete(url=self.entity_set_name, data=ids)
-            return self._batch_api_call(batch_data, batch_size=batch_size or 100, timeout=120, threading=threading)
+            batch_commands = transform_to_batch_for_delete(url=self.entity_set_name, data=ids)
+            return self._batch_api_call(
+                batch_commands=batch_commands,
+                batch_size=batch_size or 500,
+                timeout=120,
+                threading=threading,
+            )
 
         raise DataverseModeError(mode, "individual", "batch")
 
@@ -603,6 +612,7 @@ class DataverseEntity(Dataverse):
         ids: Collection[str] | None = None,
         filter: str | None = None,
         mode: Literal["individual", "batch"] = "individual",
+        batch_size: int | None = None,
         threading: bool = False,
     ) -> list[requests.Response]:
         """
@@ -644,8 +654,14 @@ class DataverseEntity(Dataverse):
         if mode == "batch":
             logging.debug("%d properties to delete. Using batch deletes.", length)
             for col in columns:
-                batch_data = transform_to_batch_for_delete(url=self.entity_set_name, data=ids, column=col)
-                output.extend(self._batch_api_call(batch_data, threading=threading))
+                batch_commands = transform_to_batch_for_delete(url=self.entity_set_name, data=ids, column=col)
+                output.extend(
+                    self._batch_api_call(
+                        batch_commands=batch_commands,
+                        batch_size=batch_size or 500,
+                        threading=threading,
+                    )
+                )
             return output
 
         raise DataverseModeError(mode, "individual", "batch")
@@ -662,7 +678,7 @@ class DataverseEntity(Dataverse):
                 url=f"{self.entity_set_name}({key})",
                 json=payload,
             )
-            for key, payload in transform_upsert_data(data, keys, is_primary_id)
+            for key, payload in transform_upsert_data(data=data, keys=keys, is_primary_id=is_primary_id)
         ]
         if threading:
             return self._threaded_call(calls=calls)
@@ -670,7 +686,7 @@ class DataverseEntity(Dataverse):
 
     def upsert(
         self,
-        data: Collection[MutableMapping[str, Any]] | IntoFrameT,
+        data: Collection[MutableMapping[str, Any]] | IntoFrame,
         *,
         mode: Literal["individual", "batch"] = "individual",
         altkey_name: str | None = None,
@@ -690,9 +706,6 @@ class DataverseEntity(Dataverse):
             The alternate key to use as ID (if any).
             Will assume entity primary ID attribute if not given.
         """
-        if batch_size is None:
-            batch_size = 500
-
         if altkey_name is not None:
             try:
                 key_columns = self.alternate_keys[altkey_name]
@@ -720,7 +733,11 @@ class DataverseEntity(Dataverse):
                 keys=key_columns,
                 is_primary_id=is_primary_id,
             )
-            return self._batch_api_call(batch_commands=batch_commands, threading=threading, batch_size=batch_size)
+            return self._batch_api_call(
+                batch_commands=batch_commands,
+                threading=threading,
+                batch_size=batch_size or 500,
+            )
 
         raise DataverseModeError(mode, "individual", "batch")
 

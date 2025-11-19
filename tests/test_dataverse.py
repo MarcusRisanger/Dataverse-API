@@ -41,8 +41,9 @@ def test_api_batch(client: DataverseClient, mocked_responses: responses.Requests
         match=[header_matcher({"Content-Type": f'multipart/mixed; boundary="batch_{batch}"', "If-None-Match": "null"})],
     )
 
-    req = client._batch_api_call(batch_data, id_generator=lambda: batch)[0].request.body
+    req = client._batch_api_call(batch_data, batch_size=500, id_generator=lambda: batch)[0].request.body
 
+    assert isinstance(req, str)
     # Each batch command should be constructed like this:
     full_pattern = (
         rf"--batch_{batch}\nContent-Type: application/http\nContent.Transfer.Encoding: binary\n\n"
@@ -83,6 +84,7 @@ def test_create_entity(
     resp = client.create_entity(sample_entity)
 
     # Run some assertions that payload contains critical attributes
+    assert resp.request.body
     assert json.loads(resp.request.body) == sample_entity.dump_to_dataverse()
 
 

@@ -224,7 +224,7 @@ def test_entity_read_with_args(
     page_size = 69
     headers = {"Prefer": f"odata.maxpagesize={page_size}"}
 
-    mocked_responses.get(url=url, json=sample_data, match=[query_param_matcher(params), header_matcher(headers)])
+    mocked_responses.get(url=url, json=sample_data, match=[query_param_matcher(params), header_matcher(headers)])  # type: ignore
 
     resp = entity.read(select=[select], filter=filter, top=top, order_by=order_by, expand=expand, page_size=page_size)
     assert resp == sample_data["value"]
@@ -240,7 +240,7 @@ def test_entity_read_with_paging(
     headers = {"Prefer": "odata.include-annotations=OData.Community.Display.V1.FormattedValue"}
 
     # Mocking responses
-    matcher = [header_matcher(headers, strict_match=False)]  # Headers should persist across calls
+    matcher = [header_matcher(headers, strict_match=False)]  # Headers should persist across calls  # type: ignore
     mocked_responses.get(url=next_url, json=sample_data, match=matcher)
     sample_data["@odata.nextLink"] = next_url  # type: ignore
     mocked_responses.get(url=url, json=sample_data, match=matcher)
@@ -362,7 +362,7 @@ def test_entity_create_with_args(
 
     # Mock single requests
     for _ in small_data_package:
-        mocked_responses.post(url=url, match=[header_matcher(header)], status=200)
+        mocked_responses.post(url=url, match=[header_matcher(header)], status=200)  # type: ignore
 
     resp = entity.create(data=small_data_package, detect_duplicates=True, return_created=True)
     assert all([x.status_code == 200 for x in resp])
@@ -568,7 +568,7 @@ def test_entity_delete_column_batch_all(entity: DataverseEntity, mocked_response
 
     for item in return_payload:
         for i, col in enumerate(columns):
-            assert f"{entity._endpoint}{entity.entity_set_name}({item[id]})/{col}" in resp[i].request.body
+            assert f"{entity._endpoint}{entity.entity_set_name}({item[id]})/{col}" in resp[i].request.body  # type: ignore
 
 
 def test_entity_delete_column_singles_ids(entity: DataverseEntity, mocked_responses: responses.RequestsMock):
@@ -708,12 +708,12 @@ def test_entity_upsert_batch_altkey(
 
 def test_entity_upsert_mode_not_supported(entity: DataverseEntity):
     with pytest.raises(DataverseError, match=r"Mode .* is not supported.*"):
-        entity.upsert({"data": 1}, mode="foo")  # type: ignore
+        entity.upsert([{"data": 1}], mode="foo")  # type: ignore
 
 
 def test_entity_upsert_bad_altkey(entity: DataverseEntity):
     with pytest.raises(DataverseError, match=r"Altkey.*"):
-        entity.upsert({"data": 1}, altkey_name="foo")
+        entity.upsert([{"data": 1}], altkey_name="foo")
 
 
 def test_entity_upsert_pandas_dataframe(

@@ -106,8 +106,8 @@ class Dataverse:
     def _batch_api_call(
         self,
         batch_commands: Sequence[BatchCommand],
+        batch_size: int,
         id_generator: Callable[[], str] | None = None,
-        batch_size: int | None = None,
         timeout: int | None = None,
         threading: bool = False,
     ) -> list[requests.Response]:
@@ -118,10 +118,10 @@ class Dataverse:
         ----------
         batch_commands : Sequence[BatchCommand]
             The request descriptions for each batch command to submit.
+        batch_size : int
+            Batch size for tuning sizes.
         id_generator : Callable[[], str]
             Optional callable for generating unique batch IDs.
-        batch_size : int
-            Optional batch size override for tuning sizes.
         timeout : int | None
             Optional timeout override.
 
@@ -133,9 +133,6 @@ class Dataverse:
 
         if id_generator is None:
             id_generator = lambda: str(uuid4())  # noqa: E731
-
-        if batch_size is None:
-            batch_size = 500
 
         calls: list[APICommand] = list()
         for batch in chunk_data(data=batch_commands, size=batch_size):
