@@ -1,6 +1,6 @@
 [project]
 name = "dataverse-api"
-version = "1.4.0"
+version = "1.4.1"
 description = "Abstraction layer for interacting with Microsoft Dataverse Web API using Python."
 authors = [{ name = "Marcus Risanger", email = "69350948+MarcusRisanger@users.noreply.github.com" }]
 requires-python = ">=3.11,<4"
