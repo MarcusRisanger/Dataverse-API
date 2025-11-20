@@ -325,7 +325,7 @@ class DataverseEntity(Dataverse):
         self,
         data: Sequence[MutableMapping[str, Any]] | IntoFrame,
         *,
-        mode: Literal["individual"],
+        mode: Literal["individual"] = "individual",
         detect_duplicates: bool = False,
         return_created: bool = False,
         threading: bool = False,
@@ -491,7 +491,7 @@ class DataverseEntity(Dataverse):
     def delete(
         self,
         *,
-        mode: Literal["individual"],
+        mode: Literal["individual"] = "individual",
         ids: Collection[str],
     ) -> list[requests.Response]: ...
 
@@ -499,7 +499,7 @@ class DataverseEntity(Dataverse):
     def delete(
         self,
         *,
-        mode: Literal["individual"],
+        mode: Literal["individual"] = "individual",
         filter: str,
         threading: bool = False,
     ) -> list[requests.Response]: ...
@@ -600,7 +600,7 @@ class DataverseEntity(Dataverse):
         self,
         columns: Collection[str],
         *,
-        mode: Literal["individual"],
+        mode: Literal["individual"] = "individual",
         ids: Collection[str],
         threading: bool = False,
     ) -> list[requests.Response]: ...
@@ -610,7 +610,7 @@ class DataverseEntity(Dataverse):
         self,
         columns: Collection[str],
         *,
-        mode: Literal["individual"],
+        mode: Literal["individual"] = "individual",
         filter: str,
         threading: bool = False,
     ) -> list[requests.Response]: ...
@@ -721,7 +721,7 @@ class DataverseEntity(Dataverse):
         self,
         data: Collection[MutableMapping[str, Any]] | IntoFrame,
         *,
-        mode: Literal["individual"],
+        mode: Literal["individual"] = "individual",
         altkey_name: str | None = None,
         threading: bool = False,
     ) -> list[requests.Response]: ...
