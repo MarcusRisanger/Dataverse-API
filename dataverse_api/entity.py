@@ -306,7 +306,6 @@ class DataverseEntity(Dataverse):
                 method=RequestMethod.GET,
                 url=response.json()["@odata.nextLink"],
                 headers=additional_headers,
-                params=params,
             )
             output.append(response)
 
