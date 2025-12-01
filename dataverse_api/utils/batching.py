@@ -1,3 +1,4 @@
+import logging
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
 from enum import StrEnum
@@ -166,6 +167,54 @@ def transform_to_batch_for_delete(url: str, data: Iterable[str], column: str | N
 UpsertDataType = tuple[str, dict[str, Any]]
 
 
+def _validate_altkey_types(data: Collection[Mapping[str, Any]], keys: Iterable[str]) -> None:
+    """
+    Validate that alternate key columns contain only simple types.
+    
+    Logs a warning if complex types are detected in alternate key columns.
+    According to Microsoft documentation, alternate keys should only contain
+    simple types (str, int, float, bool) for reliable upsert operations.
+    
+    Parameters
+    ----------
+    data : Collection[Mapping[str, Any]]
+        The data to validate.
+    keys : Iterable[str]
+        The alternate key column names.
+    """
+    keys_list = list(keys)
+    
+    # Check first row for type issues
+    if not data:
+        return
+    
+    first_row = next(iter(data))
+    problematic_keys = []
+    
+    for key in keys_list:
+        if key not in first_row:
+            continue
+            
+        value = first_row[key]
+        # Allow None values as they might be handled specially
+        if value is None:
+            continue
+            
+        # Check if the type is simple (str, int, float, bool)
+        if not isinstance(value, (str, int, float, bool)):
+            problematic_keys.append((key, type(value).__name__))
+    
+    if problematic_keys:
+        key_type_str = ", ".join([f"'{key}' ({type_name})" for key, type_name in problematic_keys])
+        logging.warning(
+            "Alternate key column(s) %s contain complex types. "
+            "Upsert operations with alternate keys may not work correctly with types other than "
+            "str, int, float, or bool. Consider serializing these values before calling upsert. "
+            "See: https://learn.microsoft.com/en-us/power-apps/developer/data-platform/define-alternate-keys-entity#create-alternate-keys",
+            key_type_str
+        )
+
+
 def transform_upsert_data(
     data: Collection[Mapping[str, Any]],
     keys: Iterable[str],
@@ -189,6 +238,10 @@ def transform_upsert_data(
         [0] : The target row identifier
         [1] : The data payload
     """
+    # Validate alternate key types if not using primary ID
+    if not is_primary_id:
+        _validate_altkey_types(data, keys)
+    
     for row in data:
         if is_primary_id:
             # No repr on string
