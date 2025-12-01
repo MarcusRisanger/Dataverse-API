@@ -1,3 +1,5 @@
+import logging
+from collections import defaultdict
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
 from enum import StrEnum
@@ -5,6 +7,7 @@ from textwrap import dedent
 from typing import Any, Collection, Generator, Mapping, MutableMapping, TypeVar
 from urllib.parse import urljoin
 
+from dataverse_api.errors import DataverseError
 from dataverse_api.utils.data import serialize_json
 from dataverse_api.utils.text import encode_altkeys
 
@@ -221,8 +224,8 @@ def transform_to_batch_for_upsert(
     is_id : bool
         Whether the supplied singular key is the Entity primary ID attribute.
     """
+    check_altkey_support(keys=keys, data=data)
     commands = []
-
     for keys, payload in transform_upsert_data(data, keys, is_primary_id):
         commands.append(
             BatchCommand(
@@ -233,3 +236,41 @@ def transform_to_batch_for_upsert(
         )
 
     return commands
+
+
+def check_altkey_support(keys: Iterable[str], data: Collection[Mapping[str, Any]]) -> None:
+    """
+    Check if the given keys can be used as alternate keys.
+
+    Parameters
+    ----------
+    keys : iterable of str
+        The keys to check.
+    primary_id : str
+        The primary ID attribute for the Entity.
+
+    Returns
+    -------
+    bool
+        Whether the given keys can be used as alternate keys.
+    """
+    bad_types = defaultdict(set)
+
+    for row in data:
+        for key in keys:
+            if key not in row:
+                raise DataverseError(f"Column '{key}' used in alternate key not found in data row: {row}.")
+            value = row.get(key)
+            if not isinstance(value, (str, int, float)):
+                bad_types[key].add(type(value).__name__)
+
+    if not bad_types:
+        return
+
+    data_types = ", ".join(f"{key} ({', '.join(types)})" for key, types in bad_types.items())
+
+    logging.warning(
+        "The following alternate key columns contain complex types and may not be supported "
+        "for use in alternate keys. It is recommended to serialize e.g. date types to the "
+        f"appropriate altkey string format prior to using upsert.: {data_types}"
+    )
