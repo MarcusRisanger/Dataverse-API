@@ -2,7 +2,6 @@ import logging
 from datetime import date, datetime
 from textwrap import dedent
 
-import pytest
 
 from dataverse_api.utils.batching import BatchCommand, RequestMethod, transform_upsert_data
 from dataverse_api.utils.data import serialize_json
@@ -128,13 +127,13 @@ def test_transform_upsert_data_with_simple_altkey_types_no_warning(caplog):
         {"key1": "test2", "key2": 456, "key3": 78.9, "value": "data2"},
     ]
     keys = ["key1", "key2", "key3"]
-    
+
     with caplog.at_level(logging.WARNING):
         result = list(transform_upsert_data(data, keys, is_primary_id=False))
-    
+
     # Should not log any warnings
     assert len(caplog.records) == 0
-    
+
     # Verify the transformation still works correctly
     assert len(result) == 2
     assert result[0][0] == "key1='test',key2=123,key3=45.6"
@@ -148,13 +147,13 @@ def test_transform_upsert_data_with_boolean_altkey_no_warning(caplog):
         {"is_active": False, "name": "test2", "value": "data2"},
     ]
     keys = ["is_active", "name"]
-    
+
     with caplog.at_level(logging.WARNING):
         result = list(transform_upsert_data(data, keys, is_primary_id=False))
-    
+
     # Should not log any warnings
     assert len(caplog.records) == 0
-    
+
     # Verify the transformation still works correctly
     assert len(result) == 2
     assert result[0][0] == "is_active=True,name='test'"
@@ -168,16 +167,16 @@ def test_transform_upsert_data_with_date_altkey_logs_warning(caplog):
         {"created_date": date(2024, 1, 2), "name": "test2", "value": "data2"},
     ]
     keys = ["created_date", "name"]
-    
+
     with caplog.at_level(logging.WARNING):
         result = list(transform_upsert_data(data, keys, is_primary_id=False))
-    
+
     # Should log a warning about the date type
     assert len(caplog.records) == 1
     assert "created_date" in caplog.records[0].message
     assert "date" in caplog.records[0].message
     assert "complex types" in caplog.records[0].message
-    
+
     # Verify the transformation still proceeds
     assert len(result) == 2
 
@@ -188,15 +187,15 @@ def test_transform_upsert_data_with_datetime_altkey_logs_warning(caplog):
         {"timestamp": datetime(2024, 1, 1, 12, 0, 0), "name": "test", "value": "data1"},
     ]
     keys = ["timestamp"]
-    
+
     with caplog.at_level(logging.WARNING):
         result = list(transform_upsert_data(data, keys, is_primary_id=False))
-    
+
     # Should log a warning about the datetime type
     assert len(caplog.records) == 1
     assert "timestamp" in caplog.records[0].message
     assert "datetime" in caplog.records[0].message
-    
+
     # Verify the transformation still proceeds
     assert len(result) == 1
 
@@ -212,10 +211,10 @@ def test_transform_upsert_data_with_mixed_complex_types_logs_warning(caplog):
         },
     ]
     keys = ["date_key", "dict_key", "name"]
-    
+
     with caplog.at_level(logging.WARNING):
         result = list(transform_upsert_data(data, keys, is_primary_id=False))
-    
+
     # Should log a warning mentioning both complex types
     assert len(caplog.records) == 1
     warning_message = caplog.records[0].message
@@ -223,7 +222,7 @@ def test_transform_upsert_data_with_mixed_complex_types_logs_warning(caplog):
     assert "dict_key" in warning_message
     assert "date" in warning_message
     assert "dict" in warning_message
-    
+
     # Verify the transformation still proceeds
     assert len(result) == 1
 
@@ -234,13 +233,13 @@ def test_transform_upsert_data_with_none_values_no_warning(caplog):
         {"key1": None, "key2": "test", "value": "data1"},
     ]
     keys = ["key1", "key2"]
-    
+
     with caplog.at_level(logging.WARNING):
         result = list(transform_upsert_data(data, keys, is_primary_id=False))
-    
+
     # Should not log any warnings (None is handled specially)
     assert len(caplog.records) == 0
-    
+
     # Verify the transformation still works
     assert len(result) == 1
 
@@ -251,13 +250,13 @@ def test_transform_upsert_data_with_primary_id_no_validation(caplog):
         {"id": date(2024, 1, 1), "value": "data1"},  # Even with date type
     ]
     keys = ["id"]
-    
+
     with caplog.at_level(logging.WARNING):
         result = list(transform_upsert_data(data, keys, is_primary_id=True))
-    
+
     # Should not log any warnings when using primary ID
     assert len(caplog.records) == 0
-    
+
     # Verify the transformation still works
     assert len(result) == 1
 
@@ -266,10 +265,10 @@ def test_transform_upsert_data_with_empty_data_no_error(caplog):
     """Test that empty data doesn't cause errors."""
     data = []
     keys = ["key1", "key2"]
-    
+
     with caplog.at_level(logging.WARNING):
         result = list(transform_upsert_data(data, keys, is_primary_id=False))
-    
+
     # Should not log any warnings or raise errors
     assert len(caplog.records) == 0
     assert len(result) == 0
