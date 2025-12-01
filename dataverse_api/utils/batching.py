@@ -200,6 +200,7 @@ def _validate_altkey_types(data: Collection[Mapping[str, Any]], keys: Iterable[s
             continue
 
         # Check if the type is simple (str, int, float, bool)
+        # Using isinstance allows subclasses, which is typically desired in Python
         if not isinstance(value, (str, int, float, bool)):
             problematic_keys.append((key, type(value).__name__))
 
