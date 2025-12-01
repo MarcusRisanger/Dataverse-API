@@ -182,16 +182,15 @@ def _validate_altkey_types(data: Collection[Mapping[str, Any]], keys: Iterable[s
     keys : Iterable[str]
         The alternate key column names.
     """
-    keys_list = list(keys)
-
     # Check first row for type issues
     if not data:
         return
 
+    # Use next(iter()) to get first element since Collection doesn't guarantee indexing
     first_row = next(iter(data))
     problematic_keys = []
 
-    for key in keys_list:
+    for key in keys:
         if key not in first_row:
             continue
 
