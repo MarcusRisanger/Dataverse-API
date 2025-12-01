@@ -4,8 +4,8 @@ from copy import copy
 from typing import Any, Literal, overload
 
 import requests
-from narwhals.dependencies import is_into_dataframe
-from narwhals.typing import IntoFrame
+from narwhals.stable.v2.dependencies import is_into_dataframe
+from narwhals.stable.v2.typing import IntoDataFrame
 
 from dataverse_api._api import Dataverse
 from dataverse_api.errors import DataverseError, DataverseModeError
@@ -323,7 +323,7 @@ class DataverseEntity(Dataverse):
     @overload
     def create(
         self,
-        data: Sequence[MutableMapping[str, Any]] | IntoFrame,
+        data: Sequence[MutableMapping[str, Any]] | IntoDataFrame,
         *,
         mode: Literal["individual"] = "individual",
         detect_duplicates: bool = False,
@@ -334,7 +334,7 @@ class DataverseEntity(Dataverse):
     @overload
     def create(
         self,
-        data: Sequence[MutableMapping[str, Any]] | IntoFrame,
+        data: Sequence[MutableMapping[str, Any]] | IntoDataFrame,
         *,
         mode: Literal["batch", "multiple"],
         detect_duplicates: bool = False,
@@ -345,7 +345,7 @@ class DataverseEntity(Dataverse):
 
     def create(
         self,
-        data: Sequence[MutableMapping[str, Any]] | IntoFrame,
+        data: Sequence[MutableMapping[str, Any]] | IntoDataFrame,
         *,
         mode: Literal["individual", "multiple", "batch"] = "individual",
         detect_duplicates: bool = False,
@@ -357,7 +357,7 @@ class DataverseEntity(Dataverse):
         Create rows in Dataverse Entity. Failures will occur if trying to insert
         a record where alternate key already exists, partial success is possible.
 
-        data : Sequence[MutableMapping[str, Any] | IntoFrameT
+        data : Sequence[MutableMapping[str, Any]] | IntoDataFrame
             The data to create in Dataverse, JSON serializable.
         mode : Literal["individual", "multiple", "batch"]
             Whether to create rows using individual requests, `CreateMultiple` web API action
@@ -720,7 +720,7 @@ class DataverseEntity(Dataverse):
     @overload
     def upsert(
         self,
-        data: Collection[MutableMapping[str, Any]] | IntoFrame,
+        data: Collection[MutableMapping[str, Any]] | IntoDataFrame,
         *,
         mode: Literal["individual"] = "individual",
         altkey_name: str | None = None,
@@ -730,7 +730,7 @@ class DataverseEntity(Dataverse):
     @overload
     def upsert(
         self,
-        data: Collection[MutableMapping[str, Any]] | IntoFrame,
+        data: Collection[MutableMapping[str, Any]] | IntoDataFrame,
         *,
         mode: Literal["batch"],
         altkey_name: str | None = None,
@@ -740,7 +740,7 @@ class DataverseEntity(Dataverse):
 
     def upsert(
         self,
-        data: Collection[MutableMapping[str, Any]] | IntoFrame,
+        data: Collection[MutableMapping[str, Any]] | IntoDataFrame,
         *,
         mode: Literal["individual", "batch"] = "individual",
         altkey_name: str | None = None,
@@ -752,7 +752,7 @@ class DataverseEntity(Dataverse):
 
         Parameters
         ----------
-        data : Collection[MutableMapping[str, Any]] | IntoFrameT
+        data : Collection[MutableMapping[str, Any]] | IntoDataFrame
             The data to upsert.
         mode : Literal["individual", "batch"]
             Whether to upsert data using individual requests or batch requests.

@@ -2,8 +2,8 @@ import json
 from collections.abc import Collection, Mapping
 from typing import Any
 
-import narwhals as nw
-from narwhals.typing import IntoFrameT
+import narwhals.stable.v2 as nw
+from narwhals.stable.v2.typing import IntoDataFrame
 from typing_extensions import Protocol, runtime_checkable
 
 
@@ -40,13 +40,13 @@ def dict_of_lists_to_list_of_dicts(data: dict[str, list[Any]]) -> list[dict[str,
     return [{k: v for k, v in row.items() if v == v and v is not None} for row in zipped]
 
 
-def convert_dataframe_to_dict(data: IntoFrameT) -> list[dict[str, Any]]:
+def convert_dataframe_to_dict(data: IntoDataFrame) -> list[dict[str, Any]]:
     """
     Converts DataFrame to narwhals dict and drops NaNs.
 
     Parameters
     ----------
-    data : IntoFrameT
+    data : IntoFrame
         The data to convert, which can be a DataFrame or similar structure.
 
     Returns

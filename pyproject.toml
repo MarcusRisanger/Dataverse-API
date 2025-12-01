@@ -1,14 +1,14 @@
 [project]
 name = "dataverse-api"
-version = "1.4.2"
+version = "1.4.3"
 description = "Abstraction layer for interacting with Microsoft Dataverse Web API using Python."
 authors = [{ name = "Marcus Risanger", email = "69350948+MarcusRisanger@users.noreply.github.com" }]
 requires-python = ">=3.11,<4"
 readme = "README.md"
 dependencies = [
-    "narwhals>=1.45.0",
+    "narwhals>=2.0.0,<3",
     "pydantic>=2.5.3,<3",
-    "requests>=2.32.4",
+    "requests>=2.32.4,<3",
 ]
 
 [dependency-groups]
