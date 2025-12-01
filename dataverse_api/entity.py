@@ -16,6 +16,7 @@ from dataverse_api.schema import DataverseRelationships
 from dataverse_api.utils.batching import (
     APICommand,
     RequestMethod,
+    check_altkey_support,
     chunk_data,
     transform_to_batch_for_create,
     transform_to_batch_for_delete,
@@ -703,6 +704,7 @@ class DataverseEntity(Dataverse):
         """
         Upsert row by individual requests.
         """
+        check_altkey_support(keys=keys, data=data)
         calls = [
             APICommand(
                 method=RequestMethod.PATCH,
