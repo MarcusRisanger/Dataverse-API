@@ -716,6 +716,100 @@ def test_entity_upsert_bad_altkey(entity: DataverseEntity):
         entity.upsert([{"data": 1}], altkey_name="foo")
 
 
+def test_entity_upsert_individual_prevent_create(
+    entity: DataverseEntity,
+    primary_id: str,
+    mocked_responses: responses.RequestsMock,
+):
+    """Test upsert with prevent_create (If-Match: *) - only update existing records."""
+    # Setup
+    data = [{primary_id: str(uuid4()), "test_val": random.randint(1, 10)} for _ in range(4)]
+
+    for row in data:
+        id = row[primary_id]
+        payload = {k: v for k, v in row.items() if k != primary_id}
+
+        mocked_responses.patch(
+            url=f"{entity._endpoint}{entity.entity_set_name}({id})",
+            match=[json_params_matcher(payload), header_matcher({"If-Match": "*"})],
+            status=204,
+        )
+
+    resp = entity.upsert(data, mode="individual", match="prevent_create")
+
+    for row in resp:
+        assert row.status_code == 204
+
+
+def test_entity_upsert_individual_prevent_update(
+    entity: DataverseEntity,
+    primary_id: str,
+    mocked_responses: responses.RequestsMock,
+):
+    """Test upsert with prevent_update (If-None-Match: *) - only create new records."""
+    # Setup
+    data = [{primary_id: str(uuid4()), "test_val": random.randint(1, 10)} for _ in range(4)]
+
+    for row in data:
+        id = row[primary_id]
+        payload = {k: v for k, v in row.items() if k != primary_id}
+
+        mocked_responses.patch(
+            url=f"{entity._endpoint}{entity.entity_set_name}({id})",
+            match=[json_params_matcher(payload), header_matcher({"If-None-Match": "*"})],
+            status=204,
+        )
+
+    resp = entity.upsert(data, mode="individual", match="prevent_update")
+
+    for row in resp:
+        assert row.status_code == 204
+
+
+def test_entity_upsert_batch_prevent_create(
+    entity: DataverseEntity,
+    primary_id: str,
+    mocked_responses: responses.RequestsMock,
+):
+    """Test batch upsert with prevent_create (If-Match: *) - only update existing records."""
+    # Setup
+    data = [{primary_id: str(uuid4()), "test_val": random.randint(1, 10)} for _ in range(4)]
+
+    mocked_responses.post(url=f"{entity._endpoint}$batch")
+
+    resp = entity.upsert(data=data, mode="batch", match="prevent_create")
+
+    assert isinstance(resp[0].request.body, str)  # type checking
+    elements = resp[0].request.body.split("--batch")[1:-1]
+
+    for out, expected in zip(elements, data):
+        assert f"{entity.entity_set_name}({expected.pop(primary_id)})" in out
+        assert "If-Match: *" in out
+        assert serialize_json(expected) in out
+
+
+def test_entity_upsert_batch_prevent_update(
+    entity: DataverseEntity,
+    primary_id: str,
+    mocked_responses: responses.RequestsMock,
+):
+    """Test batch upsert with prevent_update (If-None-Match: *) - only create new records."""
+    # Setup
+    data = [{primary_id: str(uuid4()), "test_val": random.randint(1, 10)} for _ in range(4)]
+
+    mocked_responses.post(url=f"{entity._endpoint}$batch")
+
+    resp = entity.upsert(data=data, mode="batch", match="prevent_update")
+
+    assert isinstance(resp[0].request.body, str)  # type checking
+    elements = resp[0].request.body.split("--batch")[1:-1]
+
+    for out, expected in zip(elements, data):
+        assert f"{entity.entity_set_name}({expected.pop(primary_id)})" in out
+        assert "If-None-Match: *" in out
+        assert serialize_json(expected) in out
+
+
 def test_entity_upsert_pandas_dataframe(
     entity: DataverseEntity, mocked_responses: responses.RequestsMock, primary_id: str
 ):
