@@ -79,7 +79,6 @@ class BatchCommand:
             self.content_type += "; type=entry"
 
         if self.headers:
-            print("Extra!")
             self.extra_header = "\n".join([f"{k}: {v}" for k, v in self.headers.items()])
 
         self.url = encode_altkeys(self.url)
