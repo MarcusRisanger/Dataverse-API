@@ -769,10 +769,10 @@ def test_entity_upsert_individual_prevent_update(
 def test_entity_upsert_batch_match_not_supported(entity: DataverseEntity, primary_id: str):
     """Test that using match parameter with batch mode raises an error."""
     data = [{primary_id: str(uuid4()), "test_val": 1}]
-    
+
     with pytest.raises(DataverseError, match=r".*match.*only supported for individual mode.*"):
         entity.upsert(data=data, mode="batch", match="prevent_create")  # type: ignore
-    
+
     with pytest.raises(DataverseError, match=r".*match.*only supported for individual mode.*"):
         entity.upsert(data=data, mode="batch", match="prevent_update")  # type: ignore
 
