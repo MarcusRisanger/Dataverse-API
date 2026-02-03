@@ -98,7 +98,10 @@ class Dataverse:
         try:
             resp.raise_for_status()
         except requests.HTTPError:
-            error_msg = resp.json()["error"]["message"].splitlines()[0]
+            try:
+                error_msg = resp.json()["error"]["message"].splitlines()[0]
+            except (ValueError, KeyError, IndexError):
+                error_msg = resp.text
             raise DataverseAPIError(message=f"{method} request failed: {error_msg}", response=resp) from None
 
         return resp
