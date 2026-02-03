@@ -4,7 +4,7 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
 from enum import StrEnum
 from textwrap import dedent
-from typing import Any, Collection, Generator, Literal, Mapping, MutableMapping, TypeVar
+from typing import Any, Collection, Generator, Mapping, MutableMapping, TypeVar
 from urllib.parse import urljoin
 
 from dataverse_api.errors import DataverseError
@@ -209,7 +209,6 @@ def transform_to_batch_for_upsert(
     data: Collection[MutableMapping[str, Any]],
     keys: Iterable[str],
     is_primary_id: bool = False,
-    match: Literal["prevent_create", "prevent_update"] | None = None,
 ) -> list[BatchCommand]:
     """
     Transform data payload to upsert batch data.
@@ -224,19 +223,8 @@ def transform_to_batch_for_upsert(
         The keys used to identify unique rows in the dataset.
     is_id : bool
         Whether the supplied singular key is the Entity primary ID attribute.
-    match : Literal["prevent_create", "prevent_update"] | None
-        Controls upsert behavior using If-Match headers:
-        - None (default): Standard upsert behavior (create or update)
-        - "prevent_create": Only update existing records (If-Match: *)
-        - "prevent_update": Only create new records (If-None-Match: *)
     """
     check_altkey_support(keys=keys, data=data)
-    headers: dict[str, str] | None = None
-    if match == "prevent_create":
-        headers = {"If-Match": "*"}
-    elif match == "prevent_update":
-        headers = {"If-None-Match": "*"}
-
     commands = []
     for keys, payload in transform_upsert_data(data, keys, is_primary_id):
         commands.append(
@@ -244,7 +232,6 @@ def transform_to_batch_for_upsert(
                 url=f"{url}({keys})",
                 method=RequestMethod.PATCH,
                 data=payload,
-                headers=headers,
             )
         )
 

@@ -2,6 +2,8 @@
 
 The `match` parameter in the `upsert` method allows you to control whether the operation should only create new records or only update existing ones.
 
+**Note:** The `match` parameter is only supported for **individual mode**, not batch mode.
+
 ## Usage
 
 ### Standard Upsert (Default Behavior)
@@ -14,6 +16,7 @@ entity.upsert(data, mode="individual")
 ```python
 # Only updates existing records, will fail if record doesn't exist
 # Uses If-Match: * header
+# Only works with mode="individual"
 entity.upsert(data, mode="individual", match="prevent_create")
 ```
 
@@ -21,18 +24,23 @@ entity.upsert(data, mode="individual", match="prevent_create")
 ```python
 # Only creates new records, will fail if record already exists
 # Uses If-None-Match: * header
+# Only works with mode="individual"
 entity.upsert(data, mode="individual", match="prevent_update")
 ```
 
-## Batch Mode Support
-The `match` parameter works with both individual and batch modes:
+## Batch Mode
+The `match` parameter is **not supported** for batch mode operations. Attempting to use it will raise a `DataverseError`:
 
 ```python
-# Batch mode with prevent_create
-entity.upsert(data, mode="batch", match="prevent_create")
+# This will raise an error
+entity.upsert(data, mode="batch", match="prevent_create")  # Error!
+```
 
-# Batch mode with prevent_update
-entity.upsert(data, mode="batch", match="prevent_update")
+For batch operations, use standard upsert behavior without the `match` parameter:
+
+```python
+# Standard batch upsert (create or update)
+entity.upsert(data, mode="batch")
 ```
 
 ## Reference

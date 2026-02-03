@@ -749,7 +749,6 @@ class DataverseEntity(Dataverse):
         altkey_name: str | None = None,
         threading: bool = False,
         batch_size: int | None = None,
-        match: Literal["prevent_create", "prevent_update"] | None = None,
     ) -> list[requests.Response]: ...
 
     def upsert(
@@ -780,11 +779,15 @@ class DataverseEntity(Dataverse):
             Optional override if batch mode is specified, useful for tuning workloads
             if 429s or timeouts occur.
         match : Literal["prevent_create", "prevent_update"] | None
-            Controls upsert behavior using If-Match headers:
+            Controls upsert behavior using If-Match headers.
+            Only supported for individual mode, not batch mode.
             - None (default): Standard upsert behavior (create or update)
             - "prevent_create": Only update existing records (If-Match: *)
             - "prevent_update": Only create new records (If-None-Match: *)
         """
+        if match is not None and mode == "batch":
+            raise DataverseError("The 'match' parameter is only supported for individual mode, not batch mode.")
+
         if altkey_name is not None:
             try:
                 key_columns = self.alternate_keys[altkey_name]
@@ -813,7 +816,6 @@ class DataverseEntity(Dataverse):
                 data=data,
                 keys=key_columns,
                 is_primary_id=is_primary_id,
-                match=match,
             )
             return self._batch_api_call(
                 batch_commands=batch_commands,

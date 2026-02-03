@@ -766,48 +766,15 @@ def test_entity_upsert_individual_prevent_update(
         assert row.status_code == 204
 
 
-def test_entity_upsert_batch_prevent_create(
-    entity: DataverseEntity,
-    primary_id: str,
-    mocked_responses: responses.RequestsMock,
-):
-    """Test batch upsert with prevent_create (If-Match: *) - only update existing records."""
-    # Setup
-    data = [{primary_id: str(uuid4()), "test_val": random.randint(1, 10)} for _ in range(4)]
-
-    mocked_responses.post(url=f"{entity._endpoint}$batch")
-
-    resp = entity.upsert(data=data, mode="batch", match="prevent_create")
-
-    assert isinstance(resp[0].request.body, str)  # type checking
-    elements = resp[0].request.body.split("--batch")[1:-1]
-
-    for out, expected in zip(elements, data):
-        assert f"{entity.entity_set_name}({expected.pop(primary_id)})" in out
-        assert "If-Match: *" in out
-        assert serialize_json(expected) in out
-
-
-def test_entity_upsert_batch_prevent_update(
-    entity: DataverseEntity,
-    primary_id: str,
-    mocked_responses: responses.RequestsMock,
-):
-    """Test batch upsert with prevent_update (If-None-Match: *) - only create new records."""
-    # Setup
-    data = [{primary_id: str(uuid4()), "test_val": random.randint(1, 10)} for _ in range(4)]
-
-    mocked_responses.post(url=f"{entity._endpoint}$batch")
-
-    resp = entity.upsert(data=data, mode="batch", match="prevent_update")
-
-    assert isinstance(resp[0].request.body, str)  # type checking
-    elements = resp[0].request.body.split("--batch")[1:-1]
-
-    for out, expected in zip(elements, data):
-        assert f"{entity.entity_set_name}({expected.pop(primary_id)})" in out
-        assert "If-None-Match: *" in out
-        assert serialize_json(expected) in out
+def test_entity_upsert_batch_match_not_supported(entity: DataverseEntity, primary_id: str):
+    """Test that using match parameter with batch mode raises an error."""
+    data = [{primary_id: str(uuid4()), "test_val": 1}]
+    
+    with pytest.raises(DataverseError, match=r".*match.*only supported for individual mode.*"):
+        entity.upsert(data=data, mode="batch", match="prevent_create")  # type: ignore
+    
+    with pytest.raises(DataverseError, match=r".*match.*only supported for individual mode.*"):
+        entity.upsert(data=data, mode="batch", match="prevent_update")  # type: ignore
 
 
 def test_entity_upsert_pandas_dataframe(
