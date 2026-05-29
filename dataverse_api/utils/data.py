@@ -26,12 +26,13 @@ def is_not_none(value: Any) -> bool:
 
     try:
         is_self_equal = value == value
-    except Exception:
+    except (TypeError, ValueError):
+        # Keep values that do not support scalar self-comparison.
         return True
 
     try:
         return bool(is_self_equal)
-    except Exception:
+    except (TypeError, ValueError):
         return False
 
 
