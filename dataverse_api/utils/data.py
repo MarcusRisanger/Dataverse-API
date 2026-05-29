@@ -1,4 +1,5 @@
 import json
+import math
 from collections.abc import Collection, Mapping
 from typing import Any
 
@@ -14,7 +15,25 @@ class TimeType(Protocol):
 
 def is_not_none(value: Any) -> bool:
     """Checks if a value is not None or NaN."""
-    return value == value and value is not None
+    if value is None:
+        return False
+
+    try:
+        if math.isnan(value):
+            return False
+    except TypeError:
+        pass
+
+    try:
+        is_self_equal = value == value
+    except (TypeError, ValueError):
+        # Keep values that do not support scalar self-comparison.
+        return True
+
+    try:
+        return bool(is_self_equal)
+    except (TypeError, ValueError):
+        return False
 
 
 def dict_of_lists_to_list_of_dicts(data: dict[str, list[Any]]) -> list[dict[str, Any]]:
@@ -37,7 +56,7 @@ def dict_of_lists_to_list_of_dicts(data: dict[str, list[Any]]) -> list[dict[str,
     keys = list(data.keys())
     values = zip(*data.values())
     zipped = [dict(zip(keys, v)) for v in values]
-    return [{k: v for k, v in row.items() if v == v and v is not None} for row in zipped]
+    return [{k: v for k, v in row.items() if is_not_none(v)} for row in zipped]
 
 
 def convert_dataframe_to_dict(data: IntoDataFrame) -> list[dict[str, Any]]:
