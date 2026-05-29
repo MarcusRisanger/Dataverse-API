@@ -785,3 +785,21 @@ def test_entity_upsert_dataframe_with_none(
 
     for row in resp:
         assert row.status_code == 204
+
+
+def test_convert_dataframe_to_dict_filters_nan_like_values():
+    df = pd.DataFrame(
+        {
+            "id": ["a", "b", "c"],
+            "float_data": [1.0, float("nan"), 3.0],
+            "nullable_float_data": pd.Series([1.0, pd.NA, 3.0], dtype="Float64"),
+        }
+    )
+
+    data = convert_dataframe_to_dict(df)
+
+    assert data == [
+        {"id": "a", "float_data": 1.0, "nullable_float_data": 1.0},
+        {"id": "b"},
+        {"id": "c", "float_data": 3.0, "nullable_float_data": 3.0},
+    ]
