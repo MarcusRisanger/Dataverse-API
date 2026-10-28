@@ -952,14 +952,13 @@ class DataverseEntity(Dataverse):
             raise DataverseError("Supply either 'id' or 'logical_name' kwarg.")
 
         if altkey_id:
-            resp = self._api_call(
-                method=RequestMethod.DELETE,
-                url=f"EntityDefinitions(LogicalName='{self.logical_name}')/Attributes({altkey_id})",
-            )
+            target = altkey_id
+        else:
+            target = f"LogicalName='{logical_name}'"
 
         resp = self._api_call(
             method=RequestMethod.DELETE,
-            url=f"EntityDefinitions(LogicalName='{self.logical_name}')/Attributes(LogicalName='{logical_name}')",
+            url=f"EntityDefinitions(LogicalName='{self.logical_name}')/Attributes({target})",
         )
 
         self.update_schema("altkeys")
