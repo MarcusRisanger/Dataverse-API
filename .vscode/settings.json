@@ -1,5 +1,4 @@
 {
-
     "debug.internalConsoleOptions": "neverOpen",
     "files.trimFinalNewlines": true,
     "python.testing.pytestArgs": [
@@ -7,6 +6,7 @@
     ],
     "python.testing.unittestEnabled": false,
     "python.testing.pytestEnabled": true,
+    "python.terminal.useEnvFile": true,
     "[python]": {
         "editor.defaultFormatter": "charliermarsh.ruff",
         "editor.formatOnSave": true,
