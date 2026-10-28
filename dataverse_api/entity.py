@@ -890,12 +890,18 @@ class DataverseEntity(Dataverse):
 
         Parameters
         ----------
-        alternate_key : MetadataDumper
-            Dumpable metadata for new Alternate Key.
+        schema_name : str
+            Schema name of the alternate key.
+        display_name : str | Label
+            Display name of the alternate key.
+        key_attributes : Collection[str]
+            Collection of logical names of the key attributes that comprise the alternatekey.
+        return_representation : bool, optional
+            Whether to return the representation of the created alternate key, by default False.
         """
         headers: dict[str, str] = {}
         if return_representation:
-            headers["Prefer"] = "return_representation"
+            headers["Prefer"] = "return=representation"
 
         key = get_altkey_metadata(
             schema_name=schema_name,
@@ -931,7 +937,7 @@ class DataverseEntity(Dataverse):
 
         Parameters
         ----------
-        attribute_id : str
+        altkey_id : str
             GUID of Alternate Key.
         logical_name : str
             LogicalName of Alternate Key.
