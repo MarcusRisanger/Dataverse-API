@@ -1,5 +1,4 @@
-
-name: Run Pytests and MyPy
+name: Run tox, pyrefly
 
 on: [pull_request, push]
 
@@ -11,24 +10,24 @@ jobs:
   run-tests:
     runs-on: ubuntu-latest
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v7.0.1
 
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: 3.12
+      - name: Set up Python
+        uses: actions/setup-python@v7.1.0
+        with:
+          python-version: '3.12'
 
-    - name: Install uv
-      uses: astral-sh/setup-uv@v5
-      with:
-        version: "0.6.16"
+      - name: Install uv
+        uses: astral-sh/setup-uv@v10.3.3
+        with:
+          version: "0.13.6"
 
-    - name: Install project with uv
-      run: uv sync --locked --all-extras --dev
+      - name: Install project with uv
+        run: uv sync --locked --all-extras --dev
 
-    - name: Install tox
-      run: uv tool install tox --with tox-uv
+      - name: Install tox
+        run: uv tool install tox --with tox-uv
 
-    - name: Run tests with tox
-      run: tox run
+      - name: Run tests with tox
+        run: tox run
