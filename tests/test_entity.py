@@ -2,6 +2,8 @@ import logging
 import random
 from copy import deepcopy
 from datetime import UTC, date, datetime
+from email import policy
+from email.parser import BytesParser
 from uuid import uuid4
 
 import pandas as pd
@@ -353,6 +355,60 @@ def test_entity_create_by_batch(
     assert all(x.status_code == 204 for x in resp)
     assert "using batch" in caplog.text
     assert [(record.name, record.levelno) for record in caplog.records] == [("dataverse_api.entity", logging.DEBUG)]
+
+
+@pytest.mark.parametrize("threading", [False, True], ids=["sequential", "threaded"])
+@pytest.mark.parametrize(
+    ("detect_duplicates", "expected_values"),
+    [
+        pytest.param(False, [], id="duplicate-detection-disabled"),
+        pytest.param(True, ["false"], id="duplicate-detection-enabled"),
+    ],
+)
+def test_entity_create_by_batch_duplicate_detection(
+    entity: DataverseEntity,
+    mocked_responses: responses.RequestsMock,
+    small_data_package: list[dict[str, str]],
+    threading: bool,
+    detect_duplicates: bool,
+    expected_values: list[str],
+):
+    mocked_responses.post(url=f"{entity._endpoint}$batch", status=204)
+
+    result = entity.create(
+        small_data_package,
+        mode="batch",
+        batch_size=2,
+        detect_duplicates=detect_duplicates,
+        threading=threading,
+    )
+
+    assert len(result) == 3
+    header_name = "MSCRM.SuppressDuplicateDetection"
+    batch_lengths = []
+    for response in result:
+        assert response.status_code == 204
+        request = response.request
+        assert header_name not in request.headers
+        assert isinstance(request.body, str)
+        content_type = request.headers["Content-Type"]
+        batch = BytesParser(policy=policy.default).parsebytes(
+            f"Content-Type: {content_type}\r\n\r\n{request.body}".encode()
+        )
+        assert batch.is_multipart()
+        parts = list(batch.iter_parts())
+        batch_lengths.append(len(parts))
+        for part in parts:
+            assert part.get_content_type() == "application/http"
+            assert header_name not in part
+            payload = part.get_payload(decode=True)
+            assert isinstance(payload, bytes)
+            request_line, _, request_content = payload.partition(b"\n")
+            assert request_line.strip() == f"POST {entity._endpoint}{entity.entity_set_name} HTTP/1.1".encode()
+            embedded_request = BytesParser(policy=policy.default).parsebytes(request_content)
+            assert embedded_request.get_all(header_name, []) == expected_values
+
+    assert sorted(batch_lengths) == [1, 2, 2]
 
 
 def test_entity_create_with_args(

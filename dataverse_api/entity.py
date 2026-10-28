@@ -406,7 +406,12 @@ class DataverseEntity(Dataverse):
                 "%d rows to insert using batch insertion.",
                 length,
             )
-            return self.__create_batch(data=data, batch_size=batch_size, threading=threading)
+            return self.__create_batch(
+                data=data,
+                batch_size=batch_size,
+                threading=threading,
+                headers=headers,
+            )
 
         raise DataverseModeError(mode, "individual", "multiple", "batch")
 
@@ -462,12 +467,16 @@ class DataverseEntity(Dataverse):
         return self._individual_call(calls=calls)
 
     def __create_batch(
-        self, data: Collection[MutableMapping[str, Any]], batch_size: int, threading: bool
+        self,
+        data: Collection[MutableMapping[str, Any]],
+        batch_size: int,
+        threading: bool,
+        headers: Mapping[str, Any] | None = None,
     ) -> list[requests.Response]:
         """
         Run a batch insert operation on the given data.
         """
-        batch_commands = transform_to_batch_for_create(url=self.entity_set_name, data=data)
+        batch_commands = transform_to_batch_for_create(url=self.entity_set_name, data=data, headers=headers)
         return self._batch_api_call(batch_commands=batch_commands, batch_size=batch_size, threading=threading)
 
     def __delete_singles(self, data: Iterable[str], threading: bool) -> list[requests.Response]:
@@ -758,8 +767,8 @@ class DataverseEntity(Dataverse):
         threading : bool
             Whether to use threading for individual requests.
         batch_size : int
-            Optional override if batch mode is specified, useful for tuning workloads
-            if 429s or timeouts occur.
+            Optional override if batch mode is specified, useful for
+            tuning workloads if 429s or timeouts occur.
         """
         if altkey_name is not None:
             try:
