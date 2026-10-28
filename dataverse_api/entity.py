@@ -1,6 +1,5 @@
 import logging
 from collections.abc import Collection, Iterable, Mapping, MutableMapping, Sequence
-from copy import copy
 from typing import Any, Literal, cast, overload
 
 import requests
@@ -445,11 +444,7 @@ class DataverseEntity(Dataverse):
         Insert rows by using the `CreateMultiple` Web API Action.
         """
         # Preserving input data
-        data = copy(data)
-
-        # Adding odata type to each record
-        for row in data:
-            row["@odata.type"] = BASE_TYPE + self.logical_name
+        data = [{**row, "@odata.type": BASE_TYPE + self.logical_name} for row in data]
 
         # Chunking the payload to suggested size
         calls = [
