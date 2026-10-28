@@ -131,36 +131,24 @@ def create_entity_response(client: DataverseClient, sample_entity: EntityMetadat
     }
 
 
+@pytest.mark.parametrize(
+    "kwargs",
+    [pytest.param({}, id="default"), pytest.param({"solution_name": "Foo"}, id="with-solution")],
+)
 def test_create_entity(
     client: DataverseClient,
     mocked_responses: responses.RequestsMock,
     sample_entity: EntityMetadata,
     create_entity_response: dict[str, Any],
+    kwargs: dict[str, str],
 ):
-    # Mocking the request sent by endpoint
     mocked_responses.post(**create_entity_response)
 
-    # Running function - this errors if the endpoint URL
-    # does not match with the mocked response URL
-    resp = client.create_entity(sample_entity)
+    resp = client.create_entity(sample_entity, **kwargs)
 
-    # Run some assertions that payload contains critical attributes
     assert resp.request.body
     assert json.loads(resp.request.body) == sample_entity.dump_to_dataverse()
-
-
-def test_create_entity_with_solution_name(
-    client: DataverseClient,
-    mocked_responses: responses.RequestsMock,
-    sample_entity: EntityMetadata,
-    create_entity_response: dict[str, Any],
-):
-    # Again for invoking with `solution_name`
-    mocked_responses.post(**create_entity_response)
-    resp = client.create_entity(sample_entity, solution_name="Foo")
-
-    # Run assertions again!
-    assert resp.request.headers["MSCRM.SolutionUniqueName"] == "Foo"
+    assert resp.request.headers.get("MSCRM.SolutionUniqueName") == kwargs.get("solution_name")
 
 
 def test_delete_entity(
@@ -263,45 +251,33 @@ def test_get_entity_definition(
     return resp
 
 
+@pytest.mark.parametrize(
+    ("kwargs", "extra_headers"),
+    [
+        pytest.param({}, {}, id="default"),
+        pytest.param(
+            {"solution_name": "foo", "preserve_localized_labels": True},
+            {"MSCRM.UniqueSolutionName": "foo", "MSCRM.PreserveLabels": "true"},
+            id="solution-and-preserve-labels",
+        ),
+    ],
+)
 def test_update_entity(
     client: DataverseClient,
     mocked_responses: responses.RequestsMock,
     test_get_entity_definition: EntityMetadata,
     schema_name: str,
+    kwargs: dict[str, Any],
+    extra_headers: dict[str, str],
 ):
     mocked_responses.put(
         url=f"{client._endpoint}EntityDefinitions(LogicalName='{schema_name.lower()}')",
         status=204,
         match=[
             json_params_matcher(test_get_entity_definition.dump_to_dataverse()),
-            header_matcher({"Content-Type": "application/json; charset=utf-8"}),
+            header_matcher({"Content-Type": "application/json; charset=utf-8", **extra_headers}),
         ],
     )
 
-    resp = client.update_entity(test_get_entity_definition)
-    assert resp.status_code == 204
-
-
-def test_update_entity_with_kwargs(
-    client: DataverseClient,
-    mocked_responses: responses.RequestsMock,
-    test_get_entity_definition: EntityMetadata,
-    schema_name: str,
-):
-    mocked_responses.put(
-        url=f"{client._endpoint}EntityDefinitions(LogicalName='{schema_name.lower()}')",
-        status=204,
-        match=[
-            json_params_matcher(test_get_entity_definition.dump_to_dataverse()),
-            header_matcher(
-                {
-                    "Content-Type": "application/json; charset=utf-8",
-                    "MSCRM.UniqueSolutionName": "foo",
-                    "MSCRM.PreserveLabels": "true",
-                }
-            ),
-        ],
-    )
-
-    resp = client.update_entity(test_get_entity_definition, solution_name="foo", preserve_localized_labels=True)
+    resp = client.update_entity(test_get_entity_definition, **kwargs)
     assert resp.status_code == 204

@@ -110,35 +110,62 @@ def test_batch_command_put():
     assert command.encode(batch_id=batch_id, api_url=api_url) == dedent(expected_output)
 
 
-def test_batch_altkey_encoding_letters():
-    url = "hello(altkey='æøå')"
+@pytest.mark.parametrize(
+    ("url", "expected"),
+    [
+        pytest.param("hello(altkey='æøå')", "hello(altkey='%C3%A6%C3%B8%C3%A5')", id="unicode-value"),
+        pytest.param("kenobi(altkey='hello there')", "kenobi(altkey='hello%20there')", id="space-in-value"),
+    ],
+)
+def test_batch_altkey_encoding(url: str, expected: str):
     batch = BatchCommand(url=url, method=RequestMethod.GET)
-    assert batch.url == "hello(altkey='%C3%A6%C3%B8%C3%A5')"
+    assert batch.url == expected
 
 
-def test_batch_altkey_encoding_space():
-    url = "kenobi(altkey='hello there')"
-    batch = BatchCommand(url=url, method=RequestMethod.GET)
-    assert batch.url == "kenobi(altkey='hello%20there')"
+@pytest.mark.parametrize(
+    ("keys", "data"),
+    [
+        pytest.param(
+            ["name", "age", "score"],
+            [{"name": "Alice", "age": 30, "score": 95.5}, {"name": "Bob", "age": 25, "score": 87.0}],
+            id="valid-types",
+        ),
+        pytest.param(["name", "age"], [], id="empty-data"),
+    ],
+)
+def test_check_altkey_support_without_warnings(keys: list[str], data, caplog: pytest.LogCaptureFixture):
+    with caplog.at_level(logging.WARNING, logger="dataverse_api"):
+        check_altkey_support(keys, data)
+
+    assert not caplog.records
 
 
-def test_check_altkey_support_with_valid_types():
-    keys = ["name", "age", "score"]
-    data = [
-        {"name": "Alice", "age": 30, "score": 95.5},
-        {"name": "Bob", "age": 25, "score": 87.0},
-    ]
-    # Should not raise any warnings or exceptions
-    check_altkey_support(keys, data)
-
-
-def test_check_altkey_support_with_invalid_types(caplog):
-    keys = ["name", "created_date"]
-    data = [
-        {"name": "Alice", "created_date": date(2023, 1, 1)},
-        {"name": "Bob", "created_date": datetime(2023, 2, 1)},
-    ]
-
+@pytest.mark.parametrize(
+    ("keys", "data", "expected_details"),
+    [
+        pytest.param(
+            ["name", "created_date"],
+            [
+                {"name": "Alice", "created_date": date(2023, 1, 1)},
+                {"name": "Bob", "created_date": datetime(2023, 2, 1)},
+            ],
+            ("created_date", "datetime", "date"),
+            id="date-and-datetime",
+        ),
+        pytest.param(
+            ["id", "tags", "metadata"],
+            [
+                {"id": 1, "tags": ["tag1", "tag2"], "metadata": None},
+                {"id": 2, "tags": ["tag3"], "metadata": {"key": "value"}},
+            ],
+            ("tags", "metadata", "list", "dict", "NoneType"),
+            id="mixed-complex-types",
+        ),
+    ],
+)
+def test_check_altkey_support_with_unsupported_types(
+    keys: list[str], data, expected_details: tuple[str, ...], caplog: pytest.LogCaptureFixture
+):
     with caplog.at_level(logging.WARNING, logger="dataverse_api"):
         check_altkey_support(keys, data)
 
@@ -146,43 +173,13 @@ def test_check_altkey_support_with_invalid_types(caplog):
         ("dataverse_api.utils.batching", logging.WARNING)
     ]
     assert "complex types" in caplog.text
-    assert "created_date" in caplog.text
-    assert "datetime" in caplog.text
-    assert "date" in caplog.text
+    for detail in expected_details:
+        assert detail in caplog.text
 
 
-def test_check_altkey_support_with_mixed_types(caplog):
-    keys = ["id", "tags", "metadata"]
-    data = [
-        {"id": 1, "tags": ["tag1", "tag2"], "metadata": None},
-        {"id": 2, "tags": ["tag3"], "metadata": {"key": "value"}},
-    ]
+def test_check_altkey_support_with_missing_keys():
+    keys = ["name", "missing_key"]
+    data = [{"name": "Alice", "age": 30}, {"name": "Bob", "age": 25}]
 
-    with caplog.at_level(logging.WARNING, logger="dataverse_api"):
+    with pytest.raises(DataverseError, match="Column 'missing_key' used in alternate key not found"):
         check_altkey_support(keys, data)
-
-    assert [(record.name, record.levelno) for record in caplog.records] == [
-        ("dataverse_api.utils.batching", logging.WARNING)
-    ]
-    assert "complex types" in caplog.text
-    assert "tags" in caplog.text
-    assert "metadata" in caplog.text
-    assert "list" in caplog.text
-    assert "dict" in caplog.text or "NoneType" in caplog.text
-
-    def test_check_altkey_support_with_missing_keys():
-        keys = ["name", "missing_key"]
-        data = [
-            {"name": "Alice", "age": 30},
-            {"name": "Bob", "age": 25},
-        ]
-        # Should raise DataverseError when keys are missing
-        with pytest.raises(DataverseError):
-            check_altkey_support(keys, data)
-
-
-def test_check_altkey_support_with_empty_data():
-    keys = ["name", "age"]
-    data = []
-    # Should not raise any warnings with empty data
-    check_altkey_support(keys, data)

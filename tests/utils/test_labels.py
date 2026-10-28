@@ -4,47 +4,27 @@ from dataverse_api.metadata.complex_properties import Label
 from dataverse_api.utils.labels import define_label
 
 
-@pytest.fixture
-def label_name() -> str:
-    return "test"
-
-
 def test_define_label_with_label(label: Label):
     lbl = define_label(label)
 
     assert lbl == label
 
 
-def test_define_label_with_str(label_name: str):
-    lbl = define_label(label_name)
+@pytest.mark.parametrize(
+    ("args", "kwargs", "expected_label", "expected_language_code"),
+    [
+        pytest.param(("test",), {}, "test", 1033, id="string-default-language"),
+        pytest.param((), {}, "Label", 1033, id="no-arguments"),
+        pytest.param(("test",), {"language_code": 123}, "test", 123, id="string-custom-language"),
+        pytest.param((), {"label": None, "override": "hello"}, "hello", 1033, id="none-with-override"),
+    ],
+)
+def test_define_label_from_arguments(args, kwargs, expected_label: str, expected_language_code: int):
+    label = define_label(*args, **kwargs)
 
-    assert len(lbl.localized_labels) == 1
-    assert lbl.localized_labels[0].label == label_name
-    assert lbl.localized_labels[0].language_code == 1033
-
-
-def test_define_label_without_arg():
-    lbl = define_label()
-
-    assert len(lbl.localized_labels) == 1
-    assert lbl.localized_labels[0].label == "Label"
-    assert lbl.localized_labels[0].language_code == 1033
-
-
-def test_define_label_with_str_and_lang_code(label_name: str):
-    lbl = define_label(label_name, language_code=123)
-
-    assert len(lbl.localized_labels) == 1
-    assert lbl.localized_labels[0].label == label_name
-    assert lbl.localized_labels[0].language_code == 123
-
-
-def test_define_label_with_none_and_override():
-    lbl = define_label(label=None, override="hello")
-
-    assert len(lbl.localized_labels) == 1
-    assert lbl.localized_labels[0].label == "hello"
-    assert lbl.localized_labels[0].language_code == 1033
+    assert len(label.localized_labels) == 1
+    assert label.localized_labels[0].label == expected_label
+    assert label.localized_labels[0].language_code == expected_language_code
 
 
 def test_define_label_error():
