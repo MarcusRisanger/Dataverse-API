@@ -1,5 +1,6 @@
 import json
 import logging
+import math
 from collections import Counter
 from collections.abc import Collection, Iterable, Mapping
 from typing import Any
@@ -21,7 +22,25 @@ class TimeType(Protocol):
 
 def is_not_none(value: Any) -> bool:
     """Checks if a value is not None or NaN."""
-    return value == value and value is not None  # noqa: PLR0124
+    if value is None:
+        return False
+
+    try:
+        if math.isnan(value):
+            return False
+    except TypeError:
+        pass
+
+    try:
+        is_self_equal = value == value  # noqa: PLR0124
+    except (TypeError, ValueError):
+        # Keep values that do not support scalar self-comparison.
+        return True
+
+    try:
+        return bool(is_self_equal)
+    except (TypeError, ValueError):
+        return False
 
 
 def dict_of_lists_to_list_of_dicts(data: Mapping[str, Iterable[Any]]) -> list[dict[str, Any]]:
