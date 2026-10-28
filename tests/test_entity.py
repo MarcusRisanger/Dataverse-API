@@ -270,11 +270,12 @@ def test_entity_create_by_singles(
     for row in small_data_package:
         mocked_responses.post(url=url, match=[json_params_matcher(row)], status=204)
 
-    caplog.set_level(logging.DEBUG)
+    caplog.set_level(logging.DEBUG, logger="dataverse_api")
     resp = entity.create(data=small_data_package)
 
-    assert all([x.status_code == 204 for x in resp])
+    assert all(x.status_code == 204 for x in resp)
     assert "using individual inserts" in caplog.text
+    assert [(record.name, record.levelno) for record in caplog.records] == [("dataverse_api.entity", logging.DEBUG)]
 
 
 def test_entity_create_by_singles_write_timestamp(
@@ -292,11 +293,12 @@ def test_entity_create_by_singles_write_timestamp(
         row_data = {k: v.isoformat() for k, v in row.items()}
         mocked_responses.post(url=url, match=[json_params_matcher(row_data)], status=204)
 
-    caplog.set_level(logging.DEBUG)
+    caplog.set_level(logging.DEBUG, logger="dataverse_api")
     resp = entity.create(data=data)
 
-    assert all([x.status_code == 204 for x in resp])
+    assert all(x.status_code == 204 for x in resp)
     assert "using individual inserts" in caplog.text
+    assert [(record.name, record.levelno) for record in caplog.records] == [("dataverse_api.entity", logging.DEBUG)]
 
 
 def test_entity_create_by_createmultiple(
@@ -314,11 +316,12 @@ def test_entity_create_by_createmultiple(
     # Mock request
     mocked_responses.post(url=url, match=[json_params_matcher(match_data)], status=204)
 
-    caplog.set_level(logging.DEBUG)
+    caplog.set_level(logging.DEBUG, logger="dataverse_api")
     resp = entity.create(medium_data_package, mode="multiple")
 
-    assert all([x.status_code == 204 for x in resp])
+    assert all(x.status_code == 204 for x in resp)
     assert "using CreateMultiple" in caplog.text
+    assert [(record.name, record.levelno) for record in caplog.records] == [("dataverse_api.entity", logging.DEBUG)]
 
 
 def test_entity_create_multiple_not_supported(
@@ -344,11 +347,12 @@ def test_entity_create_by_batch(
     # Mock request
     mocked_responses.post(url=url, status=204)
 
-    caplog.set_level(logging.DEBUG)
+    caplog.set_level(logging.DEBUG, logger="dataverse_api")
     resp = entity.create(medium_data_package, mode="batch")
 
-    assert all([x.status_code == 204 for x in resp])
+    assert all(x.status_code == 204 for x in resp)
     assert "using batch" in caplog.text
+    assert [(record.name, record.levelno) for record in caplog.records] == [("dataverse_api.entity", logging.DEBUG)]
 
 
 def test_entity_create_with_args(
@@ -365,7 +369,7 @@ def test_entity_create_with_args(
         mocked_responses.post(url=url, match=[header_matcher(header)], status=200)  # type: ignore
 
     resp = entity.create(data=small_data_package, detect_duplicates=True, return_created=True)
-    assert all([x.status_code == 200 for x in resp])
+    assert all(x.status_code == 200 for x in resp)
 
 
 def test_entity_create_with_pandas_df(
@@ -382,7 +386,7 @@ def test_entity_create_with_pandas_df(
 
     resp = entity.create(data=data)
 
-    assert all([x.status_code == 204 for x in resp])
+    assert all(x.status_code == 204 for x in resp)
 
 
 def test_entity_create_with_polars_df(
@@ -399,7 +403,7 @@ def test_entity_create_with_polars_df(
 
     resp = entity.create(data=data)
 
-    assert all([x.status_code == 204 for x in resp])
+    assert all(x.status_code == 204 for x in resp)
 
 
 def test_entity_create_mode_not_supported(
@@ -438,7 +442,7 @@ def test_entity_delete_singles_all(entity: DataverseEntity, mocked_responses: re
 
     resp = entity.delete(filter="all")
 
-    assert all([x.status_code == 204 for x in resp])
+    assert all(x.status_code == 204 for x in resp)
 
 
 def test_entity_delete_batch_all(entity: DataverseEntity, mocked_responses: responses.RequestsMock):
@@ -479,7 +483,7 @@ def test_entity_delete_singles_ids(entity: DataverseEntity, mocked_responses: re
 
     resp = entity.delete(ids=delete_ids)
 
-    assert all([x.status_code == 204 for x in resp])
+    assert all(x.status_code == 204 for x in resp)
 
 
 def test_entity_delete_singles_filter(entity: DataverseEntity, mocked_responses: responses.RequestsMock):
@@ -503,7 +507,7 @@ def test_entity_delete_singles_filter(entity: DataverseEntity, mocked_responses:
 
     resp = entity.delete(filter=filter_str)
 
-    assert all([x.status_code == 204 for x in resp])
+    assert all(x.status_code == 204 for x in resp)
 
 
 def test_entity_delete_bad_args(entity: DataverseEntity):
@@ -543,7 +547,7 @@ def test_entity_delete_column_singles_all(entity: DataverseEntity, mocked_respon
 
     resp = entity.delete_columns(columns=columns, filter="all")
 
-    assert all([x.status_code == 204 for x in resp])
+    assert all(x.status_code == 204 for x in resp)
 
 
 def test_entity_delete_column_batch_all(entity: DataverseEntity, mocked_responses: responses.RequestsMock):
@@ -586,7 +590,7 @@ def test_entity_delete_column_singles_ids(entity: DataverseEntity, mocked_respon
 
     resp = entity.delete_columns(columns=columns, ids=delete_ids)
 
-    assert all([x.status_code == 204 for x in resp])
+    assert all(x.status_code == 204 for x in resp)
 
 
 def test_entity_delete_column_singles_filter(entity: DataverseEntity, mocked_responses: responses.RequestsMock):
@@ -612,7 +616,7 @@ def test_entity_delete_column_singles_filter(entity: DataverseEntity, mocked_res
 
     resp = entity.delete_columns(columns=columns, filter=filter_str)
 
-    assert all([x.status_code == 204 for x in resp])
+    assert all(x.status_code == 204 for x in resp)
 
 
 def test_entity_delete_column_bad_args(entity: DataverseEntity):

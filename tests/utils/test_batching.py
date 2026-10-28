@@ -97,7 +97,7 @@ def test_batch_command_put():
     Content-Type: application/http
     Content-Transfer-Encoding: binary
 
-    {method.name} {api_url}/{url}/{list(data.keys())[0]} HTTP/1.1
+    {method.name} {api_url}/{url}/{next(iter(data.keys()))} HTTP/1.1
     Content-Type: application/json
 
 
@@ -139,9 +139,12 @@ def test_check_altkey_support_with_invalid_types(caplog):
         {"name": "Bob", "created_date": datetime(2023, 2, 1)},
     ]
 
-    with caplog.at_level(logging.WARNING):
+    with caplog.at_level(logging.WARNING, logger="dataverse_api"):
         check_altkey_support(keys, data)
 
+    assert [(record.name, record.levelno) for record in caplog.records] == [
+        ("dataverse_api.utils.batching", logging.WARNING)
+    ]
     assert "complex types" in caplog.text
     assert "created_date" in caplog.text
     assert "datetime" in caplog.text
@@ -155,9 +158,12 @@ def test_check_altkey_support_with_mixed_types(caplog):
         {"id": 2, "tags": ["tag3"], "metadata": {"key": "value"}},
     ]
 
-    with caplog.at_level(logging.WARNING):
+    with caplog.at_level(logging.WARNING, logger="dataverse_api"):
         check_altkey_support(keys, data)
 
+    assert [(record.name, record.levelno) for record in caplog.records] == [
+        ("dataverse_api.utils.batching", logging.WARNING)
+    ]
     assert "complex types" in caplog.text
     assert "tags" in caplog.text
     assert "metadata" in caplog.text

@@ -9,6 +9,7 @@ The `dataverse-api` package is an abstraction layer developed for allowing simpl
 # Table of Contents
 * [Description](#Description)
 * [Getting Started](#getting-started)
+* [Logging](#logging)
 * [Development environment](#development-environment)
     * [Code requirements](#code-requirements)
     * [Testing](#testing)
@@ -61,10 +62,7 @@ app_reg = ConfidentialClientApplication(
     authority=os.getenv("authority_url"),
 )
 environment_url = os.getenv("environment_url")
-auth = ClientCredentialAuth(
-    client=app_reg,
-    scopes=[environment_url + "/.default"]
-)
+auth = ClientCredentialAuth(client=app_reg, scopes=[environment_url + "/.default"])
 
 # Prepare Session
 session = Session()
@@ -79,6 +77,38 @@ entity = client.entity(logical_name="organization")
 # Read data!
 entity.read(select=["name"])
 ```
+
+
+## Logging
+
+The package uses Python's standard `logging` module with loggers under the
+`dataverse_api` namespace, such as `dataverse_api.entity` and
+`dataverse_api.utils.batching`. It installs only a `NullHandler`: it does not
+configure the root logger, set logging levels, or write to the console by default.
+Log records propagate to handlers configured by your application.
+
+For a standalone application, configure logging once at startup:
+
+```python
+import logging
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(levelname)s %(name)s: %(message)s",
+)
+logging.getLogger("dataverse_api").setLevel(logging.DEBUG)
+```
+
+This enables detailed logging for this package without enabling debug logging
+for other libraries. If your application or framework already configures
+logging, use its existing handlers instead of calling `basicConfig` again;
+ensure their levels and filters allow the records you want to see.
+
+To reduce package output to errors, use
+`logging.getLogger("dataverse_api").setLevel(logging.ERROR)`. Individual module
+loggers can also be configured independently. API request failures that are
+returned as response objects are logged at `ERROR`; potentially unsupported
+alternate-key types are logged at `WARNING`.
 
 
 ## Development environment
@@ -180,14 +210,17 @@ from dataverse_api.utils.labels import define_label
 
 new_entity = define_entity(
     schema_name="new_name",
-    attributes=[StringAttributeMetadata(
-        schema_name="new_primary_col",
-        is_primary_name = True,
-        description=define_label("Primary column for Entity."),
-        display_name=define_label("Autonumber Column"),
-        auto_number_format="{SEQNUM:6}-#-{RANDSTRING:3}")],
+    attributes=[
+        StringAttributeMetadata(
+            schema_name="new_primary_col",
+            is_primary_name=True,
+            description=define_label("Primary column for Entity."),
+            display_name=define_label("Autonumber Column"),
+            auto_number_format="{SEQNUM:6}-#-{RANDSTRING:3}",
+        )
+    ],
     description=define_label("Entity Created by Client"),
-    display_name=define_label("Programmatically Created Table")
+    display_name=define_label("Programmatically Created Table"),
 )
 
 resp = client.create_entity(new_entity, return_representation=True)
@@ -226,7 +259,7 @@ The `DataverseEntity.read()` method has been furnished with the necessary argume
 A simple example:
 
 ```python
-data = foo.read(select=["name","address"], filter="salary gt 10000", top=5, order_by="salary desc")
+data = foo.read(select=["name", "address"], filter="salary gt 10000", top=5, order_by="salary desc")
 ```
 
 ### Create

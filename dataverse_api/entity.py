@@ -1,7 +1,7 @@
 import logging
 from collections.abc import Collection, Iterable, Mapping, MutableMapping, Sequence
 from copy import copy
-from typing import Any, Literal, overload
+from typing import Any, Literal, cast, overload
 
 import requests
 from narwhals.stable.v2.dependencies import is_into_dataframe
@@ -28,6 +28,8 @@ from dataverse_api.utils.data import (
     extract_collection_valued_relationships,
     extract_single_valued_relationships,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class DataverseEntity(Dataverse):
@@ -92,7 +94,7 @@ class DataverseEntity(Dataverse):
             A dataclass with the three relevant attributes.
         """
         columns = ["EntitySetName", "PrimaryIdAttribute", "PrimaryImageAttribute"]
-        logging.debug("Retrieving EntityDefinitions for %s", self.logical_name)
+        logger.debug("Retrieving EntityDefinitions for %s", self.logical_name)
         resp = self._api_call(
             method=RequestMethod.GET,
             url=f"EntityDefinitions(LogicalName='{self.logical_name}')",
@@ -108,7 +110,7 @@ class DataverseEntity(Dataverse):
         Fetch the alternate keys (if any) for the Entity.
         """
         columns = ["SchemaName", "KeyAttributes"]
-        logging.debug("Retrieving alternate keys for %s", self.logical_name)
+        logger.debug("Retrieving alternate keys for %s", self.logical_name)
         resp = self._api_call(
             method=RequestMethod.GET,
             url=f"EntityDefinitions(LogicalName='{self.logical_name}')/Keys",
@@ -126,14 +128,14 @@ class DataverseEntity(Dataverse):
         col = "primaryobjecttypecode"
         msg_col = "sdkmessageid/name"
 
-        params: dict[str, str] = dict()
+        params: dict[str, str] = {}
         params["$select"] = "sdkmessagefilterid"
         params["$expand"] = "sdkmessageid($select=name)"
         params["$filter"] = (
             f"""({" or ".join(f"{msg_col} eq '{x}'" for x in actions)}) and {col} eq '{self.logical_name}'"""
         )
 
-        logging.debug("Retrieving SDK messages for %s", self.logical_name)
+        logger.debug("Retrieving SDK messages for %s", self.logical_name)
         resp = self._api_call(
             method=RequestMethod.GET,
             url="sdkmessagefilters",
@@ -267,7 +269,7 @@ class DataverseEntity(Dataverse):
             The extended "value" element for all response-JSONs from server.
         """
 
-        additional_headers: dict[str, str] = dict()
+        additional_headers: dict[str, str] = {}
         formatted_arg = "odata.include-annotations=OData.Community.Display.V1.FormattedValue"
         page_size_arg = f"odata.maxpagesize={page_size}"
 
@@ -278,7 +280,7 @@ class DataverseEntity(Dataverse):
         elif return_formatted_values:
             additional_headers["Prefer"] = formatted_arg
 
-        params: dict[str, Any] = dict()
+        params: dict[str, Any] = {}
         if select:
             params["$select"] = ",".join(select)
         if filter:
@@ -290,11 +292,11 @@ class DataverseEntity(Dataverse):
         if expand:
             params["$expand"] = expand
 
-        output: list[requests.Response] = list()
+        output: list[requests.Response] = []
         url = self.entity_set_name
 
         # Looping through pages
-        logging.debug("Fetching data for read operation on %s.", self.logical_name)
+        logger.debug("Fetching data for read operation on %s.", self.logical_name)
         response = self._api_call(
             method=RequestMethod.GET,
             url=url,
@@ -311,13 +313,13 @@ class DataverseEntity(Dataverse):
             output.append(response)
 
         if return_responses:
-            logging.debug("Fetched all data for read operation, %d responses.", len(output))
+            logger.debug("Fetched all data for read operation, %d responses.", len(output))
             return output
         else:
             data_output: list[dict[str, Any]] = []
             for resp in output:
                 data_output.extend(resp.json()["value"])
-            logging.debug("Fetched all data for read operation, %d elements.", len(data_output))
+            logger.debug("Fetched all data for read operation, %d elements.", len(data_output))
             return data_output
 
     @overload
@@ -372,13 +374,14 @@ class DataverseEntity(Dataverse):
             per batch if e.g. timeouts or 429s occur.
         """
         if is_into_dataframe(data):
+            data = cast(IntoDataFrame, data)
             data = convert_dataframe_to_dict(data)
 
         assert isinstance(data, Sequence)
 
         batch_size = batch_size or 500
 
-        headers: dict[str, str] = dict()
+        headers: dict[str, str] = {}
         if detect_duplicates:
             headers["MSCRM.SuppressDuplicateDetection"] = "false"
 
@@ -387,13 +390,13 @@ class DataverseEntity(Dataverse):
 
         length = len(data)
         if mode == "individual":
-            logging.debug("%d rows to insert using individual inserts.", length)
+            logger.debug("%d rows to insert using individual inserts.", length)
             return self.__create_singles(headers=headers, data=data, threading=threading)
 
         if mode == "multiple":
             if not self.supports_create_multiple:
                 raise DataverseError(f"CreateMultiple is not supported by {self.logical_name}. Use a different mode.")
-            logging.debug("%d rows to insert using CreateMultiple.", length)
+            logger.debug("%d rows to insert using CreateMultiple.", length)
             return self.__create_multiple(
                 headers=headers,
                 data=data,
@@ -402,7 +405,7 @@ class DataverseEntity(Dataverse):
             )
 
         if mode == "batch":
-            logging.debug(
+            logger.debug(
                 "%d rows to insert using batch insertion.",
                 length,
             )
@@ -563,13 +566,13 @@ class DataverseEntity(Dataverse):
             ids = {row[self.primary_id_attr] for row in records}
 
         length = len(ids)
-        logging.info("%d rows to delete.", length)
+        logger.info("%d rows to delete.", length)
         if mode == "individual":
-            logging.debug("%d rows to delete using individual deletes.", length)
+            logger.debug("%d rows to delete using individual deletes.", length)
             return self.__delete_singles(data=ids, threading=threading)
 
         if mode == "batch":
-            logging.debug("%d rows to delete using batch deletes.", length)
+            logger.debug("%d rows to delete using batch deletes.", length)
             batch_commands = transform_to_batch_for_delete(url=self.entity_set_name, data=ids)
             return self._batch_api_call(
                 batch_commands=batch_commands,
@@ -678,13 +681,13 @@ class DataverseEntity(Dataverse):
         length = len(ids) * len(columns)  # Total number of deletion requests
         output: list[requests.Response] = []
         if mode == "individual":
-            logging.debug("%d properties to delete. Using individual deletes.", length)
+            logger.debug("%d properties to delete. Using individual deletes.", length)
             for col in columns:
                 output.extend(self.__delete_column_singles(data=ids, column=col, threading=threading))
             return output
 
         if mode == "batch":
-            logging.debug("%d properties to delete. Using batch deletes.", length)
+            logger.debug("%d properties to delete. Using batch deletes.", length)
             for col in columns:
                 batch_commands = transform_to_batch_for_delete(url=self.entity_set_name, data=ids, column=col)
                 output.extend(
@@ -776,16 +779,17 @@ class DataverseEntity(Dataverse):
             is_primary_id = True
 
         if is_into_dataframe(data):
+            data = cast(IntoDataFrame, data)
             data = convert_dataframe_to_dict(data)
 
         assert isinstance(data, Collection)
 
         if mode == "individual":
-            logging.debug("%d rows to upsert. Using individual upserts.", len(data))
+            logger.debug("%d rows to upsert. Using individual upserts.", len(data))
             return self.__upsert_singles(data=data, keys=key_columns, is_primary_id=is_primary_id, threading=threading)
 
         if mode == "batch":
-            logging.debug("%d rows to upsert. Using batch upserts.", len(data))
+            logger.debug("%d rows to upsert. Using batch upserts.", len(data))
             batch_commands = transform_to_batch_for_upsert(
                 url=self.entity_set_name,
                 data=data,
@@ -825,7 +829,7 @@ class DataverseEntity(Dataverse):
             The response from the server.
         """
 
-        headers: dict[str, str] = dict()
+        headers: dict[str, str] = {}
 
         if solution_name is not None:
             headers["MSCRM.SolutionUniqueName"] = solution_name
@@ -896,7 +900,7 @@ class DataverseEntity(Dataverse):
         alternate_key : MetadataDumper
             Dumpable metadata for new Alternate Key.
         """
-        headers: dict[str, str] = dict()
+        headers: dict[str, str] = {}
         if return_representation:
             headers["Prefer"] = "return_representation"
 

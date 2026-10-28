@@ -1,15 +1,17 @@
 import logging
 from collections import defaultdict
-from collections.abc import Iterable, Sequence
+from collections.abc import Collection, Generator, Iterable, Mapping, MutableMapping, Sequence
 from dataclasses import dataclass, field
 from enum import StrEnum
 from textwrap import dedent
-from typing import Any, Collection, Generator, Mapping, MutableMapping, TypeVar
+from typing import Any, TypeVar
 from urllib.parse import urljoin
 
 from dataverse_api.errors import DataverseError
 from dataverse_api.utils.data import serialize_json
 from dataverse_api.utils.text import encode_altkeys
+
+logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
 
@@ -71,7 +73,7 @@ class BatchCommand:
             self.single_col = True
             assert self.data is not None
             assert len(self.data) == 1
-            col, value = list(self.data.items())[0]
+            col, value = next(iter(self.data.items()))
             self.url += f"/{col}"
             self.data = {"value": value}
 
@@ -133,7 +135,7 @@ def chunk_data(data: Sequence[T], size: int) -> Generator[Sequence[T], None, Non
     list of `DataverseBatchCommand`
     """
     for i in range(0, len(data), size):
-        yield data[i : i + size]  # noqa E203
+        yield data[i : i + size]
 
 
 def transform_to_batch_for_create(
@@ -226,10 +228,10 @@ def transform_to_batch_for_upsert(
     """
     check_altkey_support(keys=keys, data=data)
     commands = []
-    for keys, payload in transform_upsert_data(data, keys, is_primary_id):
+    for _keys, payload in transform_upsert_data(data, keys, is_primary_id):
         commands.append(
             BatchCommand(
-                url=f"{url}({keys})",
+                url=f"{url}({_keys})",
                 method=RequestMethod.PATCH,
                 data=payload,
             )
@@ -269,8 +271,9 @@ def check_altkey_support(keys: Iterable[str], data: Collection[Mapping[str, Any]
 
     data_types = ", ".join(f"{key} ({', '.join(types)})" for key, types in bad_types.items())
 
-    logging.warning(
+    logger.warning(
         "The following alternate key columns contain complex types and may not be supported "
         "for use in alternate keys. It is recommended to serialize e.g. date types to the "
-        f"appropriate altkey string format prior to using upsert.: {data_types}"
+        "appropriate altkey string format prior to using upsert.: %s",
+        data_types,
     )
