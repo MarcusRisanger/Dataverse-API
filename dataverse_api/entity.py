@@ -143,10 +143,8 @@ class DataverseEntity(Dataverse):
         ).json()["value"]
         returned_actions = {row["sdkmessageid"]["name"] for row in resp}
 
-        if create in returned_actions:
-            self.__supports_create_multiple = True
-        if update in returned_actions:
-            self.__supports_update_multiple = True
+        self.__supports_create_multiple = create in returned_actions
+        self.__supports_update_multiple = update in returned_actions
 
     def __get_entity_relationships(self) -> None:
         """
