@@ -2,6 +2,14 @@ default_language_version:
   python: python3.11
 
 repos:
+  - repo: local
+    hooks:
+      - id: uv-lock
+        name: Generate or update uv lockfile
+        entry: uv lock
+        language: system
+        pass_filenames: false
+
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0
     hooks:

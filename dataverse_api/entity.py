@@ -23,6 +23,7 @@ from dataverse_api.utils.batching import (
     transform_upsert_data,
 )
 from dataverse_api.utils.data import (
+    check_batch_operations,
     convert_dataframe_to_dict,
     extract_collection_valued_relationships,
     extract_single_valued_relationships,
@@ -704,7 +705,12 @@ class DataverseEntity(Dataverse):
         raise DataverseModeError(mode, "individual", "batch")
 
     def __upsert_singles(
-        self, data: Collection[Mapping[str, Any]], keys: Iterable[str], is_primary_id: bool, threading: bool
+        self,
+        data: Collection[Mapping[str, Any]],
+        keys: Iterable[str],
+        is_primary_id: bool,
+        threading: bool,
+        headers: dict[str, str],
     ) -> list[requests.Response]:
         """
         Upsert row by individual requests.
@@ -715,6 +721,7 @@ class DataverseEntity(Dataverse):
                 method=RequestMethod.PATCH,
                 url=f"{self.entity_set_name}({key})",
                 json=payload,
+                headers=headers,
             )
             for key, payload in transform_upsert_data(data=data, keys=keys, is_primary_id=is_primary_id)
         ]
@@ -730,6 +737,7 @@ class DataverseEntity(Dataverse):
         mode: Literal["individual"] = "individual",
         altkey_name: str | None = None,
         threading: bool = False,
+        restrict_create: bool = False,
     ) -> list[requests.Response]: ...
 
     @overload
@@ -741,6 +749,7 @@ class DataverseEntity(Dataverse):
         altkey_name: str | None = None,
         threading: bool = False,
         batch_size: int | None = None,
+        restrict_create: bool = False,
     ) -> list[requests.Response]: ...
 
     def upsert(
@@ -751,6 +760,7 @@ class DataverseEntity(Dataverse):
         altkey_name: str | None = None,
         threading: bool = False,
         batch_size: int | None = None,
+        restrict_create: bool = False,
     ) -> list[requests.Response]:
         """
         Upsert data into Entity.
@@ -769,7 +779,14 @@ class DataverseEntity(Dataverse):
         batch_size : int
             Optional override if batch mode is specified, useful for
             tuning workloads if 429s or timeouts occur.
+        restrict_create : bool
+            Whether to restrict the creation of new records if no match is found.
+            If True, the operation will update existing records.
         """
+        headers: dict[str, str] = {}
+        if restrict_create:
+            headers["If-Match"] = "*"
+
         if altkey_name is not None:
             try:
                 key_columns = self.alternate_keys[altkey_name]
@@ -788,7 +805,13 @@ class DataverseEntity(Dataverse):
 
         if mode == "individual":
             logger.debug("%d rows to upsert. Using individual upserts.", len(data))
-            return self.__upsert_singles(data=data, keys=key_columns, is_primary_id=is_primary_id, threading=threading)
+            return self.__upsert_singles(
+                data=data,
+                keys=key_columns,
+                is_primary_id=is_primary_id,
+                threading=threading,
+                headers=headers,
+            )
 
         if mode == "batch":
             logger.debug("%d rows to upsert. Using batch upserts.", len(data))
@@ -797,12 +820,16 @@ class DataverseEntity(Dataverse):
                 data=data,
                 keys=key_columns,
                 is_primary_id=is_primary_id,
+                headers=headers,
             )
-            return self._batch_api_call(
+            responses = self._batch_api_call(
                 batch_commands=batch_commands,
                 threading=threading,
                 batch_size=batch_size or 500,
+                extra_headers={"Prefer": "odata.continue-on-error"} if (mode == "batch" and restrict_create) else {},
             )
+            check_batch_operations(responses)
+            return responses
 
         raise DataverseModeError(mode, "individual", "batch")
 

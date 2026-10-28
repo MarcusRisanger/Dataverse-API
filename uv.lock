@@ -512,7 +512,7 @@ wheels = [
 
 [[package]]
 name = "dataverse-api"
-version = "1.4.3"
+version = "1.5.0"
 source = { editable = "." }
 dependencies = [
     { name = "narwhals" },

@@ -651,10 +651,22 @@ entity.upsert()
 """
 
 
+@pytest.mark.parametrize("threading", [False, True], ids=["sequential", "threaded"])
+@pytest.mark.parametrize(
+    ("kwargs", "expected_header"),
+    [
+        pytest.param({}, None, id="default"),
+        pytest.param({"restrict_create": False}, None, id="allow-create"),
+        pytest.param({"restrict_create": True}, "*", id="update-only"),
+    ],
+)
 def test_entity_upsert_individual_primaryid(
     entity: DataverseEntity,
     primary_id: str,
     mocked_responses: responses.RequestsMock,
+    threading: bool,
+    kwargs: dict[str, bool],
+    expected_header: str | None,
 ):
     # Setup
     data = [{primary_id: str(uuid4()), "test_val": random.randint(1, 10)} for _ in range(4)]
@@ -669,30 +681,140 @@ def test_entity_upsert_individual_primaryid(
             status=204,
         )
 
-    resp = entity.upsert(data, mode="individual")
+    resp = entity.upsert(data, mode="individual", threading=threading, **kwargs)
 
-    for row in resp:
-        assert row.status_code == 204
+    assert len(resp) == len(data)
+    for response in resp:
+        assert response.status_code == 204
+        assert response.request.headers.get("If-Match") == expected_header
 
 
+@pytest.mark.parametrize("threading", [False, True], ids=["sequential", "threaded"])
+@pytest.mark.parametrize(
+    ("kwargs", "expected_values"),
+    [
+        pytest.param({}, [], id="default"),
+        pytest.param({"restrict_create": False}, [], id="allow-create"),
+        pytest.param({"restrict_create": True}, ["*"], id="update-only"),
+    ],
+)
 def test_entity_upsert_batch_primaryid(
     entity: DataverseEntity,
     primary_id: str,
     mocked_responses: responses.RequestsMock,
+    threading: bool,
+    kwargs: dict[str, bool],
+    expected_values: list[str],
 ):
-    # Setup
-    data = [{primary_id: str(uuid4()), "test_val": random.randint(1, 10)} for _ in range(4)]
+    data = [{primary_id: str(uuid4()), "test_val": index} for index in range(5)]
+    expected_payloads = {
+        f"PATCH {entity._endpoint}{entity.entity_set_name}({row[primary_id]}) HTTP/1.1".encode(): serialize_json(
+            {"test_val": row["test_val"]}
+        ).encode()
+        for row in data
+    }
 
-    mocked_responses.post(url=f"{entity._endpoint}$batch")
+    mocked_responses.post(url=f"{entity._endpoint}$batch", status=200)
 
-    resp = entity.upsert(data=data, mode="batch")
+    resp = entity.upsert(data=data, mode="batch", batch_size=2, threading=threading, **kwargs)
 
-    assert isinstance(resp[0].request.body, str)  # type checking
-    elements = resp[0].request.body.split("--batch")[1:-1]
+    assert len(resp) == 3
+    batch_lengths = []
+    for response in resp:
+        assert response.status_code == 200
+        request = response.request
+        assert "If-Match" not in request.headers
+        assert isinstance(request.body, str)
+        content_type = request.headers["Content-Type"]
+        batch = BytesParser(policy=policy.default).parsebytes(
+            f"Content-Type: {content_type}\r\n\r\n{request.body}".encode()
+        )
+        assert batch.is_multipart()
+        parts = list(batch.iter_parts())
+        batch_lengths.append(len(parts))
+        for part in parts:
+            assert part.get_content_type() == "application/http"
+            assert "If-Match" not in part
+            payload = part.get_payload(decode=True)
+            assert isinstance(payload, bytes)
+            request_line, _, request_content = payload.partition(b"\n")
+            expected_payload = expected_payloads.pop(request_line.strip())
+            embedded_request = BytesParser(policy=policy.default).parsebytes(request_content)
+            assert embedded_request.get_all("If-Match", []) == expected_values
+            body = embedded_request.get_payload(decode=True)
+            assert isinstance(body, bytes)
+            assert body.strip() == expected_payload
 
-    for out, expected in zip(elements, data):
-        assert f"{entity.entity_set_name}({expected.pop(primary_id)})" in out
-        assert serialize_json(expected) in out
+    assert sorted(batch_lengths) == [1, 2, 2]
+    assert not expected_payloads
+
+
+@pytest.mark.parametrize("threading", [False, True], ids=["sequential", "threaded"])
+def test_entity_upsert_batch_restrict_create_partial_failure(
+    entity: DataverseEntity,
+    primary_id: str,
+    mocked_responses: responses.RequestsMock,
+    caplog: pytest.LogCaptureFixture,
+    threading: bool,
+):
+    data = [{primary_id: str(uuid4()), "test_val": index} for index in range(3)]
+    boundary = "batchresponse_test"
+    error = serialize_json(
+        {"error": {"code": "0x80060891", "message": "A record with the specified key values does not exist"}}
+    )
+    operation_responses = [
+        "HTTP/1.1 204 No Content\r\n\r\n",
+        f"HTTP/1.1 404 Not Found\r\nContent-Type: application/json\r\n\r\n{error}\r\n",
+        "HTTP/1.1 204 No Content\r\n\r\n",
+    ]
+    response_body = (
+        "".join(
+            f"--{boundary}\r\nContent-Type: application/http\r\nContent-Transfer-Encoding: binary\r\n\r\n{operation}"
+            for operation in operation_responses
+        )
+        + f"--{boundary}--\r\n"
+    )
+    mocked_responses.post(
+        url=f"{entity._endpoint}$batch",
+        status=200,
+        content_type=f"multipart/mixed; boundary={boundary}",
+        body=response_body,
+        match=[header_matcher({"Prefer": "odata.continue-on-error"})],
+    )
+
+    with caplog.at_level(logging.INFO, logger="dataverse_api"):
+        result = entity.upsert(data, mode="batch", restrict_create=True, threading=threading)
+
+    assert len(result) == 1
+    assert result[0].status_code == 200
+    assert result[0].text == response_body
+    assert [(record.name, record.levelno, record.getMessage()) for record in caplog.records] == [
+        ("dataverse_api.utils.data", logging.WARNING, "Batch operation had 1 failures out of 3 total operations.")
+    ]
+
+    request = result[0].request
+    assert "If-Match" not in request.headers
+    assert isinstance(request.body, str)
+    content_type = request.headers["Content-Type"]
+    batch = BytesParser(policy=policy.default).parsebytes(
+        f"Content-Type: {content_type}\r\n\r\n{request.body}".encode()
+    )
+    assert batch.is_multipart()
+    parts = list(batch.iter_parts())
+    assert len(parts) == len(data)
+    for part, row in zip(parts, data, strict=True):
+        assert part.get_content_type() == "application/http"
+        assert "If-Match" not in part
+        assert "Prefer" not in part
+        payload = part.get_payload(decode=True)
+        assert isinstance(payload, bytes)
+        request_line, _, request_content = payload.partition(b"\n")
+        assert request_line.rstrip(b"\r") == (
+            f"PATCH {entity._endpoint}{entity.entity_set_name}({row[primary_id]}) HTTP/1.1".encode()
+        )
+        embedded_request = BytesParser(policy=policy.default).parsebytes(request_content)
+        assert embedded_request.get_all("If-Match", []) == ["*"]
+        assert "Prefer" not in embedded_request
 
 
 def test_entity_upsert_batch_altkey(

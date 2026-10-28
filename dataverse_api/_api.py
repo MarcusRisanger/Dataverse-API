@@ -112,6 +112,7 @@ class Dataverse:
         id_generator: Callable[[], str] | None = None,
         timeout: int | None = None,
         threading: bool = False,
+        extra_headers: dict[str, str] | None = None,
     ) -> list[requests.Response]:
         """
         Performs a batch requests.
@@ -149,6 +150,8 @@ class Dataverse:
 
             payload = "\n".join(batch_data)
             headers = {"Content-Type": f'multipart/mixed; boundary="{id}"', "If-None-Match": "null"}
+            if extra_headers:
+                headers.update(extra_headers)
 
             calls.append(APICommand(method=RequestMethod.POST, url="$batch", headers=headers, data=payload))
 

@@ -39,7 +39,7 @@ def convert_dict_keys_to_snake(arg: dict[str, Any]) -> dict[str, Any]:
     ----------
     arg : dict
     """
-    out: dict[str, Any] = dict()
+    out: dict[str, Any] = {}
     for k, v in arg.items():
         key = title_to_snake(k)
         if k == "@odata.type":
@@ -62,7 +62,7 @@ def convert_dict_keys_to_title(arg: dict[str, Any]) -> dict[str, Any]:
     ----------
     arg : dict
     """
-    out: dict[str, Any] = dict()
+    out: dict[str, Any] = {}
     for k, v in arg.items():
         if k == "odata_type":
             out["@odata.type"] = v  # Corresponding value is always a string
@@ -98,3 +98,21 @@ def encode_altkeys(url: str) -> str:
 
     pat = re.compile(r"\'([^\']*)\'")
     return re.sub(pat, parse, url)  # type: ignore
+
+
+def parse_status_codes_in_batch(batch_response: str) -> list[int]:
+    """
+    Parses HTTP status codes from a batch response text.
+
+    Parameters
+    ----------
+    batch_response : str
+        The raw text of the batch response.
+
+    Returns
+    -------
+    list[int]
+        A list of HTTP status codes found in the batch response.
+    """
+    pat = re.compile(r"^HTTP\/1.1 (\d+) ", re.MULTILINE)
+    return [int(code) for code in re.findall(pat, batch_response)]

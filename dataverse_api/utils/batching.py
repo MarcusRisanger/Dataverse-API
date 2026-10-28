@@ -3,7 +3,6 @@ from collections import defaultdict
 from collections.abc import Collection, Generator, Iterable, Mapping, MutableMapping, Sequence
 from dataclasses import dataclass, field
 from enum import StrEnum
-from textwrap import dedent
 from typing import Any, TypeVar
 from urllib.parse import urljoin
 
@@ -81,7 +80,6 @@ class BatchCommand:
             self.content_type += "; type=entry"
 
         if self.headers:
-            print("Extra!")
             self.extra_header = "\n".join([f"{k}: {v}" for k, v in self.headers.items()])
 
         self.url = encode_altkeys(self.url)
@@ -105,17 +103,15 @@ class BatchCommand:
 
         url = urljoin(api_url, self.url)
 
-        row_command = f"""\
-        --{batch_id}
-        Content-Type: application/http
-        Content-Transfer-Encoding: binary
-
-        {self.method} {url} HTTP/1.1
-        {self.content_type}
-        {self.extra_header}\n
-        {serialize_json(self.data)}
-        """
-        return dedent(row_command)
+        return (
+            f"--{batch_id}\n"
+            "Content-Type: application/http\n"
+            "Content-Transfer-Encoding: binary\n\n"
+            f"{self.method} {url} HTTP/1.1\n"
+            f"{self.content_type}\n"
+            f"{self.extra_header}\n\n"
+            f"{serialize_json(self.data)}\n"
+        )
 
 
 def chunk_data(data: Sequence[T], size: int) -> Generator[Sequence[T], None, None]:

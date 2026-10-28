@@ -58,31 +58,43 @@ def test_batch_command_post():
     assert command.encode(batch_id=batch_id, api_url=api_url) == dedent(expected_output)
 
 
-def test_batch_command_patch_with_header():
+@pytest.mark.parametrize(
+    ("headers", "expected_headers"),
+    [
+        pytest.param(
+            {"MSCRM.SuppressDuplicateDetection": "false"},
+            "MSCRM.SuppressDuplicateDetection: false",
+            id="single-header",
+        ),
+        pytest.param(
+            {"If-Match": "*", "Prefer": "return=representation"},
+            "If-Match: *\nPrefer: return=representation",
+            id="multiple-headers",
+        ),
+    ],
+)
+def test_batch_command_patch_with_header(headers: dict[str, str], expected_headers: str):
     url = "foo"
     method = RequestMethod.PATCH
     batch_id = "123"
     api_url = "http://test.com"
     data = {"test": 123}
-    header = {"MSCRM.SuppressDuplicateDetection": "false"}
 
-    expected_output = f"""\
-    --{batch_id}
-    Content-Type: application/http
-    Content-Transfer-Encoding: binary
+    expected_output = (
+        f"--{batch_id}\n"
+        "Content-Type: application/http\n"
+        "Content-Transfer-Encoding: binary\n\n"
+        f"{method.name} {api_url}/{url} HTTP/1.1\n"
+        "Content-Type: application/json\n"
+        f"{expected_headers}\n\n"
+        f"{serialize_json(data)}\n"
+    )
 
-    {method.name} {api_url}/{url} HTTP/1.1
-    Content-Type: application/json
-    MSCRM.SuppressDuplicateDetection: false
-
-    {serialize_json(data)}
-    """
-
-    command = BatchCommand(url=url, method=method, data=data, headers=header)
+    command = BatchCommand(url=url, method=method, data=data, headers=headers)
     assert command.single_col is False
-    assert command.headers == header
+    assert command.headers == headers
     assert command.content_type == "Content-Type: application/json"
-    assert command.encode(batch_id=batch_id, api_url=api_url) == dedent(expected_output)
+    assert command.encode(batch_id=batch_id, api_url=api_url) == expected_output
 
 
 def test_batch_command_put():
