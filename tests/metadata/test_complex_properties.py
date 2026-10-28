@@ -1,5 +1,3 @@
-import logging
-
 import pytest
 
 from dataverse_api.metadata.complex_properties import (
@@ -80,31 +78,21 @@ def test_required_level(required_level: RequiredLevel):
     assert len(a) == 3
 
 
-def test_create_label_with_string(label_string: str):
-    # Testing when only supplying a label argument
-    a = create_label(label=label_string)
-    assert isinstance(a, Label)
-    assert len(a.localized_labels) == 1
-    assert a.localized_labels[0].label == label_string
-    assert a.localized_labels[0].language_code == 1033
+@pytest.mark.parametrize(
+    ("kwargs", "expected_language_code"),
+    [
+        pytest.param({}, 1033, id="default-language"),
+        pytest.param({"language_code": None}, 1033, id="explicit-none-language"),
+        pytest.param({"language_code": 69}, 69, id="custom-language"),
+    ],
+)
+def test_create_label_with_string(label_string: str, kwargs: dict[str, int | None], expected_language_code: int):
+    label = create_label(label=label_string, **kwargs)
 
-
-def test_create_label_with_string_with_lang_code_none(label_string: str):
-    # Explicitly passing `language_code` as None
-    a = create_label(label=label_string, language_code=None)
-    assert isinstance(a, Label)
-    assert len(a.localized_labels) == 1
-    assert a.localized_labels[0].label == label_string
-    assert a.localized_labels[0].language_code == 1033
-
-
-def test_create_label_with_string_and_lang_cdode(label_string: str, lang_code: int):
-    # Testing for supplied `language_code`
-    a = create_label(label=label_string, language_code=lang_code)
-    assert isinstance(a, Label)
-    assert len(a.localized_labels) == 1
-    assert a.localized_labels[0].label == label_string
-    assert a.localized_labels[0].language_code == lang_code
+    assert isinstance(label, Label)
+    assert len(label.localized_labels) == 1
+    assert label.localized_labels[0].label == label_string
+    assert label.localized_labels[0].language_code == expected_language_code
 
 
 def test_create_label_with_list_of_tuples(label_string: str, lang_code: int):
@@ -115,10 +103,10 @@ def test_create_label_with_list_of_tuples(label_string: str, lang_code: int):
     a = create_label(labels=labels)
     assert isinstance(a, Label)
     assert len(a.localized_labels) == 2
-    for localized_label, lang_code in labels:
+    for localized_label, _lang_code in labels:
         for label in a.localized_labels:
             if label.label == localized_label:
-                assert label.language_code == lang_code
+                assert label.language_code == _lang_code
 
 
 def test_create_label_failure_1():
@@ -127,6 +115,5 @@ def test_create_label_failure_1():
 
 
 def test_create_label_failure_2():
-    with pytest.raises(ValueError, match=r"Input should be a valid integer") as e:
-        logging.warning(e)
+    with pytest.raises(ValueError, match=r"Input should be a valid integer"):
         create_label(label="Hello", language_code="foo")

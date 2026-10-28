@@ -11,6 +11,8 @@ from dataverse_api.errors import DataverseAPIError
 from dataverse_api.utils.batching import APICommand, BatchCommand, RequestMethod, chunk_data
 from dataverse_api.utils.data import serialize_json
 
+logger = logging.getLogger(__name__)
+
 
 class Dataverse:
     """
@@ -110,6 +112,7 @@ class Dataverse:
         id_generator: Callable[[], str] | None = None,
         timeout: int | None = None,
         threading: bool = False,
+        extra_headers: dict[str, str] | None = None,
     ) -> list[requests.Response]:
         """
         Performs a batch requests.
@@ -132,9 +135,11 @@ class Dataverse:
         """
 
         if id_generator is None:
-            id_generator = lambda: str(uuid4())  # noqa: E731
 
-        calls: list[APICommand] = list()
+            def id_generator() -> str:
+                return str(uuid4())
+
+        calls: list[APICommand] = []
         for batch in chunk_data(data=batch_commands, size=batch_size):
             # Generate a unique ID for the batch
             id = f"batch_{id_generator()}"
@@ -145,6 +150,8 @@ class Dataverse:
 
             payload = "\n".join(batch_data)
             headers = {"Content-Type": f'multipart/mixed; boundary="{id}"', "If-None-Match": "null"}
+            if extra_headers:
+                headers.update(extra_headers)
 
             calls.append(APICommand(method=RequestMethod.POST, url="$batch", headers=headers, data=payload))
 
@@ -175,7 +182,7 @@ class Dataverse:
             try:
                 out.append(self._api_call(**call.__dict__, timeout=timeout))
             except DataverseAPIError as e:
-                logging.error(f"API request error: {e.args[0]}")
+                logger.error("API request error: %s", e.args[0])
                 out.append(e.response)
         return out
 
@@ -212,7 +219,7 @@ class Dataverse:
                 try:
                     resp.append(future.result())
                 except DataverseAPIError as e:
-                    logging.error(f"API request error: {e.args[0]}")
+                    logger.error("API request error: %s", e.args[0])
                     resp.append(e.response)
 
         return resp

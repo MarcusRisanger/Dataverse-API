@@ -1,15 +1,16 @@
 import logging
 from collections import defaultdict
-from collections.abc import Iterable, Sequence
+from collections.abc import Collection, Generator, Iterable, Mapping, MutableMapping, Sequence
 from dataclasses import dataclass, field
 from enum import StrEnum
-from textwrap import dedent
-from typing import Any, Collection, Generator, Mapping, MutableMapping, TypeVar
+from typing import Any, TypeVar
 from urllib.parse import urljoin
 
 from dataverse_api.errors import DataverseError
 from dataverse_api.utils.data import serialize_json
 from dataverse_api.utils.text import encode_altkeys
+
+logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
 
@@ -52,15 +53,15 @@ class BatchCommand:
         The url that will be appended to the endpoint url.
     method : RequestMethod
         The request method for the batch command.
-    headers : dict
+    headers : Mapping[str, Any]
         Any additional headers to pass for the specific batch command.
-    data : dict
+    data : Mapping[str, Any]
         Optional JSON serializable payload depending on request method.
     """
 
     url: str
     method: RequestMethod
-    headers: Mapping[str, str] | None = field(default=None)
+    headers: Mapping[str, Any] | None = field(default=None)
     data: Mapping[str, Any] | None = field(default=None)
     extra_header: str = field(init=False, default="")
     single_col: bool = field(init=False, default=False)
@@ -71,7 +72,7 @@ class BatchCommand:
             self.single_col = True
             assert self.data is not None
             assert len(self.data) == 1
-            col, value = list(self.data.items())[0]
+            col, value = next(iter(self.data.items()))
             self.url += f"/{col}"
             self.data = {"value": value}
 
@@ -79,7 +80,6 @@ class BatchCommand:
             self.content_type += "; type=entry"
 
         if self.headers:
-            print("Extra!")
             self.extra_header = "\n".join([f"{k}: {v}" for k, v in self.headers.items()])
 
         self.url = encode_altkeys(self.url)
@@ -103,45 +103,61 @@ class BatchCommand:
 
         url = urljoin(api_url, self.url)
 
-        row_command = f"""\
-        --{batch_id}
-        Content-Type: application/http
-        Content-Transfer-Encoding: binary
-
-        {self.method} {url} HTTP/1.1
-        {self.content_type}
-        {self.extra_header}\n
-        {serialize_json(self.data)}
-        """
-        return dedent(row_command)
+        return (
+            f"--{batch_id}\n"
+            "Content-Type: application/http\n"
+            "Content-Transfer-Encoding: binary\n\n"
+            f"{self.method} {url} HTTP/1.1\n"
+            f"{self.content_type}\n"
+            f"{self.extra_header}\n\n"
+            f"{serialize_json(self.data)}\n"
+        )
 
 
 def chunk_data(data: Sequence[T], size: int) -> Generator[Sequence[T], None, None]:
     """
-    Simple function to chunk a list into a maximum number of
-    elements per chunk.
+    Simple function to chunk a list in `size`-sized pieces.
 
     Parameters
     ----------
-    data : list of `DataverseBatchCommand`
+    data : Sequence[T]
         List containing all commands to be chunked.
     size: int, optional
         Chunking size.
 
     Yields
     ------
-    list of `DataverseBatchCommand`
+    Sequence[T]
+        With at most `size` elements per chunk.
     """
     for i in range(0, len(data), size):
-        yield data[i : i + size]  # noqa E203
+        yield data[i : i + size]
 
 
 def transform_to_batch_for_create(
     url: str,
     data: Collection[Mapping[str, Any]],
+    headers: Mapping[str, Any] | None = None,
 ) -> list[BatchCommand]:
-    """Transform data payload to creation batch data."""
-    return [BatchCommand(url, method=RequestMethod.POST, data=row) for row in data]
+    """
+    Transform data payload to creation batch data.
+
+    Parameters
+    ----------
+    url : str
+        The EntitySetName of targeted Dataverse Entity.
+    data : Collection[Mapping[str, Any]]
+        The data to create.
+    headers : Mapping[str, Any] | None
+        The headers to include in the batch command.
+        If None, no extra headers are added.
+
+    Returns
+    -------
+    list[BatchCommand]
+        Payload for passing to the API batch call endpoint.
+    """
+    return [BatchCommand(url, method=RequestMethod.POST, data=row, headers=headers) for row in data]
 
 
 def transform_to_batch_for_delete(url: str, data: Iterable[str], column: str | None = None) -> list[BatchCommand]:
@@ -152,14 +168,15 @@ def transform_to_batch_for_delete(url: str, data: Iterable[str], column: str | N
     ----------
     url : str
         The EntitySetName of targeted Dataverse Entity.
-    data : iterable of str
+    data : Iterable[str]
         Primary IDs for deletion.
-    column : str
+    column : str | None
         Optional column to target for deletion.
+        If None, the primary key column is used.
 
     Returns
     -------
-    list of BatchDataCommand
+    list[BatchCommand]
         Payload for passing to the API batch call endpoint.
     """
     column = "" if column is None else f"/{column}"
@@ -209,6 +226,7 @@ def transform_to_batch_for_upsert(
     data: Collection[MutableMapping[str, Any]],
     keys: Iterable[str],
     is_primary_id: bool = False,
+    headers: Mapping[str, Any] | None = None,
 ) -> list[BatchCommand]:
     """
     Transform data payload to upsert batch data.
@@ -217,21 +235,24 @@ def transform_to_batch_for_upsert(
     ----------
     url : str
         The Entity endpoint for upsertion.
-    data : collection of data dictionaries
+    data : Collection[MutableMapping[str, Any]]
         The data to be upserted into Dataverse.
-    keys : iterable of str
+    keys : Iterable[str]
         The keys used to identify unique rows in the dataset.
-    is_id : bool
+    is_primary_id : bool
         Whether the supplied singular key is the Entity primary ID attribute.
+    headers : Mapping[str, Any] | None
+        Optional headers to include in the batch command.
     """
     check_altkey_support(keys=keys, data=data)
     commands = []
-    for keys, payload in transform_upsert_data(data, keys, is_primary_id):
+    for _keys, payload in transform_upsert_data(data, keys, is_primary_id):
         commands.append(
             BatchCommand(
-                url=f"{url}({keys})",
+                url=f"{url}({_keys})",
                 method=RequestMethod.PATCH,
                 data=payload,
+                headers=headers,
             )
         )
 
@@ -242,17 +263,15 @@ def check_altkey_support(keys: Iterable[str], data: Collection[Mapping[str, Any]
     """
     Check if the given keys can be used as alternate keys.
 
+    If any of the supplied keys contain complex types, a warning is emitted.
+
     Parameters
     ----------
-    keys : iterable of str
+    keys : Iterable[str]
         The keys to check.
-    primary_id : str
-        The primary ID attribute for the Entity.
+    data : Collection[Mapping[str, Any]]
+        The data to check against the keys.
 
-    Returns
-    -------
-    bool
-        Whether the given keys can be used as alternate keys.
     """
     bad_types = defaultdict(set)
 
@@ -269,8 +288,9 @@ def check_altkey_support(keys: Iterable[str], data: Collection[Mapping[str, Any]
 
     data_types = ", ".join(f"{key} ({', '.join(types)})" for key, types in bad_types.items())
 
-    logging.warning(
+    logger.warning(
         "The following alternate key columns contain complex types and may not be supported "
         "for use in alternate keys. It is recommended to serialize e.g. date types to the "
-        f"appropriate altkey string format prior to using upsert.: {data_types}"
+        "appropriate altkey string format prior to using upsert.: %s",
+        data_types,
     )

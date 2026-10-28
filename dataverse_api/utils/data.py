@@ -1,10 +1,18 @@
 import json
-from collections.abc import Collection, Mapping
+import logging
+import math
+from collections import Counter
+from collections.abc import Collection, Iterable, Mapping
 from typing import Any
 
 import narwhals.stable.v2 as nw
 from narwhals.stable.v2.typing import IntoDataFrame
+from requests import Response
 from typing_extensions import Protocol, runtime_checkable
+
+from .text import parse_status_codes_in_batch
+
+logger = logging.getLogger(__name__)
 
 
 @runtime_checkable
@@ -14,10 +22,28 @@ class TimeType(Protocol):
 
 def is_not_none(value: Any) -> bool:
     """Checks if a value is not None or NaN."""
-    return value == value and value is not None
+    if value is None:
+        return False
+
+    try:
+        if math.isnan(value):
+            return False
+    except TypeError:
+        pass
+
+    try:
+        is_self_equal = value == value  # noqa: PLR0124
+    except (TypeError, ValueError):
+        # Keep values that do not support scalar self-comparison.
+        return True
+
+    try:
+        return bool(is_self_equal)
+    except (TypeError, ValueError):
+        return False
 
 
-def dict_of_lists_to_list_of_dicts(data: dict[str, list[Any]]) -> list[dict[str, Any]]:
+def dict_of_lists_to_list_of_dicts(data: Mapping[str, Iterable[Any]]) -> list[dict[str, Any]]:
     """
     Converts a dictionary of lists into a list of dictionaries.
     Example:
@@ -25,8 +51,8 @@ def dict_of_lists_to_list_of_dicts(data: dict[str, list[Any]]) -> list[dict[str,
 
     Parameters
     ----------
-    data : dict[str, list[Any]]
-        The dictionary to convert.
+    data : Mapping[str, Iterable[Any]]
+        The dictionary to convert. Each key maps to an iterable of values.
 
     Returns
     -------
@@ -37,7 +63,7 @@ def dict_of_lists_to_list_of_dicts(data: dict[str, list[Any]]) -> list[dict[str,
     keys = list(data.keys())
     values = zip(*data.values())
     zipped = [dict(zip(keys, v)) for v in values]
-    return [{k: v for k, v in row.items() if v == v and v is not None} for row in zipped]
+    return [{k: v for k, v in row.items() if is_not_none(v)} for row in zipped]
 
 
 def convert_dataframe_to_dict(data: IntoDataFrame) -> list[dict[str, Any]]:
@@ -46,7 +72,7 @@ def convert_dataframe_to_dict(data: IntoDataFrame) -> list[dict[str, Any]]:
 
     Parameters
     ----------
-    data : IntoFrame
+    data : IntoDataFrame
         The data to convert, which can be a DataFrame or similar structure.
 
     Returns
@@ -65,7 +91,7 @@ def coerce_timestamps(obj: object) -> str:
 
     if isinstance(obj, TimeType):
         return obj.isoformat()
-    raise TypeError("Type %s not serializable" % type(obj))
+    raise TypeError(f"Type {type(obj)} not serializable")
 
 
 def serialize_json(obj: Mapping[str, Any] | None) -> str:
@@ -89,10 +115,28 @@ def extract_collection_valued_relationships(data: Collection[dict[str, Any]], en
 
 def extract_single_valued_relationships(data: Collection[dict[str, Any]]) -> list[str]:
     """
-    Extracts collection valued relationships from a dict.
+    Extracts single valued relationships from a dict.
 
     Not sure how to firm this up to ignore "irrelevant" relationships.
     """
     target_col = "ReferencingEntityNavigationPropertyName"
 
     return [row[target_col] for row in data]
+
+
+def check_batch_operations(data: Collection[Response]) -> None:
+    counter = Counter()
+    for response in data:
+        status_codes = parse_status_codes_in_batch(response.text)
+        counter.update(status_codes)
+    successes = sum(counter.get(code, 0) for code in counter if code >= 200 and code < 300)
+    total = sum(counter.values())
+    failures = total - successes
+    if failures > 0:
+        logger.warning(
+            "Batch operation had %d failures out of %d total operations.",
+            failures,
+            total,
+        )
+    else:
+        logger.info("All %d batch operations succeeded.", total)

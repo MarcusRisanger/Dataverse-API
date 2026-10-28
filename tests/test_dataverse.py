@@ -1,5 +1,9 @@
 import json
+import logging
 import re
+import subprocess
+import sys
+from textwrap import dedent
 from typing import Any
 
 import pytest
@@ -12,7 +16,42 @@ from dataverse_api.metadata.entity import EntityMetadata
 from dataverse_api.metadata.enums import OwnershipType
 from dataverse_api.metadata.helpers import Publisher, Solution
 from dataverse_api.metadata.relationships import OneToManyRelationshipMetadata
-from dataverse_api.utils.batching import BatchCommand, RequestMethod
+from dataverse_api.utils.batching import APICommand, BatchCommand, RequestMethod
+
+
+@pytest.mark.parametrize("configured", [False, True])
+def test_library_logging_preserves_application_configuration(configured: bool) -> None:
+    script = dedent("""
+        import logging
+        import sys
+
+        root_logger = logging.getLogger()
+        if sys.argv[1] == "True":
+            logging.basicConfig(level=logging.INFO, format="%(name)s: %(message)s")
+        handlers = root_logger.handlers[:]
+        level = root_logger.level
+
+        from dataverse_api.utils.batching import check_altkey_support
+
+        assert root_logger.handlers == handlers
+        assert root_logger.level == level
+        check_altkey_support(["key"], [{"key": []}])
+        assert root_logger.handlers == handlers
+        assert root_logger.level == level
+    """)
+    result = subprocess.run(
+        [sys.executable, "-c", script, str(configured)],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+
+    assert result.stdout == ""
+    if configured:
+        assert result.stderr.count("dataverse_api.utils.batching: ") == 1
+        assert "complex types" in result.stderr
+    else:
+        assert result.stderr == ""
 
 
 def test_api_call(
@@ -26,6 +65,28 @@ def test_api_call(
 
     with pytest.raises(DataverseAPIError, match=r".*request failed.*"):
         client._api_call(method=RequestMethod.GET, url="Foo")
+
+
+@pytest.mark.parametrize("threading", [False, True])
+def test_api_request_error_logging(
+    client: DataverseClient,
+    mocked_responses: responses.RequestsMock,
+    caplog: pytest.LogCaptureFixture,
+    threading: bool,
+) -> None:
+    mocked_responses.get(url=f"{client._endpoint}Foo", status=500, json={"error": {"message": "Whoopsie!"}})
+    calls = [APICommand(method=RequestMethod.GET, url="Foo")]
+
+    with caplog.at_level(logging.ERROR, logger="dataverse_api"):
+        if threading:
+            result = client._threaded_call(calls)
+        else:
+            result = client._individual_call(calls)
+
+    assert len(result) == 1
+    assert result[0].status_code == 500
+    assert [(record.name, record.levelno) for record in caplog.records] == [("dataverse_api._api", logging.ERROR)]
+    assert "API request error:" in caplog.messages[0]
 
 
 def test_api_batch(client: DataverseClient, mocked_responses: responses.RequestsMock):
@@ -50,9 +111,9 @@ def test_api_batch(client: DataverseClient, mocked_responses: responses.Requests
         + rf"(?:PUT|GET|DELETE|POST|PATCH) {client._endpoint}.+ (?:HTTP\/1.1)"
         + "\nContent-Type: application/json(?:; type=entry)?\n\n"
     )
-    pat = re.compile(full_pattern, re.M)
+    pat = re.compile(full_pattern, re.MULTILINE)
     assert len(re.findall(pat, req)) == len(batch_data)
-    assert len(re.findall(rf"--batch_{batch}--$", req, re.M)) == 1, "Should have only one end of batch line."
+    assert len(re.findall(rf"--batch_{batch}--$", req, re.MULTILINE)) == 1, "Should have only one end of batch line."
     assert req[-2:] == "\n\n", "Should end with 2 clrfs"
 
     # POST batches have an additional line in Content-Type element header:
@@ -70,36 +131,24 @@ def create_entity_response(client: DataverseClient, sample_entity: EntityMetadat
     }
 
 
+@pytest.mark.parametrize(
+    "kwargs",
+    [pytest.param({}, id="default"), pytest.param({"solution_name": "Foo"}, id="with-solution")],
+)
 def test_create_entity(
     client: DataverseClient,
     mocked_responses: responses.RequestsMock,
     sample_entity: EntityMetadata,
     create_entity_response: dict[str, Any],
+    kwargs: dict[str, str],
 ):
-    # Mocking the request sent by endpoint
     mocked_responses.post(**create_entity_response)
 
-    # Running function - this errors if the endpoint URL
-    # does not match with the mocked response URL
-    resp = client.create_entity(sample_entity)
+    resp = client.create_entity(sample_entity, **kwargs)
 
-    # Run some assertions that payload contains critical attributes
     assert resp.request.body
     assert json.loads(resp.request.body) == sample_entity.dump_to_dataverse()
-
-
-def test_create_entity_with_solution_name(
-    client: DataverseClient,
-    mocked_responses: responses.RequestsMock,
-    sample_entity: EntityMetadata,
-    create_entity_response: dict[str, Any],
-):
-    # Again for invoking with `solution_name`
-    mocked_responses.post(**create_entity_response)
-    resp = client.create_entity(sample_entity, solution_name="Foo")
-
-    # Run assertions again!
-    assert resp.request.headers["MSCRM.SolutionUniqueName"] == "Foo"
+    assert resp.request.headers.get("MSCRM.SolutionUniqueName") == kwargs.get("solution_name")
 
 
 def test_delete_entity(
@@ -202,45 +251,33 @@ def test_get_entity_definition(
     return resp
 
 
+@pytest.mark.parametrize(
+    ("kwargs", "extra_headers"),
+    [
+        pytest.param({}, {}, id="default"),
+        pytest.param(
+            {"solution_name": "foo", "preserve_localized_labels": True},
+            {"MSCRM.UniqueSolutionName": "foo", "MSCRM.PreserveLabels": "true"},
+            id="solution-and-preserve-labels",
+        ),
+    ],
+)
 def test_update_entity(
     client: DataverseClient,
     mocked_responses: responses.RequestsMock,
     test_get_entity_definition: EntityMetadata,
     schema_name: str,
+    kwargs: dict[str, Any],
+    extra_headers: dict[str, str],
 ):
     mocked_responses.put(
         url=f"{client._endpoint}EntityDefinitions(LogicalName='{schema_name.lower()}')",
         status=204,
         match=[
             json_params_matcher(test_get_entity_definition.dump_to_dataverse()),
-            header_matcher({"Content-Type": "application/json; charset=utf-8"}),
+            header_matcher({"Content-Type": "application/json; charset=utf-8", **extra_headers}),
         ],
     )
 
-    resp = client.update_entity(test_get_entity_definition)
-    assert resp.status_code == 204
-
-
-def test_update_entity_with_kwargs(
-    client: DataverseClient,
-    mocked_responses: responses.RequestsMock,
-    test_get_entity_definition: EntityMetadata,
-    schema_name: str,
-):
-    mocked_responses.put(
-        url=f"{client._endpoint}EntityDefinitions(LogicalName='{schema_name.lower()}')",
-        status=204,
-        match=[
-            json_params_matcher(test_get_entity_definition.dump_to_dataverse()),
-            header_matcher(
-                {
-                    "Content-Type": "application/json; charset=utf-8",
-                    "MSCRM.UniqueSolutionName": "foo",
-                    "MSCRM.PreserveLabels": "true",
-                }
-            ),
-        ],
-    )
-
-    resp = client.update_entity(test_get_entity_definition, solution_name="foo", preserve_localized_labels=True)
+    resp = client.update_entity(test_get_entity_definition, **kwargs)
     assert resp.status_code == 204

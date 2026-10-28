@@ -1,3 +1,5 @@
+import pytest
+
 from dataverse_api.utils.text import convert_dict_keys_to_snake, convert_dict_keys_to_title, encode_altkeys
 
 
@@ -31,8 +33,14 @@ def test_conversion_to_snake():
     assert out["@whatever"] == test_dict["@whatever"]
 
 
-def test_altkeys_encode():
-    assert encode_altkeys("øøå('æø')") == "øøå('%C3%A6%C3%B8')"
-    assert encode_altkeys("abc('x x')") == "abc('x%20x')"
-    assert encode_altkeys("abc(stuff='æ',more='abc')") == "abc(stuff='%C3%A6',more='abc')"
-    assert encode_altkeys("abc(stuff='abc',more='æ')") == "abc(stuff='abc',more='%C3%A6')"
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        pytest.param("øøå('æø')", "øøå('%C3%A6%C3%B8')", id="preserve-unicode-entity-name"),
+        pytest.param("abc('x x')", "abc('x%20x')", id="space-in-value"),
+        pytest.param("abc(stuff='æ',more='abc')", "abc(stuff='%C3%A6',more='abc')", id="unicode-first-key"),
+        pytest.param("abc(stuff='abc',more='æ')", "abc(stuff='abc',more='%C3%A6')", id="unicode-second-key"),
+    ],
+)
+def test_altkeys_encode(value: str, expected: str):
+    assert encode_altkeys(value) == expected

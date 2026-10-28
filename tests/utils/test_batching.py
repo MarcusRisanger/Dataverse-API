@@ -58,31 +58,43 @@ def test_batch_command_post():
     assert command.encode(batch_id=batch_id, api_url=api_url) == dedent(expected_output)
 
 
-def test_batch_command_patch_with_header():
+@pytest.mark.parametrize(
+    ("headers", "expected_headers"),
+    [
+        pytest.param(
+            {"MSCRM.SuppressDuplicateDetection": "false"},
+            "MSCRM.SuppressDuplicateDetection: false",
+            id="single-header",
+        ),
+        pytest.param(
+            {"If-Match": "*", "Prefer": "return=representation"},
+            "If-Match: *\nPrefer: return=representation",
+            id="multiple-headers",
+        ),
+    ],
+)
+def test_batch_command_patch_with_header(headers: dict[str, str], expected_headers: str):
     url = "foo"
     method = RequestMethod.PATCH
     batch_id = "123"
     api_url = "http://test.com"
     data = {"test": 123}
-    header = {"MSCRM.SuppressDuplicateDetection": "false"}
 
-    expected_output = f"""\
-    --{batch_id}
-    Content-Type: application/http
-    Content-Transfer-Encoding: binary
+    expected_output = (
+        f"--{batch_id}\n"
+        "Content-Type: application/http\n"
+        "Content-Transfer-Encoding: binary\n\n"
+        f"{method.name} {api_url}/{url} HTTP/1.1\n"
+        "Content-Type: application/json\n"
+        f"{expected_headers}\n\n"
+        f"{serialize_json(data)}\n"
+    )
 
-    {method.name} {api_url}/{url} HTTP/1.1
-    Content-Type: application/json
-    MSCRM.SuppressDuplicateDetection: false
-
-    {serialize_json(data)}
-    """
-
-    command = BatchCommand(url=url, method=method, data=data, headers=header)
+    command = BatchCommand(url=url, method=method, data=data, headers=headers)
     assert command.single_col is False
-    assert command.headers == header
+    assert command.headers == headers
     assert command.content_type == "Content-Type: application/json"
-    assert command.encode(batch_id=batch_id, api_url=api_url) == dedent(expected_output)
+    assert command.encode(batch_id=batch_id, api_url=api_url) == expected_output
 
 
 def test_batch_command_put():
@@ -97,7 +109,7 @@ def test_batch_command_put():
     Content-Type: application/http
     Content-Transfer-Encoding: binary
 
-    {method.name} {api_url}/{url}/{list(data.keys())[0]} HTTP/1.1
+    {method.name} {api_url}/{url}/{next(iter(data.keys()))} HTTP/1.1
     Content-Type: application/json
 
 
@@ -110,73 +122,76 @@ def test_batch_command_put():
     assert command.encode(batch_id=batch_id, api_url=api_url) == dedent(expected_output)
 
 
-def test_batch_altkey_encoding_letters():
-    url = "hello(altkey='æøå')"
+@pytest.mark.parametrize(
+    ("url", "expected"),
+    [
+        pytest.param("hello(altkey='æøå')", "hello(altkey='%C3%A6%C3%B8%C3%A5')", id="unicode-value"),
+        pytest.param("kenobi(altkey='hello there')", "kenobi(altkey='hello%20there')", id="space-in-value"),
+    ],
+)
+def test_batch_altkey_encoding(url: str, expected: str):
     batch = BatchCommand(url=url, method=RequestMethod.GET)
-    assert batch.url == "hello(altkey='%C3%A6%C3%B8%C3%A5')"
+    assert batch.url == expected
 
 
-def test_batch_altkey_encoding_space():
-    url = "kenobi(altkey='hello there')"
-    batch = BatchCommand(url=url, method=RequestMethod.GET)
-    assert batch.url == "kenobi(altkey='hello%20there')"
-
-
-def test_check_altkey_support_with_valid_types():
-    keys = ["name", "age", "score"]
-    data = [
-        {"name": "Alice", "age": 30, "score": 95.5},
-        {"name": "Bob", "age": 25, "score": 87.0},
-    ]
-    # Should not raise any warnings or exceptions
-    check_altkey_support(keys, data)
-
-
-def test_check_altkey_support_with_invalid_types(caplog):
-    keys = ["name", "created_date"]
-    data = [
-        {"name": "Alice", "created_date": date(2023, 1, 1)},
-        {"name": "Bob", "created_date": datetime(2023, 2, 1)},
-    ]
-
-    with caplog.at_level(logging.WARNING):
+@pytest.mark.parametrize(
+    ("keys", "data"),
+    [
+        pytest.param(
+            ["name", "age", "score"],
+            [{"name": "Alice", "age": 30, "score": 95.5}, {"name": "Bob", "age": 25, "score": 87.0}],
+            id="valid-types",
+        ),
+        pytest.param(["name", "age"], [], id="empty-data"),
+    ],
+)
+def test_check_altkey_support_without_warnings(keys: list[str], data, caplog: pytest.LogCaptureFixture):
+    with caplog.at_level(logging.WARNING, logger="dataverse_api"):
         check_altkey_support(keys, data)
 
-    assert "complex types" in caplog.text
-    assert "created_date" in caplog.text
-    assert "datetime" in caplog.text
-    assert "date" in caplog.text
+    assert not caplog.records
 
 
-def test_check_altkey_support_with_mixed_types(caplog):
-    keys = ["id", "tags", "metadata"]
-    data = [
-        {"id": 1, "tags": ["tag1", "tag2"], "metadata": None},
-        {"id": 2, "tags": ["tag3"], "metadata": {"key": "value"}},
-    ]
-
-    with caplog.at_level(logging.WARNING):
+@pytest.mark.parametrize(
+    ("keys", "data", "expected_details"),
+    [
+        pytest.param(
+            ["name", "created_date"],
+            [
+                {"name": "Alice", "created_date": date(2023, 1, 1)},
+                {"name": "Bob", "created_date": datetime(2023, 2, 1)},
+            ],
+            ("created_date", "datetime", "date"),
+            id="date-and-datetime",
+        ),
+        pytest.param(
+            ["id", "tags", "metadata"],
+            [
+                {"id": 1, "tags": ["tag1", "tag2"], "metadata": None},
+                {"id": 2, "tags": ["tag3"], "metadata": {"key": "value"}},
+            ],
+            ("tags", "metadata", "list", "dict", "NoneType"),
+            id="mixed-complex-types",
+        ),
+    ],
+)
+def test_check_altkey_support_with_unsupported_types(
+    keys: list[str], data, expected_details: tuple[str, ...], caplog: pytest.LogCaptureFixture
+):
+    with caplog.at_level(logging.WARNING, logger="dataverse_api"):
         check_altkey_support(keys, data)
 
+    assert [(record.name, record.levelno) for record in caplog.records] == [
+        ("dataverse_api.utils.batching", logging.WARNING)
+    ]
     assert "complex types" in caplog.text
-    assert "tags" in caplog.text
-    assert "metadata" in caplog.text
-    assert "list" in caplog.text
-    assert "dict" in caplog.text or "NoneType" in caplog.text
-
-    def test_check_altkey_support_with_missing_keys():
-        keys = ["name", "missing_key"]
-        data = [
-            {"name": "Alice", "age": 30},
-            {"name": "Bob", "age": 25},
-        ]
-        # Should raise DataverseError when keys are missing
-        with pytest.raises(DataverseError):
-            check_altkey_support(keys, data)
+    for detail in expected_details:
+        assert detail in caplog.text
 
 
-def test_check_altkey_support_with_empty_data():
-    keys = ["name", "age"]
-    data = []
-    # Should not raise any warnings with empty data
-    check_altkey_support(keys, data)
+def test_check_altkey_support_with_missing_keys():
+    keys = ["name", "missing_key"]
+    data = [{"name": "Alice", "age": 30}, {"name": "Bob", "age": 25}]
+
+    with pytest.raises(DataverseError, match="Column 'missing_key' used in alternate key not found"):
+        check_altkey_support(keys, data)

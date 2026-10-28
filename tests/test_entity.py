@@ -2,6 +2,8 @@ import logging
 import random
 from copy import deepcopy
 from datetime import UTC, date, datetime
+from email import policy
+from email.parser import BytesParser
 from uuid import uuid4
 
 import pandas as pd
@@ -270,11 +272,12 @@ def test_entity_create_by_singles(
     for row in small_data_package:
         mocked_responses.post(url=url, match=[json_params_matcher(row)], status=204)
 
-    caplog.set_level(logging.DEBUG)
+    caplog.set_level(logging.DEBUG, logger="dataverse_api")
     resp = entity.create(data=small_data_package)
 
-    assert all([x.status_code == 204 for x in resp])
+    assert all(x.status_code == 204 for x in resp)
     assert "using individual inserts" in caplog.text
+    assert [(record.name, record.levelno) for record in caplog.records] == [("dataverse_api.entity", logging.DEBUG)]
 
 
 def test_entity_create_by_singles_write_timestamp(
@@ -292,11 +295,12 @@ def test_entity_create_by_singles_write_timestamp(
         row_data = {k: v.isoformat() for k, v in row.items()}
         mocked_responses.post(url=url, match=[json_params_matcher(row_data)], status=204)
 
-    caplog.set_level(logging.DEBUG)
+    caplog.set_level(logging.DEBUG, logger="dataverse_api")
     resp = entity.create(data=data)
 
-    assert all([x.status_code == 204 for x in resp])
+    assert all(x.status_code == 204 for x in resp)
     assert "using individual inserts" in caplog.text
+    assert [(record.name, record.levelno) for record in caplog.records] == [("dataverse_api.entity", logging.DEBUG)]
 
 
 def test_entity_create_by_createmultiple(
@@ -314,11 +318,12 @@ def test_entity_create_by_createmultiple(
     # Mock request
     mocked_responses.post(url=url, match=[json_params_matcher(match_data)], status=204)
 
-    caplog.set_level(logging.DEBUG)
+    caplog.set_level(logging.DEBUG, logger="dataverse_api")
     resp = entity.create(medium_data_package, mode="multiple")
 
-    assert all([x.status_code == 204 for x in resp])
+    assert all(x.status_code == 204 for x in resp)
     assert "using CreateMultiple" in caplog.text
+    assert [(record.name, record.levelno) for record in caplog.records] == [("dataverse_api.entity", logging.DEBUG)]
 
 
 def test_entity_create_multiple_not_supported(
@@ -344,11 +349,66 @@ def test_entity_create_by_batch(
     # Mock request
     mocked_responses.post(url=url, status=204)
 
-    caplog.set_level(logging.DEBUG)
+    caplog.set_level(logging.DEBUG, logger="dataverse_api")
     resp = entity.create(medium_data_package, mode="batch")
 
-    assert all([x.status_code == 204 for x in resp])
+    assert all(x.status_code == 204 for x in resp)
     assert "using batch" in caplog.text
+    assert [(record.name, record.levelno) for record in caplog.records] == [("dataverse_api.entity", logging.DEBUG)]
+
+
+@pytest.mark.parametrize("threading", [False, True], ids=["sequential", "threaded"])
+@pytest.mark.parametrize(
+    ("detect_duplicates", "expected_values"),
+    [
+        pytest.param(False, [], id="duplicate-detection-disabled"),
+        pytest.param(True, ["false"], id="duplicate-detection-enabled"),
+    ],
+)
+def test_entity_create_by_batch_duplicate_detection(
+    entity: DataverseEntity,
+    mocked_responses: responses.RequestsMock,
+    small_data_package: list[dict[str, str]],
+    threading: bool,
+    detect_duplicates: bool,
+    expected_values: list[str],
+):
+    mocked_responses.post(url=f"{entity._endpoint}$batch", status=204)
+
+    result = entity.create(
+        small_data_package,
+        mode="batch",
+        batch_size=2,
+        detect_duplicates=detect_duplicates,
+        threading=threading,
+    )
+
+    assert len(result) == 3
+    header_name = "MSCRM.SuppressDuplicateDetection"
+    batch_lengths = []
+    for response in result:
+        assert response.status_code == 204
+        request = response.request
+        assert header_name not in request.headers
+        assert isinstance(request.body, str)
+        content_type = request.headers["Content-Type"]
+        batch = BytesParser(policy=policy.default).parsebytes(
+            f"Content-Type: {content_type}\r\n\r\n{request.body}".encode()
+        )
+        assert batch.is_multipart()
+        parts = list(batch.iter_parts())
+        batch_lengths.append(len(parts))
+        for part in parts:
+            assert part.get_content_type() == "application/http"
+            assert header_name not in part
+            payload = part.get_payload(decode=True)
+            assert isinstance(payload, bytes)
+            request_line, _, request_content = payload.partition(b"\n")
+            assert request_line.strip() == f"POST {entity._endpoint}{entity.entity_set_name} HTTP/1.1".encode()
+            embedded_request = BytesParser(policy=policy.default).parsebytes(request_content)
+            assert embedded_request.get_all(header_name, []) == expected_values
+
+    assert sorted(batch_lengths) == [1, 2, 2]
 
 
 def test_entity_create_with_args(
@@ -365,14 +425,19 @@ def test_entity_create_with_args(
         mocked_responses.post(url=url, match=[header_matcher(header)], status=200)  # type: ignore
 
     resp = entity.create(data=small_data_package, detect_duplicates=True, return_created=True)
-    assert all([x.status_code == 200 for x in resp])
+    assert all(x.status_code == 200 for x in resp)
 
 
-def test_entity_create_with_pandas_df(
+@pytest.mark.parametrize(
+    "dataframe_type",
+    [pytest.param(pd.DataFrame, id="pandas"), pytest.param(pl.DataFrame, id="polars")],
+)
+def test_entity_create_with_dataframe(
     entity: DataverseEntity,
     mocked_responses: responses.RequestsMock,
+    dataframe_type,
 ):
-    data = pd.DataFrame([("abc"), ("def")], columns=["test"])
+    data = dataframe_type([{"test": "abc"}, {"test": "def"}])
     dict_data = convert_dataframe_to_dict(data)
 
     url = entity._endpoint + entity.entity_set_name
@@ -382,24 +447,8 @@ def test_entity_create_with_pandas_df(
 
     resp = entity.create(data=data)
 
-    assert all([x.status_code == 204 for x in resp])
-
-
-def test_entity_create_with_polars_df(
-    entity: DataverseEntity,
-    mocked_responses: responses.RequestsMock,
-):
-    data = pl.DataFrame([{"test": "abc"}, {"test": "def"}])
-    dict_data = convert_dataframe_to_dict(data)
-
-    url = entity._endpoint + entity.entity_set_name
-
-    for row in dict_data:
-        mocked_responses.post(url=url, status=204, match=[json_params_matcher(row)])
-
-    resp = entity.create(data=data)
-
-    assert all([x.status_code == 204 for x in resp])
+    assert len(resp) == len(dict_data)
+    assert all(x.status_code == 204 for x in resp)
 
 
 def test_entity_create_mode_not_supported(
@@ -415,13 +464,23 @@ entity.delete()
 """
 
 
-def test_entity_delete_singles_all(entity: DataverseEntity, mocked_responses: responses.RequestsMock):
-    # Setup
-    id = entity.primary_id_attr
-    return_payload = [{id: str(i)} for i in range(5)]
-    params = {"$select": entity.primary_id_attr}
+@pytest.mark.parametrize(
+    ("filter_value", "filter_params"),
+    [
+        pytest.param("all", {}, id="all-rows"),
+        pytest.param("foo", {"$filter": "foo"}, id="filtered-rows"),
+    ],
+)
+def test_entity_delete_singles_by_filter(
+    entity: DataverseEntity,
+    mocked_responses: responses.RequestsMock,
+    filter_value: str,
+    filter_params: dict[str, str],
+):
+    primary_id = entity.primary_id_attr
+    return_payload = [{primary_id: str(index)} for index in range(5)]
+    params = {"$select": primary_id, **filter_params}
 
-    # Fetching ids
     mocked_responses.get(
         url=f"{entity._endpoint}{entity.entity_set_name}",
         status=200,
@@ -429,16 +488,16 @@ def test_entity_delete_singles_all(entity: DataverseEntity, mocked_responses: re
         match=[query_param_matcher(params)],
     )
 
-    # Deleting ids
     for row in return_payload:
         mocked_responses.delete(
-            url=f"{entity._endpoint}{entity.entity_set_name}({row[id]})",
+            url=f"{entity._endpoint}{entity.entity_set_name}({row[primary_id]})",
             status=204,
         )
 
-    resp = entity.delete(filter="all")
+    resp = entity.delete(filter=filter_value)
 
-    assert all([x.status_code == 204 for x in resp])
+    assert len(resp) == len(return_payload)
+    assert all(response.status_code == 204 for response in resp)
 
 
 def test_entity_delete_batch_all(entity: DataverseEntity, mocked_responses: responses.RequestsMock):
@@ -479,31 +538,7 @@ def test_entity_delete_singles_ids(entity: DataverseEntity, mocked_responses: re
 
     resp = entity.delete(ids=delete_ids)
 
-    assert all([x.status_code == 204 for x in resp])
-
-
-def test_entity_delete_singles_filter(entity: DataverseEntity, mocked_responses: responses.RequestsMock):
-    # Setup
-    id = entity.primary_id_attr
-    filter_str = "foo"
-    params = {"$filter": filter_str, "$select": entity.primary_id_attr}
-    return_payload = [{id: str(i)} for i in range(5)]
-
-    # Fetching ids
-    mocked_responses.get(
-        url=f"{entity._endpoint}{entity.entity_set_name}",
-        status=200,
-        json={"value": return_payload},
-        match=[query_param_matcher(params)],
-    )
-
-    # Deleting ids
-    for row in return_payload:
-        mocked_responses.delete(url=f"{entity._endpoint}{entity.entity_set_name}({row[id]})", status=204)
-
-    resp = entity.delete(filter=filter_str)
-
-    assert all([x.status_code == 204 for x in resp])
+    assert all(x.status_code == 204 for x in resp)
 
 
 def test_entity_delete_bad_args(entity: DataverseEntity):
@@ -521,14 +556,24 @@ entity.delete_column()
 """
 
 
-def test_entity_delete_column_singles_all(entity: DataverseEntity, mocked_responses: responses.RequestsMock):
-    # Setup
-    id = entity.primary_id_attr
-    return_payload = [{id: str(i)} for i in range(3)]
-    params = {"$select": entity.primary_id_attr}
-    columns = ["Foo", "Bar"]
+@pytest.mark.parametrize(
+    ("filter_value", "filter_params", "columns"),
+    [
+        pytest.param("all", {}, ["Foo", "Bar"], id="all-rows"),
+        pytest.param("foo", {"$filter": "foo"}, ["Foooo", "Baaar"], id="filtered-rows"),
+    ],
+)
+def test_entity_delete_column_singles_by_filter(
+    entity: DataverseEntity,
+    mocked_responses: responses.RequestsMock,
+    filter_value: str,
+    filter_params: dict[str, str],
+    columns: list[str],
+):
+    primary_id = entity.primary_id_attr
+    return_payload = [{primary_id: str(index)} for index in range(3)]
+    params = {"$select": primary_id, **filter_params}
 
-    # Fetching ids
     mocked_responses.get(
         url=f"{entity._endpoint}{entity.entity_set_name}",
         status=200,
@@ -536,14 +581,16 @@ def test_entity_delete_column_singles_all(entity: DataverseEntity, mocked_respon
         match=[query_param_matcher(params)],
     )
 
-    # Deleting ids
     for row in return_payload:
-        for col in columns:
-            mocked_responses.delete(url=f"{entity._endpoint}{entity.entity_set_name}({row[id]})/{col}", status=204)
+        for column in columns:
+            mocked_responses.delete(
+                url=f"{entity._endpoint}{entity.entity_set_name}({row[primary_id]})/{column}", status=204
+            )
 
-    resp = entity.delete_columns(columns=columns, filter="all")
+    resp = entity.delete_columns(columns=columns, filter=filter_value)
 
-    assert all([x.status_code == 204 for x in resp])
+    assert len(resp) == len(return_payload) * len(columns)
+    assert all(response.status_code == 204 for response in resp)
 
 
 def test_entity_delete_column_batch_all(entity: DataverseEntity, mocked_responses: responses.RequestsMock):
@@ -586,33 +633,7 @@ def test_entity_delete_column_singles_ids(entity: DataverseEntity, mocked_respon
 
     resp = entity.delete_columns(columns=columns, ids=delete_ids)
 
-    assert all([x.status_code == 204 for x in resp])
-
-
-def test_entity_delete_column_singles_filter(entity: DataverseEntity, mocked_responses: responses.RequestsMock):
-    # Setup
-    id = entity.primary_id_attr
-    filter_str = "foo"
-    params = {"$filter": filter_str, "$select": entity.primary_id_attr}
-    return_payload = [{id: str(i)} for i in range(3)]
-    columns = ["Foooo", "Baaar"]
-
-    # Fetching ids
-    mocked_responses.get(
-        url=f"{entity._endpoint}{entity.entity_set_name}",
-        status=200,
-        json={"value": return_payload},
-        match=[query_param_matcher(params)],
-    )
-
-    # Deleting ids
-    for row in return_payload:
-        for col in columns:
-            mocked_responses.delete(url=f"{entity._endpoint}{entity.entity_set_name}({row[id]})/{col}", status=204)
-
-    resp = entity.delete_columns(columns=columns, filter=filter_str)
-
-    assert all([x.status_code == 204 for x in resp])
+    assert all(x.status_code == 204 for x in resp)
 
 
 def test_entity_delete_column_bad_args(entity: DataverseEntity):
@@ -630,10 +651,22 @@ entity.upsert()
 """
 
 
+@pytest.mark.parametrize("threading", [False, True], ids=["sequential", "threaded"])
+@pytest.mark.parametrize(
+    ("kwargs", "expected_header"),
+    [
+        pytest.param({}, None, id="default"),
+        pytest.param({"restrict_create": False}, None, id="allow-create"),
+        pytest.param({"restrict_create": True}, "*", id="update-only"),
+    ],
+)
 def test_entity_upsert_individual_primaryid(
     entity: DataverseEntity,
     primary_id: str,
     mocked_responses: responses.RequestsMock,
+    threading: bool,
+    kwargs: dict[str, bool],
+    expected_header: str | None,
 ):
     # Setup
     data = [{primary_id: str(uuid4()), "test_val": random.randint(1, 10)} for _ in range(4)]
@@ -648,30 +681,140 @@ def test_entity_upsert_individual_primaryid(
             status=204,
         )
 
-    resp = entity.upsert(data, mode="individual")
+    resp = entity.upsert(data, mode="individual", threading=threading, **kwargs)
 
-    for row in resp:
-        assert row.status_code == 204
+    assert len(resp) == len(data)
+    for response in resp:
+        assert response.status_code == 204
+        assert response.request.headers.get("If-Match") == expected_header
 
 
+@pytest.mark.parametrize("threading", [False, True], ids=["sequential", "threaded"])
+@pytest.mark.parametrize(
+    ("kwargs", "expected_values"),
+    [
+        pytest.param({}, [], id="default"),
+        pytest.param({"restrict_create": False}, [], id="allow-create"),
+        pytest.param({"restrict_create": True}, ["*"], id="update-only"),
+    ],
+)
 def test_entity_upsert_batch_primaryid(
     entity: DataverseEntity,
     primary_id: str,
     mocked_responses: responses.RequestsMock,
+    threading: bool,
+    kwargs: dict[str, bool],
+    expected_values: list[str],
 ):
-    # Setup
-    data = [{primary_id: str(uuid4()), "test_val": random.randint(1, 10)} for _ in range(4)]
+    data = [{primary_id: str(uuid4()), "test_val": index} for index in range(5)]
+    expected_payloads = {
+        f"PATCH {entity._endpoint}{entity.entity_set_name}({row[primary_id]}) HTTP/1.1".encode(): serialize_json(
+            {"test_val": row["test_val"]}
+        ).encode()
+        for row in data
+    }
 
-    mocked_responses.post(url=f"{entity._endpoint}$batch")
+    mocked_responses.post(url=f"{entity._endpoint}$batch", status=200)
 
-    resp = entity.upsert(data=data, mode="batch")
+    resp = entity.upsert(data=data, mode="batch", batch_size=2, threading=threading, **kwargs)
 
-    assert isinstance(resp[0].request.body, str)  # type checking
-    elements = resp[0].request.body.split("--batch")[1:-1]
+    assert len(resp) == 3
+    batch_lengths = []
+    for response in resp:
+        assert response.status_code == 200
+        request = response.request
+        assert "If-Match" not in request.headers
+        assert isinstance(request.body, str)
+        content_type = request.headers["Content-Type"]
+        batch = BytesParser(policy=policy.default).parsebytes(
+            f"Content-Type: {content_type}\r\n\r\n{request.body}".encode()
+        )
+        assert batch.is_multipart()
+        parts = list(batch.iter_parts())
+        batch_lengths.append(len(parts))
+        for part in parts:
+            assert part.get_content_type() == "application/http"
+            assert "If-Match" not in part
+            payload = part.get_payload(decode=True)
+            assert isinstance(payload, bytes)
+            request_line, _, request_content = payload.partition(b"\n")
+            expected_payload = expected_payloads.pop(request_line.strip())
+            embedded_request = BytesParser(policy=policy.default).parsebytes(request_content)
+            assert embedded_request.get_all("If-Match", []) == expected_values
+            body = embedded_request.get_payload(decode=True)
+            assert isinstance(body, bytes)
+            assert body.strip() == expected_payload
 
-    for out, expected in zip(elements, data):
-        assert f"{entity.entity_set_name}({expected.pop(primary_id)})" in out
-        assert serialize_json(expected) in out
+    assert sorted(batch_lengths) == [1, 2, 2]
+    assert not expected_payloads
+
+
+@pytest.mark.parametrize("threading", [False, True], ids=["sequential", "threaded"])
+def test_entity_upsert_batch_restrict_create_partial_failure(
+    entity: DataverseEntity,
+    primary_id: str,
+    mocked_responses: responses.RequestsMock,
+    caplog: pytest.LogCaptureFixture,
+    threading: bool,
+):
+    data = [{primary_id: str(uuid4()), "test_val": index} for index in range(3)]
+    boundary = "batchresponse_test"
+    error = serialize_json(
+        {"error": {"code": "0x80060891", "message": "A record with the specified key values does not exist"}}
+    )
+    operation_responses = [
+        "HTTP/1.1 204 No Content\r\n\r\n",
+        f"HTTP/1.1 404 Not Found\r\nContent-Type: application/json\r\n\r\n{error}\r\n",
+        "HTTP/1.1 204 No Content\r\n\r\n",
+    ]
+    response_body = (
+        "".join(
+            f"--{boundary}\r\nContent-Type: application/http\r\nContent-Transfer-Encoding: binary\r\n\r\n{operation}"
+            for operation in operation_responses
+        )
+        + f"--{boundary}--\r\n"
+    )
+    mocked_responses.post(
+        url=f"{entity._endpoint}$batch",
+        status=200,
+        content_type=f"multipart/mixed; boundary={boundary}",
+        body=response_body,
+        match=[header_matcher({"Prefer": "odata.continue-on-error"})],
+    )
+
+    with caplog.at_level(logging.INFO, logger="dataverse_api"):
+        result = entity.upsert(data, mode="batch", restrict_create=True, threading=threading)
+
+    assert len(result) == 1
+    assert result[0].status_code == 200
+    assert result[0].text == response_body
+    assert [(record.name, record.levelno, record.getMessage()) for record in caplog.records] == [
+        ("dataverse_api.utils.data", logging.WARNING, "Batch operation had 1 failures out of 3 total operations.")
+    ]
+
+    request = result[0].request
+    assert "If-Match" not in request.headers
+    assert isinstance(request.body, str)
+    content_type = request.headers["Content-Type"]
+    batch = BytesParser(policy=policy.default).parsebytes(
+        f"Content-Type: {content_type}\r\n\r\n{request.body}".encode()
+    )
+    assert batch.is_multipart()
+    parts = list(batch.iter_parts())
+    assert len(parts) == len(data)
+    for part, row in zip(parts, data, strict=True):
+        assert part.get_content_type() == "application/http"
+        assert "If-Match" not in part
+        assert "Prefer" not in part
+        payload = part.get_payload(decode=True)
+        assert isinstance(payload, bytes)
+        request_line, _, request_content = payload.partition(b"\n")
+        assert request_line.rstrip(b"\r") == (
+            f"PATCH {entity._endpoint}{entity.entity_set_name}({row[primary_id]}) HTTP/1.1".encode()
+        )
+        embedded_request = BytesParser(policy=policy.default).parsebytes(request_content)
+        assert embedded_request.get_all("If-Match", []) == ["*"]
+        assert "Prefer" not in embedded_request
 
 
 def test_entity_upsert_batch_altkey(
@@ -716,50 +859,33 @@ def test_entity_upsert_bad_altkey(entity: DataverseEntity):
         entity.upsert([{"data": 1}], altkey_name="foo")
 
 
-def test_entity_upsert_pandas_dataframe(
-    entity: DataverseEntity, mocked_responses: responses.RequestsMock, primary_id: str
+@pytest.mark.parametrize(
+    "dataframe_type",
+    [pytest.param(pd.DataFrame, id="pandas"), pytest.param(pl.DataFrame, id="polars")],
+)
+def test_entity_upsert_dataframe(
+    entity: DataverseEntity,
+    mocked_responses: responses.RequestsMock,
+    primary_id: str,
+    dataframe_type,
 ):
-    # Setup
-    df = pd.DataFrame([{primary_id: str(uuid4()), "data": i} for i in range(3)])
-    data = convert_dataframe_to_dict(df)
+    dataframe = dataframe_type([{primary_id: str(uuid4()), "data": index} for index in range(3)])
+    data = convert_dataframe_to_dict(dataframe)
 
     for row in data:
-        id = row[primary_id]
-        payload = {k: v for k, v in row.items() if k != primary_id}
+        record_id = row[primary_id]
+        payload = {key: value for key, value in row.items() if key != primary_id}
 
         mocked_responses.patch(
-            url=f"{entity._endpoint}{entity.entity_set_name}({id})",
+            url=f"{entity._endpoint}{entity.entity_set_name}({record_id})",
             match=[json_params_matcher(payload)],
             status=204,
         )
 
-    resp = entity.upsert(df, mode="individual")
+    resp = entity.upsert(dataframe, mode="individual")
 
-    for row in resp:
-        assert row.status_code == 204
-
-
-def test_entity_upsert_polars_dataframe(
-    entity: DataverseEntity, mocked_responses: responses.RequestsMock, primary_id: str
-):
-    # Setup
-    df = pl.DataFrame([{primary_id: str(uuid4()), "data": i} for i in range(3)])
-    data = convert_dataframe_to_dict(df)
-
-    for row in data:
-        id = row[primary_id]
-        payload = {k: v for k, v in row.items() if k != primary_id}
-
-        mocked_responses.patch(
-            url=f"{entity._endpoint}{entity.entity_set_name}({id})",
-            match=[json_params_matcher(payload)],
-            status=204,
-        )
-
-    resp = entity.upsert(df, mode="individual")
-
-    for row in resp:
-        assert row.status_code == 204
+    assert len(resp) == len(data)
+    assert all(response.status_code == 204 for response in resp)
 
 
 def test_entity_upsert_dataframe_with_none(

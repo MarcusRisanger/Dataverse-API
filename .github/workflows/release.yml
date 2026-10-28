@@ -9,16 +9,16 @@ jobs:
     permissions:
       id-token: write
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7.0.1
     - name: Set up Python
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v7.1.0
       with:
         python-version: '3.11'
 
     - name: Install uv
-      uses: astral-sh/setup-uv@v5
+      uses: astral-sh/setup-uv@v10.3.3
       with:
-        version: "0.6.16"
+        version: "0.13.6"
 
     - name: Install project with uv
       run: uv sync --locked --all-extras --dev
@@ -27,4 +27,4 @@ jobs:
       run: uv build --no-sources
 
     - name: Publish
-      uses: pypa/gh-action-pypi-publish@release/v1
+      uses: pypa/gh-action-pypi-publish@v1.14.3
